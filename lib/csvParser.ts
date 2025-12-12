@@ -71,6 +71,54 @@ const parseAmount = (val: any): number => {
     return parseFloat(cleanStr);
 };
 
+// Auto-detect columns based on heuristics
+export const autoDetectMapping = (headers: string[], delimiter: string): CsvMapping => {
+    const lowerHeaders = headers.map(h => h.toLowerCase().trim());
+    
+    const findCol = (keywords: string[], excludeCols: string[] = []) => {
+        // 1. Try exact match
+        for (const k of keywords) {
+            const idx = lowerHeaders.indexOf(k);
+            if (idx !== -1 && !excludeCols.includes(headers[idx])) return headers[idx];
+        }
+        // 2. Try partial match
+        for (const k of keywords) {
+            const idx = lowerHeaders.findIndex(h => h.includes(k));
+            if (idx !== -1 && !excludeCols.includes(headers[idx])) return headers[idx];
+        }
+        return '';
+    };
+
+    // Date Keywords
+    const dateCol = findCol(['date', 'time', 'posted', 'processed', 'booking']);
+    
+    // Amount Keywords
+    const amountCol = findCol(['amount', 'amt', 'value', 'debit', 'cost', 'sum', 'total']);
+
+    // Description Keywords (Prioritized List)
+    // "label" and "motif" added as requested
+    const descKeywords = [
+        'description', 'desc', 'memo', 'narrative', 
+        'payee', 'merchant', 'label', 'motif', 
+        'libelle', 'details', 'activity', 'transaction'
+    ];
+    
+    // Ensure we don't pick the Date or Amount column as Description
+    const descCol = findCol(descKeywords, [dateCol, amountCol]) || headers[1] || '';
+
+    // Category Keywords
+    const categoryCol = findCol(['category', 'type', 'class', 'classification'], [dateCol, amountCol, descCol]);
+
+    return {
+        dateCol: dateCol || headers[0] || '',
+        descCol: descCol,
+        amountCol: amountCol || headers[2] || '',
+        categoryCol: categoryCol,
+        hasHeader: true,
+        delimiter
+    };
+};
+
 // 1. Get headers with robust delimiter detection
 export const getCSVHeaders = (file: File): Promise<{ headers: string[], delimiter: string }> => {
   return new Promise(async (resolve, reject) => {

@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState } from 'react';
 import { useTransactionStore } from '../stores/useTransactionStore';
 import { useSettingsStore, getDecryptedApiKey } from '../stores/useSettingsStore';
@@ -5,12 +6,20 @@ import { TransactionTable } from '../components/TransactionTable';
 import { InsightsDashboard } from '../components/InsightsDashboard';
 import { categorizeWithAI } from '../services/aiService';
 import { Button, Card, CardContent } from '../components/UI';
-import { Zap, AlertOctagon, Loader2, Settings, Calendar } from 'lucide-react';
+import { Zap, AlertOctagon, Loader2, Settings, Calendar, RefreshCw, X, Activity, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { TransactionCategory } from '../types';
 import { cn } from '../lib/utils';
 
 interface DashboardProps {
     onNavigate: (view: 'settings' | 'upload' | 'dashboard') => void;
+}
+
+interface AnalysisStats {
+    total: number;
+    highConfidence: number;
+    mediumConfidence: number;
+    lowConfidence: number;
+    duration: number;
 }
 
 type TimeRange = 'week' | 'month' | 'all';
@@ -31,6 +40,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
     // Time Filter State
     const [timeRange, setTimeRange] = useState<TimeRange>('all');
+    const [analysisStats, setAnalysisStats] = useState<AnalysisStats | null>(null);
 
     // Check if AI is configured
     const isAIConfigured = useMemo(() => {
@@ -89,7 +99,58 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         return `${format(min)} - ${format(max)}`;
     }, [displayedTransactions]);
 
-    const handleCategorize = async () => {
+    const performAIAnalysis = async (transactionsToProcess: any[]) => {
+         setCategorizing(true);
+         setAnalysisStats(null);
+         setProgressCounts(0, transactionsToProcess.length);
+         const startTime = Date.now();
+         
+         try {
+             await categorizeWithAI(transactionsToProcess, aiMode, (results) => {
+                 const updates = results.map(res => {
+                     const original = transactions.find(t => t.id === res.id);
+                     if (!original) return null;
+                     return { 
+                         ...original, 
+                         category: res.category,
+                         subCategory: res.subCategory, // Ensure subCategory is passed
+                         confidence: res.confidence, 
+                         reason: res.reason 
+                     };
+                 }).filter(Boolean) as any[];
+ 
+                 updateTransactionBatch(updates);
+                 const currentProcessed = useTransactionStore.getState().processedCount;
+                 setProgressCounts(currentProcessed + results.length, transactionsToProcess.length);
+             });
+
+             // Calculate stats after completion
+             const duration = (Date.now() - startTime) / 1000;
+             const currentTransactions = useTransactionStore.getState().transactions;
+             const processedIds = new Set(transactionsToProcess.map(t => t.id));
+             
+             // Get the updated versions of the processed transactions
+             const processed = currentTransactions.filter(t => processedIds.has(t.id));
+             
+             if (processed.length > 0) {
+                 setAnalysisStats({
+                     total: processed.length,
+                     highConfidence: processed.filter(t => t.confidence >= 0.8).length,
+                     mediumConfidence: processed.filter(t => t.confidence >= 0.5 && t.confidence < 0.8).length,
+                     lowConfidence: processed.filter(t => t.confidence < 0.5).length,
+                     duration
+                 });
+             }
+             
+         } catch (e: any) {
+             setError(e.message);
+         } finally {
+             setCategorizing(false);
+             setProgressCounts(0, 0);
+         }
+    };
+
+    const handleInitialCategorize = async () => {
         if (!isAIConfigured) {
             onNavigate('settings');
             return;
@@ -97,34 +158,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
         const toProcess = transactions.filter(t => t.category === TransactionCategory.Uncategorized);
         if (toProcess.length === 0) return;
-
-        setCategorizing(true);
-        setProgressCounts(0, toProcess.length);
         
-        try {
-            await categorizeWithAI(transactions, aiMode, (results) => {
-                const updates = results.map(res => {
-                    const original = transactions.find(t => t.id === res.id);
-                    if (!original) return null;
-                    return { 
-                        ...original, 
-                        category: res.category, 
-                        confidence: res.confidence, 
-                        reason: res.reason 
-                    };
-                }).filter(Boolean) as any[];
+        await performAIAnalysis(toProcess);
+    };
 
-                updateTransactionBatch(updates);
-                const currentProcessed = useTransactionStore.getState().processedCount;
-                setProgressCounts(currentProcessed + results.length, toProcess.length);
-            });
-            
-        } catch (e: any) {
-            setError(e.message);
-        } finally {
-            setCategorizing(false);
-            setProgressCounts(0, 0);
+    const handleReanalyzeAll = async () => {
+        if (!isAIConfigured) {
+            onNavigate('settings');
+            return;
         }
+        
+        // Re-analyze everything that is NOT explicitly approved
+        const toProcess = transactions.filter(t => !t.isApproved);
+        if (toProcess.length === 0) {
+            return;
+        }
+
+        await performAIAnalysis(toProcess);
     };
 
     const uncategorizedCount = transactions.filter(t => t.category === TransactionCategory.Uncategorized).length;
@@ -177,31 +227,106 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                         </CardContent>
                     </Card>
                 ) : (
-                    uncategorizedCount > 0 && (
-                        <div className="flex flex-col items-end gap-2">
-                            <Button 
-                                onClick={handleCategorize} 
-                                size="lg" 
-                                className="shadow-lg shadow-accent/20 animate-in fade-in"
-                                variant={isAIConfigured ? 'primary' : 'secondary'}
-                            >
-                                <Zap className="w-4 h-4 mr-2 fill-current" />
-                                Analyze automatically with AI
-                            </Button>
+                    <div className="flex flex-col items-end gap-1.5">
+                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                            {/* Analyze / Re-analyze Logic: Mutually Exclusive */}
+                            {uncategorizedCount > 0 ? (
+                                <Button 
+                                    onClick={handleInitialCategorize} 
+                                    size="lg" 
+                                    className="shadow-lg shadow-accent/20"
+                                    variant={isAIConfigured ? 'primary' : 'secondary'}
+                                >
+                                    <Zap className="w-4 h-4 mr-2 fill-current" />
+                                    Analyze {uncategorizedCount} New
+                                </Button>
+                            ) : transactions.some(t => !t.isApproved) ? (
+                                <Button
+                                    onClick={handleReanalyzeAll}
+                                    size="lg"
+                                    variant="outline"
+                                    className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                                    title="Re-analyze all unapproved transactions"
+                                >
+                                    <RefreshCw className="w-4 h-4 mr-2" />
+                                    Re-analyze
+                                </Button>
+                            ) : null}
                             
                             {!isAIConfigured && (
-                                <button 
+                                <Button 
                                     onClick={() => onNavigate('settings')}
-                                    className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1 font-medium transition-colors"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-500 hover:text-red-600 hover:bg-red-50 border border-red-100"
                                 >
-                                    <Settings className="w-3 h-3" />
-                                    AI not configured. Click to setup.
-                                </button>
+                                    <Settings className="w-4 h-4 mr-2" />
+                                    Config AI
+                                </Button>
                             )}
                         </div>
-                    )
+                        
+                        {!isAIConfigured && (
+                            <span className="text-[10px] text-gray-400 font-medium bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                                Configure AI to enable automatic categorization & analysis
+                            </span>
+                        )}
+                    </div>
                 )}
             </div>
+
+            {/* Analysis Stats Summary */}
+            {analysisStats && (
+                <div className="bg-white border border-green-200 rounded-xl p-4 shadow-sm relative animate-in fade-in slide-in-from-top-4">
+                    <button 
+                        onClick={() => setAnalysisStats(null)}
+                        className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                    
+                    <div className="flex items-center gap-2 mb-4">
+                        <div className="p-2 bg-green-100 rounded-full">
+                            <Activity className="w-4 h-4 text-green-600" />
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-gray-900">Analysis Complete</h3>
+                            <p className="text-xs text-gray-500">
+                                Processed {analysisStats.total} transactions in {analysisStats.duration.toFixed(1)}s
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="bg-green-50 rounded-lg p-3 border border-green-100">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                                <div className="text-xs text-green-700 font-medium uppercase tracking-wide">High Confidence</div>
+                            </div>
+                            <div className="text-2xl font-bold text-green-700">{analysisStats.highConfidence}</div>
+                            <div className="text-[10px] text-green-600/70">Matching known patterns or clear AI matches</div>
+                        </div>
+                        
+                        <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-100">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <Activity className="w-3.5 h-3.5 text-yellow-600" />
+                                <div className="text-xs text-yellow-700 font-medium uppercase tracking-wide">Medium Confidence</div>
+                            </div>
+                            <div className="text-2xl font-bold text-yellow-700">{analysisStats.mediumConfidence}</div>
+                            <div className="text-[10px] text-yellow-600/70">Likely correct, but worth a quick look</div>
+                        </div>
+
+                        <div className="bg-red-50 rounded-lg p-3 border border-red-100">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
+                                <div className="text-xs text-red-700 font-medium uppercase tracking-wide">Low Confidence</div>
+                            </div>
+                            <div className="text-2xl font-bold text-red-700">{analysisStats.lowConfidence}</div>
+                            <div className="text-[10px] text-red-600/70">Requires manual review</div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Time Filter Controls */}
             <div className="flex flex-col sm:flex-row justify-between items-end sm:items-center gap-4">

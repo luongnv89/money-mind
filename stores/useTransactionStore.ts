@@ -1,4 +1,3 @@
-
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Transaction, TransactionCategory } from '../types';
@@ -22,6 +21,8 @@ interface TransactionState {
   
   updateCategory: (id: string, category: TransactionCategory, subCategory?: string) => void;
   bulkUpdateCategory: (ids: string[], category: TransactionCategory, subCategory?: string) => void;
+  approveTransaction: (id: string) => void; // New action
+  
   setParsing: (status: boolean) => void;
   setCategorizing: (status: boolean) => void;
   setProgressCounts: (processed: number, total: number) => void;
@@ -68,7 +69,8 @@ export const useTransactionStore = create<TransactionState>()(
             ...tx, 
             category, 
             subCategory,
-            isLearned: true, 
+            isLearned: true,
+            isApproved: true, // Manual update automatically approves
             confidence: 1.0, 
             reason: 'Manual correction' 
         };
@@ -87,6 +89,7 @@ export const useTransactionStore = create<TransactionState>()(
                 category, 
                 subCategory,
                 isLearned: true, 
+                isApproved: true, // Bulk update automatically approves
                 confidence: 1.0, 
                 reason: 'Bulk correction' 
             };
@@ -96,15 +99,30 @@ export const useTransactionStore = create<TransactionState>()(
         set({ transactions: newTransactions });
       },
 
+      approveTransaction: (id: string) => {
+        const { transactions } = get();
+        const tx = transactions.find(t => t.id === id);
+        
+        if (tx) {
+            // Approving means the current category is correct, so we learn it
+            learnPattern(tx, tx.category, tx.subCategory);
+        }
+
+        set((state) => ({
+            transactions: state.transactions.map(t => 
+                t.id === id ? { ...t, isApproved: true, isLearned: true, confidence: 1.0 } : t
+            )
+        }));
+      },
+
       setParsing: (status) => set({ isParsing: status }),
       setCategorizing: (status) => set({ isCategorizing: status }),
       setProgressCounts: (processed, total) => set({ processedCount: processed, totalToProcess: total }),
       setError: (error) => set({ error }),
       
       clearAll: () => {
-        if(confirm('Are you sure you want to clear all data? This does not delete learned patterns.')) {
-            set({ transactions: [], error: null, processedCount: 0, totalToProcess: 0 });
-        }
+        // Removed confirm()
+        set({ transactions: [], error: null, processedCount: 0, totalToProcess: 0 });
       }
     }),
     {

@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
+import { CATEGORY_HIERARCHY } from '../constants'; // Assumes access to constants in the build environment
 
 // NOTE: This file represents the server-side logic (e.g. Vercel Function).
 // In a purely client-side demo without a backend, this code would expose keys if run in browser.
@@ -21,15 +22,16 @@ export async function POST(request: Request) {
         amt: t.amount,
         date: t.date,
         cat: t.originalCategory
-    })).slice(0, 100); // Limit for demo
+    })).slice(0, 50); // Reduced limit
 
     const prompt = `
-        Categorize these financial transactions.
-        Main Categories: Income, Internal Transfer, Must-have, Nice-to-have, Waste, Save, Invest.
-        Subcategories provided via schema.
-        Use 'cat' (original bank category) as context.
-        
-        Return JSON array: [{ id, category, subCategory, confidence, reason }]
+        Categorize these financial transactions based on the following hierarchy:
+        ${JSON.stringify(CATEGORY_HIERARCHY)}
+
+        Instructions:
+        1. Assign the best Category and Subcategory.
+        2. Use 'cat' (original bank category) as context.
+        3. Return JSON array matching the schema.
     `;
 
     try {
@@ -46,11 +48,13 @@ export async function POST(request: Request) {
                         type: Type.OBJECT,
                         properties: {
                             id: { type: Type.STRING },
-                            category: { type: Type.STRING, enum: ["Income", "Internal Transfer", "Must-have", "Nice-to-have", "Waste", "Save", "Invest"] },
+                            // Removed strict enum to prevent 500 errors on minor model hallucinations
+                            category: { type: Type.STRING }, 
                             subCategory: { type: Type.STRING },
                             confidence: { type: Type.NUMBER },
                             reason: { type: Type.STRING }
-                        }
+                        },
+                        required: ["id", "category", "confidence", "reason"]
                     }
                 }
             }

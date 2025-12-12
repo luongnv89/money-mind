@@ -1,7 +1,8 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 import { Upload, FileText, AlertCircle, ArrowRight, Check, AlertTriangle, X, ArrowLeft, Trash2, PlusCircle, ChevronLeft, ChevronRight, RefreshCw, Copy, Database, Info, ExternalLink, Hash } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge } from './UI';
-import { getCSVHeaders, detectBankFormat, parseCSVWithMapping, getPreviewTransactions } from '../lib/csvParser';
+import { getCSVHeaders, detectBankFormat, parseCSVWithMapping, getPreviewTransactions, autoDetectMapping } from '../lib/csvParser';
 import { useTransactionStore } from '../stores/useTransactionStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { applyPatterns } from '../lib/localStorage';
@@ -174,8 +175,8 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
         const { headers: extractedHeaders, delimiter } = await getCSVHeaders(selectedFile);
         setHeaders(extractedHeaders);
 
+        // 1. Try Strict Bank Format
         const detected = detectBankFormat(extractedHeaders);
-        
         if (detected) {
             const completeMapping: CsvMapping = {
                 ...detected,
@@ -188,18 +189,30 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
             };
             setMapping(completeMapping);
             await processFile(selectedFile, completeMapping);
+            return;
+        } 
+        
+        // 2. Try Smart Auto-Detection
+        const autoMapping = autoDetectMapping(extractedHeaders, delimiter);
+        
+        // If we found at least a Date and Amount, we can try to proceed or just pre-fill the mapping screen
+        if (autoMapping.dateCol && autoMapping.amountCol) {
+             setMapping(autoMapping);
         } else {
-            const looseMatch = (term: string) => extractedHeaders.find(h => h.toLowerCase().includes(term));
-            setMapping({
-                dateCol: looseMatch('date') || extractedHeaders[0] || '',
-                descCol: looseMatch('desc') || looseMatch('memo') || extractedHeaders[1] || '',
-                amountCol: looseMatch('amount') || looseMatch('amt') || extractedHeaders[2] || '',
-                categoryCol: looseMatch('category') || looseMatch('type') || '',
+             // Fallback default
+             setMapping({
+                dateCol: extractedHeaders[0] || '',
+                descCol: extractedHeaders[1] || '',
+                amountCol: extractedHeaders[2] || '',
+                categoryCol: '',
                 hasHeader: true,
                 delimiter: delimiter
-            });
-            setState('mapping');
+             });
         }
+        
+        // Go to mapping screen for user verification
+        setState('mapping');
+
     } catch (e: any) {
         setError("Failed to read CSV. Check file format.");
         console.error(e);

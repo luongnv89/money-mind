@@ -21,6 +21,7 @@ export interface Transaction {
   confidence: number;
   reason?: string;
   isLearned?: boolean;
+  isApproved?: boolean; // User has verified this transaction
   raw?: Record<string, any>;
   index?: number; // Original CSV row number
 }
@@ -35,9 +36,14 @@ export interface LocalPattern {
   timesApplied: number;
 }
 
-export type AIMode = 'cloud' | 'local';
+export type AIMode = 'cloud' | 'local' | 'groq';
 
 export interface GeminiConfig {
+  apiKey: string; // Stored obfuscated
+  model: string;
+}
+
+export interface GroqConfig {
   apiKey: string; // Stored obfuscated
   model: string;
 }
@@ -52,6 +58,7 @@ export interface AppSettings {
   aiMode: AIMode;
   applyPatterns: boolean;
   geminiConfig: GeminiConfig;
+  groqConfig: GroqConfig;
   ollamaConfig: OllamaConfig;
 }
 

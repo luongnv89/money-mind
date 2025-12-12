@@ -1,11 +1,13 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppSettings, AIMode, GeminiConfig, OllamaConfig } from '../types';
+import { AppSettings, AIMode, GeminiConfig, OllamaConfig, GroqConfig } from '../types';
 
 interface SettingsState extends AppSettings {
   setAiMode: (mode: AIMode) => void;
   toggleApplyPatterns: () => void;
   setGeminiConfig: (config: Partial<GeminiConfig>) => void;
+  setGroqConfig: (config: Partial<GroqConfig>) => void;
   setOllamaConfig: (config: Partial<OllamaConfig>) => void;
   resetSettings: () => void;
 }
@@ -28,6 +30,11 @@ export const useSettingsStore = create<SettingsState>()(
         apiKey: '',
         model: 'models/gemini-flash-latest'
       },
+
+      groqConfig: {
+        apiKey: '',
+        model: 'llama-3.1-8b-instant'
+      },
       
       ollamaConfig: {
         baseUrl: 'http://localhost',
@@ -40,12 +47,18 @@ export const useSettingsStore = create<SettingsState>()(
       
       setGeminiConfig: (config) => set((state) => {
           const newConfig = { ...state.geminiConfig, ...config };
-          // If a new key is provided, encrypt it. If it's the same (or coming from UI as masked), handle carefully.
-          // For simplicity in this demo store, we assume the UI passes the raw key and we save it encrypted.
           if (config.apiKey) {
               newConfig.apiKey = encrypt(config.apiKey);
           }
           return { geminiConfig: newConfig };
+      }),
+
+      setGroqConfig: (config) => set((state) => {
+        const newConfig = { ...state.groqConfig, ...config };
+        if (config.apiKey) {
+            newConfig.apiKey = encrypt(config.apiKey);
+        }
+        return { groqConfig: newConfig };
       }),
 
       setOllamaConfig: (config) => set((state) => ({ 
@@ -56,6 +69,7 @@ export const useSettingsStore = create<SettingsState>()(
           aiMode: 'cloud', 
           applyPatterns: true,
           geminiConfig: { apiKey: '', model: 'models/gemini-flash-latest' },
+          groqConfig: { apiKey: '', model: 'llama-3.1-8b-instant' },
           ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: 'llama3.2' }
       }),
     }),
@@ -65,7 +79,11 @@ export const useSettingsStore = create<SettingsState>()(
   )
 );
 
-// Helper to get usable key
+// Helper to get usable key based on active mode
 export const getDecryptedApiKey = (storeState: SettingsState) => {
+    if (storeState.aiMode === 'groq') {
+        return decrypt(storeState.groqConfig.apiKey);
+    }
+    // Default to gemini for cloud mode
     return decrypt(storeState.geminiConfig.apiKey);
 };

@@ -1,7 +1,6 @@
-
 import { Transaction, AIMode, TransactionCategory, AppSettings } from '../types';
 import { useSettingsStore, getDecryptedApiKey } from '../stores/useSettingsStore';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { CATEGORY_HIERARCHY } from '../constants';
 
 interface CategorizationResult {
@@ -16,8 +15,9 @@ interface CategorizationResult {
 
 export const testAiConnection = async (): Promise<boolean> => {
     const settings = useSettingsStore.getState();
+    const mode = settings.aiMode;
     
-    if (settings.aiMode === 'cloud') {
+    if (mode === 'cloud') {
         const apiKey = getDecryptedApiKey(settings);
         if (!apiKey) throw new Error("Missing API Key");
         
@@ -31,9 +31,37 @@ export const testAiConnection = async (): Promise<boolean> => {
         } catch (e: any) {
             throw new Error(`Gemini Error: ${e.message}`);
         }
+    } else if (mode === 'groq') {
+        const apiKey = getDecryptedApiKey(settings);
+        if (!apiKey) throw new Error("Missing Groq API Key");
+        
+        try {
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: settings.groqConfig.model,
+                    messages: [{ role: 'user', content: "Reply with JSON: { \"status\": \"OK\" }" }],
+                    response_format: { type: "json_object" }
+                })
+            });
+            
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error?.message || 'Groq connection failed');
+            }
+            return true;
+        } catch (e: any) {
+            throw new Error(`Groq Error: ${e.message}`);
+        }
     } else {
         const { baseUrl, port, model } = settings.ollamaConfig;
-        const url = `${baseUrl}:${port}/api/generate`;
+        // Ensure protocol is present
+        const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;
+        const url = `${safeBaseUrl}:${port}/api/generate`;
         
         try {
             const response = await fetch(url, {
@@ -48,6 +76,16 @@ export const testAiConnection = async (): Promise<boolean> => {
             if (!response.ok) throw new Error("Ollama connection refused");
             return true;
         } catch (e: any) {
+            // Specific handling for CORS/Network errors typical with local LLMs in browser
+            if (e.message === 'Failed to fetch' || e.name === 'TypeError') {
+                 throw new Error(
+                    "Connection Failed. \n\n" +
+                    "1. QUIT the Ollama app from your taskbar/menu bar.\n" +
+                    "2. Run this command in your terminal:\n\n" +
+                    "   Mac/Linux:\n   OLLAMA_ORIGINS=\"*\" ollama serve\n\n" +
+                    "   Windows (PowerShell):\n   $env:OLLAMA_ORIGINS=\"*\"; ollama serve"
+                 );
+            }
             throw new Error(`Local AI Error: ${e.message}. Is Ollama running?`);
         }
     }
@@ -61,12 +99,14 @@ export const categorizeWithAI = async (
   onChunkProcessed?: (results: CategorizationResult[]) => void
 ): Promise<void> => {
   
-  // Filter out already categorized/learned transactions to save tokens/time
-  const toProcess = transactions.filter(t => t.category === TransactionCategory.Uncategorized);
+  // We process whatever is passed in. The caller is responsible for filtering (e.g. only Uncategorized, or Unapproved).
+  const toProcess = transactions;
   if (toProcess.length === 0) return;
 
   if (mode === 'cloud') {
     await categorizeWithGemini(toProcess, onChunkProcessed);
+  } else if (mode === 'groq') {
+    await categorizeWithGroq(toProcess, onChunkProcessed);
   } else {
     await categorizeWithOllama(toProcess, onChunkProcessed);
   }
@@ -88,40 +128,48 @@ const categorizeWithGemini = async (
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // Process in batches of 10 to allow UI updates while being rate-limit friendly
-    const BATCH_SIZE = 10;
+    // OPTIMIZATION: High batch size, low frequency.
+    const BATCH_SIZE = 25; 
     
     for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
         const batch = transactions.slice(i, i + BATCH_SIZE);
         
         const prompt = `
-            Categorize these financial transactions into ONE of the following Categories and Subcategories.
+            You are a financial analyst. Categorize these transactions based on the provided hierarchy.
             
             Hierarchy:
-            ${JSON.stringify(CATEGORY_HIERARCHY, null, 2)}
+            ${JSON.stringify(CATEGORY_HIERARCHY)}
 
-            Definitions:
-            - Income: Money in.
-            - Internal Transfer: Transfers between own accounts, credit card payments.
-            - Must-have: Essential living expenses (Rent, Groceries, Medical).
-            - Nice-to-have: Quality of life (Dining, Entertainment, Shopping).
-            - Waste: Unnecessary spending (Fees, Impulse buys).
-            - Save: Money set aside.
-            - Invest: Assets for growth.
-            
-            Instruction:
-            Use 'cat' field (original bank category) as a strong hint if provided, but prioritize the description if it contradicts.
-
-            Return JSON array: [{ "id": "...", "category": "...", "subCategory": "...", "confidence": 0.0-1.0, "reason": "..." }]
             Transactions:
             ${JSON.stringify(batch.map(t => ({ id: t.id, desc: t.description, amt: t.amount, cat: t.originalCategory })))}
+            
+            Instructions:
+            1. Select the most appropriate Category and Subcategory from the hierarchy.
+            2. Use the 'cat' field (original bank category) as a hint if available.
+            3. Return a valid JSON array matching the schema.
         `;
 
         try {
             const response = await ai.models.generateContent({
                 model: model,
                 contents: prompt,
-                config: { responseMimeType: "application/json" }
+                config: { 
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                id: { type: Type.STRING },
+                                category: { type: Type.STRING },
+                                subCategory: { type: Type.STRING },
+                                confidence: { type: Type.NUMBER },
+                                reason: { type: Type.STRING }
+                            },
+                            required: ["id", "category", "confidence", "reason"]
+                        }
+                    }
+                }
             });
             
             const text = response.text;
@@ -129,13 +177,128 @@ const categorizeWithGemini = async (
                 const results: CategorizationResult[] = JSON.parse(text);
                 if (onChunkProcessed) onChunkProcessed(results);
             }
-        } catch (e) {
+        } catch (e: any) {
+            if (e.status === 429 || e.message?.includes('429')) {
+                throw new Error("Gemini Rate Limit Exceeded (429). Please try again in 1 minute.");
+            }
             console.error("Gemini Batch Failed", e);
-            // Continue to next batch instead of failing everything
         }
         
-        // Small delay to be nice to rate limits
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 4000));
+    }
+};
+
+const categorizeWithGroq = async (
+    transactions: Transaction[],
+    onChunkProcessed?: (results: CategorizationResult[]) => void
+): Promise<void> => {
+    const settings = useSettingsStore.getState();
+    const apiKey = getDecryptedApiKey(settings);
+    const model = settings.groqConfig.model;
+    const hierarchyStr = JSON.stringify(CATEGORY_HIERARCHY);
+
+    // Groq creates fast inference, but we still batch to reduce network round trips and stay within TPM/RPM.
+    const BATCH_SIZE = 10; 
+
+    for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+        const batch = transactions.slice(i, i + BATCH_SIZE);
+        const batchStr = JSON.stringify(batch.map(t => ({ 
+            id: t.id, 
+            desc: t.description, 
+            amt: t.amount, 
+            original: t.originalCategory 
+        })));
+
+        // Strictly enforce JSON structure in the prompt to avoid "Failed to generate JSON" errors from Groq
+        const systemPrompt = `
+        You are a strict JSON API for financial categorization.
+        
+        Hierarchy: ${hierarchyStr}
+        
+        Output **only** valid JSON.
+        The JSON must be an object with a single key "results" containing an array.
+        Each item in the array must match this schema:
+        {
+            "id": "string (original id)",
+            "category": "string (from hierarchy keys)",
+            "subCategory": "string (from hierarchy values)",
+            "confidence": number (0.0 to 1.0),
+            "reason": "string (short explanation)"
+        }
+        
+        Do not add any markdown formatting (like \`\`\`json). Do not add explanations outside the JSON.
+        `;
+
+        try {
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: `Categorize these transactions. Return valid JSON only. Transactions: ${batchStr}` }
+                    ],
+                    response_format: { type: "json_object" },
+                    temperature: 0 // Deterministic output helps with strict JSON
+                })
+            });
+
+            if (!response.ok) {
+                if (response.status === 429) {
+                     throw new Error("Groq Rate Limit Exceeded. Please check your plan.");
+                }
+                const err = await response.json();
+                throw new Error(err.error?.message || "Groq API Error");
+            }
+
+            const data = await response.json();
+            const content = data.choices[0]?.message?.content;
+            
+            if (content) {
+                let parsed;
+                try {
+                    parsed = JSON.parse(content);
+                    
+                    // Handle wrapping logic
+                    if (parsed.results && Array.isArray(parsed.results)) {
+                        parsed = parsed.results;
+                    } else if (!Array.isArray(parsed)) {
+                        // Attempt to find the first array value in the object
+                        const values = Object.values(parsed);
+                        const arrayValue = values.find(v => Array.isArray(v));
+                        if (arrayValue) {
+                            parsed = arrayValue;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to parse Groq JSON", content);
+                }
+
+                if (Array.isArray(parsed)) {
+                    // Normalize fields
+                    const results: CategorizationResult[] = parsed.map((item: any) => ({
+                        id: item.id,
+                        category: item.category || TransactionCategory.Uncategorized,
+                        subCategory: item.subCategory,
+                        confidence: item.confidence || 0.8,
+                        reason: item.reason || "Groq AI"
+                    }));
+                    if (onChunkProcessed) onChunkProcessed(results);
+                }
+            }
+
+        } catch (e: any) {
+            console.error("Groq Batch Failed", e);
+             // Propagate rate limits or specific errors
+            if (e.message.includes("Rate Limit") || e.message.includes("JSON")) throw e;
+        }
+
+        // Rate limit buffer
+        await new Promise(r => setTimeout(r, 2000));
     }
 };
 
@@ -145,13 +308,20 @@ const categorizeWithOllama = async (
 ): Promise<void> => {
     const settings = useSettingsStore.getState();
     const { baseUrl, port, model } = settings.ollamaConfig;
-    const url = `${baseUrl}:${port}/api/generate`;
+    // Ensure protocol is present
+    const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;
+    const url = `${safeBaseUrl}:${port}/api/generate`;
 
     const hierarchyStr = JSON.stringify(CATEGORY_HIERARCHY);
 
-    const promptBase = `Categorize the following transaction. Use this hierarchy: ${hierarchyStr}. 
-    Use the provided 'Original Category' as a hint.
-    Return ONLY JSON format: { "category": "...", "subCategory": "...", "confidence": 0.9, "reason": "..." }. 
+    const promptBase = `You are a financial assistant. Categorize the transaction into a Category and a Subcategory from this hierarchy: 
+    ${hierarchyStr}.
+    
+    Instructions:
+    1. Pick the best Main Category.
+    2. Pick the best Subcategory from that Main Category.
+    3. Return ONLY JSON: { "category": "...", "subCategory": "...", "confidence": 0.9, "reason": "..." }.
+    
     Transaction: `;
     
     // Process one by one or small batches for local AI
@@ -171,7 +341,16 @@ const categorizeWithOllama = async (
             if(!response.ok) throw new Error("Ollama connection failed");
             
             const data = await response.json();
-            const result = JSON.parse(data.response);
+            let result;
+            
+            // Handle cases where Ollama doesn't enforce JSON mode perfectly
+            try {
+                result = JSON.parse(data.response);
+            } catch (parseError) {
+                 // Fallback simple parsing if model chats instead of JSON
+                 console.warn("Failed to parse JSON from Ollama", data.response);
+                 continue;
+            }
             
             const processedResult: CategorizationResult = {
                 id: tx.id,
@@ -183,9 +362,11 @@ const categorizeWithOllama = async (
 
             if (onChunkProcessed) onChunkProcessed([processedResult]);
 
-        } catch (e) {
+        } catch (e: any) {
+             if (e.message === 'Failed to fetch') {
+                 throw new Error("CORS Error. Run: $env:OLLAMA_ORIGINS=\"*\"; ollama serve (Windows) OR OLLAMA_ORIGINS=\"*\" ollama serve (Mac/Linux)");
+            }
             console.error(e);
-            // Skip failing item
         }
     }
 };

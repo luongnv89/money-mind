@@ -12,6 +12,44 @@ const savePatterns = (patterns: LocalPattern[]) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(patterns));
 };
 
+export const importPatterns = (json: string): { success: boolean, count: number, error?: string } => {
+  try {
+    const imported = JSON.parse(json);
+    if (!Array.isArray(imported)) {
+        return { success: false, count: 0, error: 'Invalid file format: Root must be an array.' };
+    }
+
+    const currentPatterns = getPatterns();
+    const map = new Map(currentPatterns.map(p => [p.keyword, p]));
+    let newCount = 0;
+
+    imported.forEach((p: any) => {
+      // Basic validation ensuring required fields exist
+      if (typeof p.keyword === 'string' && typeof p.category === 'string') {
+        const validPattern: LocalPattern = {
+           keyword: p.keyword,
+           category: p.category,
+           subCategory: p.subCategory,
+           // Use imported confidence or default to high confidence if manually imported
+           confidence: typeof p.confidence === 'number' ? p.confidence : 1.0, 
+           timesApplied: typeof p.timesApplied === 'number' ? p.timesApplied : 1,
+           learnedFrom: p.learnedFrom || 'Imported',
+           correctedAt: p.correctedAt || new Date().toISOString()
+        };
+        
+        // Overwrite existing pattern for this keyword
+        map.set(p.keyword, validPattern);
+        newCount++;
+      }
+    });
+
+    savePatterns(Array.from(map.values()));
+    return { success: true, count: newCount };
+  } catch (e: any) {
+    return { success: false, count: 0, error: e.message };
+  }
+};
+
 export const extractMerchantName = (description: string): string => {
   let cleaned = description.toUpperCase();
   // Remove dates
