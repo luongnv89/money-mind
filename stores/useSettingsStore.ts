@@ -5,6 +5,7 @@ import { AppSettings, AIMode, GeminiConfig, OllamaConfig, GroqConfig } from '../
 
 interface SettingsState extends AppSettings {
   setAiMode: (mode: AIMode) => void;
+  setDemoMode: (isDemo: boolean) => void;
   toggleApplyPatterns: () => void;
   setGeminiConfig: (config: Partial<GeminiConfig>) => void;
   setGroqConfig: (config: Partial<GroqConfig>) => void;
@@ -24,6 +25,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       aiMode: 'cloud',
+      isDemoMode: false,
       applyPatterns: true,
       
       geminiConfig: {
@@ -43,6 +45,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       setAiMode: (mode) => set({ aiMode: mode }),
+      setDemoMode: (isDemo) => set({ isDemoMode: isDemo }),
       toggleApplyPatterns: () => set((state) => ({ applyPatterns: !state.applyPatterns })),
       
       setGeminiConfig: (config) => set((state) => {
@@ -67,6 +70,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       resetSettings: () => set({ 
           aiMode: 'cloud', 
+          isDemoMode: false,
           applyPatterns: true,
           geminiConfig: { apiKey: '', model: 'models/gemini-flash-latest' },
           groqConfig: { apiKey: '', model: 'llama-3.1-8b-instant' },

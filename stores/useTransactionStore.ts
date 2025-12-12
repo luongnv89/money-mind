@@ -16,6 +16,7 @@ interface TransactionState {
 
   setTransactions: (transactions: Transaction[]) => void;
   addTransactions: (transactions: Transaction[]) => void;
+  deleteTransaction: (id: string) => void;
   
   // New action for real-time updates
   updateTransactionBatch: (updates: Transaction[]) => void;
@@ -47,6 +48,10 @@ export const useTransactionStore = create<TransactionState>()(
       addTransactions: (newTransactions) => set((state) => ({ 
           transactions: [...state.transactions, ...newTransactions],
           error: null 
+      })),
+
+      deleteTransaction: (id) => set((state) => ({
+          transactions: state.transactions.filter((t) => t.id !== id)
       })),
 
       updateTransactionBatch: (updates) => set((state) => {

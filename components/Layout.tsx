@@ -1,9 +1,11 @@
+
 import React from 'react';
 import { useTransactionStore } from '../stores/useTransactionStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
-import { Settings, LogOut, Shield, LayoutDashboard, UploadCloud } from 'lucide-react';
+import { Settings, LogOut, Shield, LayoutDashboard, UploadCloud, AlertCircle } from 'lucide-react';
 import { Button } from './UI';
 import { cn } from '../lib/utils';
+import { ToastContainer } from './Toast';
 
 type View = 'dashboard' | 'upload' | 'settings';
 
@@ -15,9 +17,22 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewChange }) => {
     const { clearAll, transactions } = useTransactionStore();
+    const { isDemoMode, setDemoMode } = useSettingsStore();
+
+    const handleClear = () => {
+        clearAll();
+        setDemoMode(false);
+    };
 
     return (
         <div className="min-h-screen flex flex-col font-sans">
+            <ToastContainer />
+            {isDemoMode && (
+                <div className="bg-indigo-600 text-white text-center py-2 text-sm font-medium flex items-center justify-center gap-2 animate-in slide-in-from-top">
+                    <AlertCircle className="w-4 h-4" />
+                    Demo Mode Active — AI analysis is simulated without API keys.
+                </div>
+            )}
             <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-sm">
                 <div className="container mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-2 cursor-pointer" onClick={() => onViewChange('dashboard')}>
@@ -52,7 +67,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
                          </nav>
 
                         {transactions.length > 0 && (
-                            <Button variant="ghost" size="sm" onClick={clearAll} className="text-red-500 hover:text-red-600 hover:bg-red-50 hidden sm:flex">
+                            <Button variant="ghost" size="sm" onClick={handleClear} className="text-red-500 hover:text-red-600 hover:bg-red-50 hidden sm:flex">
                                 <LogOut className="w-4 h-4 mr-2" /> Clear
                             </Button>
                         )}

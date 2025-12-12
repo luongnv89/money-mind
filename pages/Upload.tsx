@@ -1,12 +1,30 @@
+
 import React from 'react';
 import { CSVUploader } from '../components/CSVUploader';
-import { ShieldCheck, Lock, EyeOff } from 'lucide-react';
+import { ShieldCheck, Lock, EyeOff, PlayCircle } from 'lucide-react';
+import { Button } from '../components/UI';
+import { useTransactionStore } from '../stores/useTransactionStore';
+import { useSettingsStore } from '../stores/useSettingsStore';
+import { getDemoTransactions } from '../lib/demoData';
 
 interface UploadPageProps {
   onUploadComplete: () => void;
 }
 
 export const UploadPage: React.FC<UploadPageProps> = ({ onUploadComplete }) => {
+    const { addTransactions, clearAll } = useTransactionStore();
+    const { setDemoMode } = useSettingsStore();
+
+    const handleDemoMode = () => {
+        // Clear existing data to ensure a clean demo state (optional, but cleaner)
+        clearAll();
+        setDemoMode(true);
+        
+        const demoData = getDemoTransactions();
+        addTransactions(demoData);
+        onUploadComplete();
+    };
+
     return (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 animate-in fade-in duration-500">
             <div className="space-y-4 max-w-3xl">
@@ -21,7 +39,28 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadComplete }) => {
                     </span>
                 </p>
             </div>
-            <CSVUploader onUploadComplete={onUploadComplete} />
+            
+            <div className="w-full max-w-2xl space-y-6">
+                <CSVUploader onUploadComplete={onUploadComplete} />
+                
+                <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t border-gray-200" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-[#F9FAFB] px-2 text-gray-500">Or just looking around?</span>
+                    </div>
+                </div>
+
+                <Button 
+                    variant="outline" 
+                    onClick={handleDemoMode}
+                    className="w-full sm:w-auto border-dashed border-gray-400 text-gray-600 hover:text-accent hover:border-accent hover:bg-accent/5"
+                >
+                    <PlayCircle className="w-4 h-4 mr-2" />
+                    Load Demo Data (3 Months)
+                </Button>
+            </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mt-12 w-full max-w-4xl text-left">
                 <div className="p-5 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">

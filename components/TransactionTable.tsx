@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useTransactionStore } from '../stores/useTransactionStore';
@@ -5,8 +6,9 @@ import { TransactionCategory, Transaction } from '../types';
 import { CATEGORY_COLORS, CATEGORY_HIERARCHY } from '../constants';
 import { cn, formatCurrency, formatDate } from '../lib/utils';
 import { Button, Input } from './UI';
-import { Edit2, Download, ChevronLeft, ChevronRight, Search, Check, CheckCircle2, CircleDashed, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
+import { Edit2, Download, ChevronLeft, ChevronRight, Search, Check, CheckCircle2, CircleDashed, ArrowUpDown, ArrowUp, ArrowDown, X, Trash2 } from 'lucide-react';
 import Papa from 'papaparse';
+import { ConfirmDialog } from './ConfirmDialog';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -208,7 +210,7 @@ interface TransactionTableProps {
 }
 
 export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions }) => {
-  const { updateCategory, approveTransaction } = useTransactionStore();
+  const { updateCategory, approveTransaction, deleteTransaction } = useTransactionStore();
   
   // State
   const [categoryFilter, setCategoryFilter] = useState<TransactionCategory | 'All'>('All');
@@ -216,6 +218,9 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
   const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
   const [activeDropdown, setActiveDropdown] = useState<{ id: string, rect: DOMRect } | null>(null);
+  
+  // Confirmation Modal State
+  const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
 
   // Handlers
   const handleSort = (key: string) => {
@@ -317,6 +322,13 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
       document.body.removeChild(link);
   };
 
+  const confirmDelete = () => {
+      if (transactionToDelete) {
+          deleteTransaction(transactionToDelete);
+          setTransactionToDelete(null);
+      }
+  };
+
   if (transactions.length === 0) {
       return (
         <div className="w-full bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-500">
@@ -327,6 +339,16 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
 
   return (
     <div className="w-full space-y-4">
+      <ConfirmDialog 
+          isOpen={!!transactionToDelete}
+          title="Delete Transaction"
+          message="Are you sure you want to delete this transaction? This action cannot be undone."
+          confirmText="Delete"
+          variant="danger"
+          onConfirm={confirmDelete}
+          onCancel={() => setTransactionToDelete(null)}
+      />
+
       {/* Search and Filters Bar */}
       <div className="flex flex-col gap-4">
           <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
@@ -380,7 +402,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                 <SortHeader label="Amount" sKey="amount" currentSort={sortConfig} onSort={handleSort} />
                 <SortHeader label="Category" sKey="category" currentSort={sortConfig} onSort={handleSort} />
                 <SortHeader label="Confidence" sKey="confidence" currentSort={sortConfig} onSort={handleSort} />
-                <SortHeader label="Status" sKey="status" currentSort={sortConfig} onSort={handleSort} className="text-center" />
+                <SortHeader label="Actions" sKey="status" currentSort={sortConfig} onSort={handleSort} className="text-center" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -438,13 +460,13 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                     </div>
                   </td>
                   <td className="px-6 py-3 text-center">
-                    {t.isApproved ? (
-                        <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200" title="Approved">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span className="text-[10px] font-bold uppercase tracking-wide">Approved</span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-2">
+                        {t.isApproved ? (
+                            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200" title="Approved">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span className="text-[10px] font-bold uppercase tracking-wide">Approved</span>
+                            </div>
+                        ) : (
                              <button 
                                 onClick={() => approveTransaction(t.id)}
                                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-gray-300 text-gray-500 hover:text-green-600 hover:border-green-500 hover:bg-green-50 transition-all shadow-sm"
@@ -453,8 +475,18 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                                 <span className="text-[10px] font-medium">Verify</span>
                                 <Check className="w-3 h-3" />
                              </button>
-                        </div>
-                    )}
+                        )}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setTransactionToDelete(t.id);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                            title="Delete Transaction"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                    </div>
                   </td>
                 </tr>
               )})}

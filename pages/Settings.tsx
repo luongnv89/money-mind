@@ -5,6 +5,7 @@ import { clearPatterns, getPatterns, importPatterns } from '../lib/localStorage'
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '../components/UI';
 import { Trash2, CheckCircle, Circle, Cloud, Cpu, Terminal, Key, Server, PlayCircle, AlertCircle, Loader2, Zap, Download, Upload } from 'lucide-react';
 import { testAiConnection } from '../services/aiService';
+import { useToastStore } from '../stores/useToastStore';
 
 export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const { 
@@ -14,6 +15,8 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         groqConfig, setGroqConfig,
         ollamaConfig, setOllamaConfig
     } = useSettingsStore();
+
+    const { addToast } = useToastStore();
 
     const [isTesting, setIsTesting] = useState(false);
     const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
@@ -25,6 +28,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         // Removed confirm()
         clearPatterns();
         setPatternCount(0);
+        addToast('Patterns cleared successfully', 'success');
     };
 
     const handleExportPatterns = () => {
@@ -36,6 +40,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         document.body.appendChild(downloadAnchorNode);
         downloadAnchorNode.click();
         downloadAnchorNode.remove();
+        addToast('Patterns exported', 'success');
     };
 
     const handleImportClick = () => {
@@ -53,9 +58,9 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 const result = importPatterns(content);
                 if (result.success) {
                     setPatternCount(getPatterns().length);
-                    alert(`Successfully imported ${result.count} patterns.`);
+                    addToast(`Successfully imported ${result.count} patterns`, 'success');
                 } else {
-                    alert(`Import failed: ${result.error}`);
+                    addToast(`Import failed: ${result.error}`, 'error');
                 }
             }
         };

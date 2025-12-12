@@ -99,6 +99,13 @@ export const categorizeWithAI = async (
   mode: AIMode,
   onChunkProcessed?: (results: CategorizationResult[]) => void
 ): Promise<void> => {
+  const settings = useSettingsStore.getState();
+
+  // Demo Mode Interception
+  if (settings.isDemoMode) {
+      await simulateCategorization(transactions, onChunkProcessed);
+      return;
+  }
   
   // We process whatever is passed in. The caller is responsible for filtering (e.g. only Uncategorized, or Unapproved).
   const toProcess = transactions;
@@ -421,8 +428,20 @@ const simulateCategorization = async (
             let subCat = undefined;
             let reason = "Unsure";
             
-            // Simple logic leveraging original category if useful
-            if (origCat.includes('income') || origCat.includes('deposit')) {
+            // Matching Demo Data Original Categories
+            if (origCat === 'rent') { cat = TransactionCategory.MustHave; subCat = 'Housing'; reason = "Rent"; }
+            else if (origCat === 'bills') { cat = TransactionCategory.MustHave; subCat = 'Utilities'; reason = "Utility Bill"; }
+            else if (origCat === 'insurance') { cat = TransactionCategory.MustHave; subCat = 'Insurance'; reason = "Policy"; }
+            else if (origCat === 'utilities') { cat = TransactionCategory.MustHave; subCat = 'Utilities'; reason = "City/Power"; }
+            else if (origCat === 'subscription') { cat = TransactionCategory.NiceToHave; subCat = 'Entertainment'; reason = "Sub"; }
+            else if (origCat === 'shopping') { cat = TransactionCategory.NiceToHave; subCat = 'Shopping'; reason = "Retail"; }
+            else if (origCat === 'groceries') { cat = TransactionCategory.MustHave; subCat = 'Food & Groceries'; reason = "Grocery Store"; }
+            else if (origCat === 'gas') { cat = TransactionCategory.MustHave; subCat = 'Transportation'; reason = "Fuel"; }
+            else if (origCat === 'travel') { cat = TransactionCategory.NiceToHave; subCat = 'Travel & Leisure'; reason = "Trip"; }
+            else if (origCat === 'dining') { cat = TransactionCategory.NiceToHave; subCat = 'Dining Out'; reason = "Restaurant"; }
+            else if (origCat === 'income') { cat = TransactionCategory.Income; subCat = 'Salary'; reason = "Payroll"; }
+            // General fallbacks based on description keywords
+            else if (origCat.includes('income') || origCat.includes('deposit')) {
                  cat = TransactionCategory.Income;
                  subCat = 'Other Income';
                  reason = "Based on bank category";
@@ -435,19 +454,11 @@ const simulateCategorization = async (
                 cat = TransactionCategory.InternalTransfer;
                 subCat = 'Credit Card Payment';
                 reason = "Transfer detected";
-            } else if (desc.includes('rent')) {
-                cat = TransactionCategory.MustHave;
-                subCat = 'Housing';
-                reason = "Essential expense";
-            } else if (desc.includes('safeway') || desc.includes('grocery')) {
-                cat = TransactionCategory.MustHave;
-                subCat = 'Food & Groceries';
-                reason = "Groceries";
-            } else if (desc.includes('starbucks')) {
+            } else if (desc.includes('starbucks') || desc.includes('coffee')) {
                 cat = TransactionCategory.NiceToHave;
                 subCat = 'Dining Out';
                 reason = "Coffee";
-            } else if (desc.includes('netflix')) {
+            } else if (desc.includes('netflix') || desc.includes('spotify')) {
                 cat = TransactionCategory.NiceToHave;
                 subCat = 'Entertainment';
                 reason = "Subscription";

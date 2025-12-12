@@ -2,13 +2,14 @@
 import React, { useMemo, useState } from 'react';
 import { useTransactionStore } from '../stores/useTransactionStore';
 import { useSettingsStore, getDecryptedApiKey } from '../stores/useSettingsStore';
-import { getPatterns } from '../lib/localStorage';
+import { getPatterns, learnPattern } from '../lib/localStorage';
 import { TransactionTable } from '../components/TransactionTable';
 import { InsightsDashboard } from '../components/InsightsDashboard';
 import { categorizeWithAI } from '../services/aiService';
 import { Button, Card, CardContent } from '../components/UI';
-import { Zap, AlertOctagon, Loader2, Settings, Calendar, RefreshCw, X, Activity, CheckCircle2, AlertTriangle, ArrowRightLeft, BookOpen, RotateCcw } from 'lucide-react';
-import { TransactionCategory } from '../types';
+import { AddTransactionModal } from '../components/AddTransactionModal';
+import { Zap, AlertOctagon, Loader2, Settings, Calendar, RefreshCw, X, Activity, CheckCircle2, AlertTriangle, ArrowRightLeft, BookOpen, RotateCcw, Plus } from 'lucide-react';
+import { TransactionCategory, Transaction } from '../types';
 import { cn } from '../lib/utils';
 
 interface DashboardProps {
@@ -32,6 +33,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         setCategorizing, 
         isCategorizing, 
         updateTransactionBatch, 
+        addTransactions,
         applyLocalPatterns,
         setError,
         processedCount,
@@ -39,18 +41,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         setProgressCounts
     } = useTransactionStore();
     
-    const { aiMode, geminiConfig } = useSettingsStore();
+    const { aiMode, geminiConfig, isDemoMode } = useSettingsStore();
 
     // Time Filter State
     const [timeRange, setTimeRange] = useState<TimeRange>('all');
     const [analysisStats, setAnalysisStats] = useState<AnalysisStats | null>(null);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-    // Check if AI is configured
+    // Check if AI is configured or in demo mode
     const isAIConfigured = useMemo(() => {
+        if (isDemoMode) return true;
         if (aiMode === 'local') return true; // Assume local is always "ready" to try
         const key = getDecryptedApiKey(useSettingsStore.getState());
         return !!key && key.length > 0;
-    }, [aiMode, geminiConfig]);
+    }, [aiMode, geminiConfig, isDemoMode]);
 
     // Check if we have local patterns
     const hasPatterns = useMemo(() => {
@@ -225,6 +229,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         });
     };
 
+    const handleManualAdd = (newTx: Transaction) => {
+        addTransactions([newTx]);
+        // Learn from manual entry so future CSV imports of this description are categorized automatically
+        learnPattern(newTx, newTx.category, newTx.subCategory);
+        setIsAddModalOpen(false);
+    };
+
     const uncategorizedCount = transactions.filter(t => t.category === TransactionCategory.Uncategorized).length;
     const failedCount = transactions.filter(t => t.reason?.includes('Failed') || t.reason?.includes('Error')).length;
     const progressPercent = totalToProcess > 0 ? Math.round((processedCount / totalToProcess) * 100) : 0;
@@ -238,11 +249,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </div>
                 <h3 className="text-lg font-medium text-gray-900">No transactions yet</h3>
                 <p className="text-gray-500 mt-2 max-w-sm mx-auto">
-                    Upload a bank statement to get started with the analysis.
+                    Upload a bank statement or add a transaction to get started.
                 </p>
-                <Button className="mt-6" onClick={() => onNavigate('upload')}>
-                    Upload File
-                </Button>
+                <div className="flex gap-3 justify-center mt-6">
+                    <Button onClick={() => onNavigate('upload')}>
+                        Upload File
+                    </Button>
+                    <Button variant="outline" onClick={() => setIsAddModalOpen(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Manually
+                    </Button>
+                </div>
+                {isAddModalOpen && <AddTransactionModal onClose={() => setIsAddModalOpen(false)} onSave={handleManualAdd} />}
             </div>
         );
     }
@@ -279,6 +297,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 ) : (
                     <div className="flex flex-col items-end gap-1.5">
                         <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                            {/* New Add Button */}
+                            <Button variant="outline" onClick={() => setIsAddModalOpen(true)} className="border-gray-300">
+                                <Plus className="w-4 h-4 mr-2" />
+                                Add
+                            </Button>
+
                             {/* Retry Failed Button */}
                             {failedCount > 0 && (
                                 <Button 
@@ -448,7 +472,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             </div>
 
             {/* Stats Dashboard */}
-            <InsightsDashboard transactions={displayedTransactions} />
+            <InsightsDashboard transactions={displayedTransactions} allTransactions={transactions} />
 
             <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
@@ -459,6 +483,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </div>
                 <TransactionTable transactions={displayedTransactions} />
             </div>
+
+            {isAddModalOpen && <AddTransactionModal onClose={() => setIsAddModalOpen(false)} onSave={handleManualAdd} />}
         </div>
     );
 };
