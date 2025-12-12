@@ -57,6 +57,7 @@ export interface OllamaConfig {
 export interface AppSettings {
   aiMode: AIMode;
   applyPatterns: boolean;
+  enableFunnyAlerts: boolean; // New setting
   geminiConfig: GeminiConfig;
   groqConfig: GroqConfig;
   ollamaConfig: OllamaConfig;

@@ -1,14 +1,17 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useTransactionStore } from '../stores/useTransactionStore';
 import { useSettingsStore, getDecryptedApiKey } from '../stores/useSettingsStore';
 import { getPatterns, learnPattern } from '../lib/localStorage';
 import { TransactionTable } from '../components/TransactionTable';
-import { InsightsDashboard } from '../components/InsightsDashboard';
+import { InsightsDashboard, MonthlyPerformance } from '../components/InsightsDashboard';
+import { FinancialScoreCard } from '../components/FinancialScoreCard';
 import { categorizeWithAI } from '../services/aiService';
+import { checkFinancialHealth } from '../services/alertService';
+import { useToastStore, ToastType } from '../stores/useToastStore';
 import { Button, Card, CardContent } from '../components/UI';
 import { AddTransactionModal } from '../components/AddTransactionModal';
-import { Zap, AlertOctagon, Loader2, Settings, Calendar, RefreshCw, X, Activity, CheckCircle2, AlertTriangle, ArrowRightLeft, BookOpen, RotateCcw, Plus } from 'lucide-react';
+import { Zap, AlertOctagon, Loader2, Settings, Calendar, RefreshCw, X, Activity, CheckCircle2, AlertTriangle, ArrowRightLeft, BookOpen, RotateCcw, Plus, LayoutDashboard, List } from 'lucide-react';
 import { TransactionCategory, Transaction } from '../types';
 import { cn } from '../lib/utils';
 
@@ -26,6 +29,7 @@ interface AnalysisStats {
 }
 
 type TimeRange = 'week' | 'month' | 'all';
+type TabView = 'insights' | 'transactions';
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     const { 
@@ -41,12 +45,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         setProgressCounts
     } = useTransactionStore();
     
-    const { aiMode, geminiConfig, isDemoMode } = useSettingsStore();
+    const { aiMode, geminiConfig, isDemoMode, enableFunnyAlerts } = useSettingsStore();
+    const { addToast } = useToastStore();
 
-    // Time Filter State
+    // Time Filter & Tab State
     const [timeRange, setTimeRange] = useState<TimeRange>('all');
+    const [activeTab, setActiveTab] = useState<TabView>('insights');
     const [analysisStats, setAnalysisStats] = useState<AnalysisStats | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    
+    // Run Alert Check on Mount or when transactions change significantly
+    useEffect(() => {
+        if (enableFunnyAlerts && transactions.length > 0 && !isCategorizing) {
+            // Delay slightly to allow UI to settle
+            const timer = setTimeout(() => {
+                const alerts = checkFinancialHealth(transactions);
+                alerts.forEach(alert => {
+                    // Use the type provided by the alert service (warning/info)
+                    // Ensure it matches ToastType (casted for safety)
+                    addToast(alert.message, alert.type as ToastType, 6000); 
+                });
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [transactions.length, isCategorizing, enableFunnyAlerts]);
 
     // Check if AI is configured or in demo mode
     const isAIConfigured = useMemo(() => {
@@ -399,7 +421,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        {/* New Changed Stat */}
                         <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-100">
                              <div className="flex items-center gap-1.5 mb-1">
                                 <ArrowRightLeft className="w-3.5 h-3.5 text-indigo-600" />
@@ -439,6 +460,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </div>
             )}
 
+            {/* Tabs */}
+            <div className="flex items-center gap-6 border-b border-gray-200 mt-2">
+                <button
+                    onClick={() => setActiveTab('insights')}
+                    className={cn(
+                        "flex items-center gap-2 pb-3 text-sm font-medium transition-all border-b-2 px-1",
+                        activeTab === 'insights'
+                            ? "border-accent text-accent"
+                            : "border-transparent text-gray-500 hover:text-gray-700"
+                    )}
+                >
+                    <LayoutDashboard className="w-4 h-4" />
+                    Insights
+                </button>
+                <button
+                    onClick={() => setActiveTab('transactions')}
+                    className={cn(
+                        "flex items-center gap-2 pb-3 text-sm font-medium transition-all border-b-2 px-1",
+                        activeTab === 'transactions'
+                            ? "border-accent text-accent"
+                            : "border-transparent text-gray-500 hover:text-gray-700"
+                    )}
+                >
+                    <List className="w-4 h-4" />
+                    Transactions
+                </button>
+            </div>
+
             {/* Time Filter Controls */}
             <div className="flex flex-col sm:flex-row justify-between items-end sm:items-center gap-4">
                 <div className="flex items-center gap-2 text-sm text-gray-600 font-medium">
@@ -471,18 +520,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 </div>
             </div>
 
-            {/* Stats Dashboard */}
-            <InsightsDashboard transactions={displayedTransactions} allTransactions={transactions} />
-
-            <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-900">
-                        Transaction History 
-                        <span className="text-gray-400 text-sm font-normal ml-2">({displayedTransactions.length} items)</span>
-                    </h3>
+            {/* Content Area */}
+            {activeTab === 'insights' ? (
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <MonthlyPerformance transactions={displayedTransactions} allTransactions={transactions} />
+                    <FinancialScoreCard transactions={transactions} />
+                    <InsightsDashboard transactions={displayedTransactions} allTransactions={transactions} />
                 </div>
-                <TransactionTable transactions={displayedTransactions} />
-            </div>
+            ) : (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-3">
+                     <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                            Transaction List
+                            <span className="text-gray-400 text-sm font-normal ml-2">({displayedTransactions.length} visible)</span>
+                        </h3>
+                    </div>
+                    <TransactionTable transactions={displayedTransactions} />
+                </div>
+            )}
 
             {isAddModalOpen && <AddTransactionModal onClose={() => setIsAddModalOpen(false)} onSave={handleManualAdd} />}
         </div>

@@ -3,14 +3,15 @@ import React, { useState, useRef } from 'react';
 import { useSettingsStore, getDecryptedApiKey } from '../stores/useSettingsStore';
 import { clearPatterns, getPatterns, importPatterns } from '../lib/localStorage';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '../components/UI';
-import { Trash2, CheckCircle, Circle, Cloud, Cpu, Terminal, Key, Server, PlayCircle, AlertCircle, Loader2, Zap, Download, Upload } from 'lucide-react';
+import { Trash2, CheckCircle, Circle, Cloud, Cpu, Terminal, Key, Server, PlayCircle, AlertCircle, Loader2, Zap, Download, Upload, MessageCircle } from 'lucide-react';
 import { testAiConnection } from '../services/aiService';
 import { useToastStore } from '../stores/useToastStore';
 
 export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const { 
         aiMode, setAiMode, 
-        applyPatterns, toggleApplyPatterns, 
+        applyPatterns, toggleApplyPatterns,
+        enableFunnyAlerts, toggleFunnyAlerts, 
         geminiConfig, setGeminiConfig,
         groqConfig, setGroqConfig,
         ollamaConfig, setOllamaConfig
@@ -294,19 +295,39 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Learning & Privacy</CardTitle>
+                    <CardTitle>Experience</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    <div className="flex items-center justify-between">
+                     <div className="flex items-center justify-between">
                         <div>
-                            <h4 className="font-medium text-gray-900">Apply Learned Patterns</h4>
-                            <p className="text-sm text-gray-500">Auto-categorize transactions based on your previous corrections.</p>
+                            <div className="flex items-center gap-2">
+                                <MessageCircle className="w-4 h-4 text-accent" />
+                                <h4 className="font-medium text-gray-900">Funny Financial Alerts</h4>
+                            </div>
+                            <p className="text-sm text-gray-500 mt-1">
+                                Get humorous pop-ups when your spending spikes or drifts from average.
+                            </p>
                         </div>
                         <div 
-                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${applyPatterns ? 'bg-accent' : 'bg-gray-300'}`}
-                            onClick={toggleApplyPatterns}
+                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${enableFunnyAlerts ? 'bg-accent' : 'bg-gray-300'}`}
+                            onClick={toggleFunnyAlerts}
                         >
-                            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${applyPatterns ? 'translate-x-6' : 'translate-x-0'}`} />
+                            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${enableFunnyAlerts ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </div>
+                    </div>
+
+                    <div className="border-t border-gray-100 pt-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="font-medium text-gray-900">Apply Learned Patterns</h4>
+                                <p className="text-sm text-gray-500">Auto-categorize transactions based on your previous corrections.</p>
+                            </div>
+                            <div 
+                                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${applyPatterns ? 'bg-accent' : 'bg-gray-300'}`}
+                                onClick={toggleApplyPatterns}
+                            >
+                                <div className={`w-4 h-4 rounded-full bg-white transition-transform ${applyPatterns ? 'translate-x-6' : 'translate-x-0'}`} />
+                            </div>
                         </div>
                     </div>
 

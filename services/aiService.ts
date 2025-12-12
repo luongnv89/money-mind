@@ -92,6 +92,88 @@ export const testAiConnection = async (): Promise<boolean> => {
     }
 };
 
+// --- Chat Service (MonkeySmile) ---
+
+export const chatWithFinancialAgent = async (
+    userQuery: string,
+    financialContext: string
+): Promise<string> => {
+    const settings = useSettingsStore.getState();
+    const apiKey = getDecryptedApiKey(settings);
+    
+    // System prompt defines the persona
+    const systemPrompt = `You are MonkeySmile 🐵, a sassy, fun, and brutally honest financial buddy.
+    You have access to the user's current financial snapshot below.
+    
+    FINANCIAL DATA CONTEXT:
+    ${financialContext}
+    
+    INSTRUCTIONS:
+    1. Be concise and conversational.
+    2. Use emojis (especially 🐵, 🍌, 💸).
+    3. Use the provided financial context to answer accurately.
+    4. If the user asks "Can I afford X?", check their 'Net' or 'Nice-to-Have' spending.
+    5. If 'Waste' spending is high, gently roast them.
+    6. If they are doing well (high savings, positive net), cheer them on!
+    7. Never make up numbers. If the data isn't in the context, say "I don't see that in your records."`;
+
+    if (settings.aiMode === 'cloud') {
+         if (!apiKey) throw new Error("Missing API Key");
+         const ai = new GoogleGenAI({ apiKey });
+         const response = await ai.models.generateContent({
+             model: settings.geminiConfig.model,
+             contents: [
+                 { role: 'user', parts: [{ text: systemPrompt + "\n\nUser Question: " + userQuery }] }
+             ]
+         });
+         return response.text || "I'm speechless 🐵 (No response from AI)";
+    } else if (settings.aiMode === 'groq') {
+         if (!apiKey) throw new Error("Missing API Key");
+         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: settings.groqConfig.model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userQuery }
+                ]
+            })
+        });
+        
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error?.message || "Groq API Error");
+        }
+
+        const data = await response.json();
+        return data.choices?.[0]?.message?.content || "Groq is silent 🐵";
+    } else {
+        // Ollama
+        const { baseUrl, port, model } = settings.ollamaConfig;
+        const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;
+        const url = `${safeBaseUrl}:${port}/api/generate`;
+        
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: model,
+                prompt: `${systemPrompt}\n\nUser Question: ${userQuery}`,
+                stream: false
+            })
+        });
+        
+        if (!response.ok) throw new Error("Ollama connection failed");
+        
+        const data = await response.json();
+        return data.response || "Thinking... 🐵";
+    }
+};
+
 // --- Main Categorization Service ---
 
 export const categorizeWithAI = async (

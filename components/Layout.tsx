@@ -6,6 +6,7 @@ import { Settings, LogOut, Shield, LayoutDashboard, UploadCloud, AlertCircle } f
 import { Button } from './UI';
 import { cn } from '../lib/utils';
 import { ToastContainer } from './Toast';
+import { MonkeySmileChat } from './MonkeySmileChat';
 
 type View = 'dashboard' | 'upload' | 'settings';
 
@@ -27,6 +28,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
     return (
         <div className="min-h-screen flex flex-col font-sans">
             <ToastContainer />
+            <MonkeySmileChat onNavigate={onViewChange} />
+            
             {isDemoMode && (
                 <div className="bg-indigo-600 text-white text-center py-2 text-sm font-medium flex items-center justify-center gap-2 animate-in slide-in-from-top">
                     <AlertCircle className="w-4 h-4" />

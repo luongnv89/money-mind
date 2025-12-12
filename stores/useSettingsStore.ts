@@ -7,6 +7,7 @@ interface SettingsState extends AppSettings {
   setAiMode: (mode: AIMode) => void;
   setDemoMode: (isDemo: boolean) => void;
   toggleApplyPatterns: () => void;
+  toggleFunnyAlerts: () => void;
   setGeminiConfig: (config: Partial<GeminiConfig>) => void;
   setGroqConfig: (config: Partial<GroqConfig>) => void;
   setOllamaConfig: (config: Partial<OllamaConfig>) => void;
@@ -27,6 +28,7 @@ export const useSettingsStore = create<SettingsState>()(
       aiMode: 'cloud',
       isDemoMode: false,
       applyPatterns: true,
+      enableFunnyAlerts: true, // Default to true
       
       geminiConfig: {
         apiKey: '',
@@ -47,6 +49,7 @@ export const useSettingsStore = create<SettingsState>()(
       setAiMode: (mode) => set({ aiMode: mode }),
       setDemoMode: (isDemo) => set({ isDemoMode: isDemo }),
       toggleApplyPatterns: () => set((state) => ({ applyPatterns: !state.applyPatterns })),
+      toggleFunnyAlerts: () => set((state) => ({ enableFunnyAlerts: !state.enableFunnyAlerts })),
       
       setGeminiConfig: (config) => set((state) => {
           const newConfig = { ...state.geminiConfig, ...config };
@@ -72,6 +75,7 @@ export const useSettingsStore = create<SettingsState>()(
           aiMode: 'cloud', 
           isDemoMode: false,
           applyPatterns: true,
+          enableFunnyAlerts: true,
           geminiConfig: { apiKey: '', model: 'models/gemini-flash-latest' },
           groqConfig: { apiKey: '', model: 'llama-3.1-8b-instant' },
           ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: 'llama3.2' }
