@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 // NOTE: This file represents the server-side logic (e.g. Vercel Function).
@@ -18,19 +19,17 @@ export async function POST(request: Request) {
         id: t.id,
         desc: t.description,
         amt: t.amount,
-        date: t.date
+        date: t.date,
+        cat: t.originalCategory
     })).slice(0, 100); // Limit for demo
 
     const prompt = `
-        Categorize these financial transactions into ONE of: Essential, Growth, Joy, Drift.
+        Categorize these financial transactions.
+        Main Categories: Income, Internal Transfer, Must-have, Nice-to-have, Waste, Save, Invest.
+        Subcategories provided via schema.
+        Use 'cat' (original bank category) as context.
         
-        Rules:
-        - Essential: Rent, utilities, groceries, medical, transport.
-        - Growth: Education, investments, gym, books.
-        - Joy: Dining out, travel, entertainment (planned).
-        - Drift: Fast food, impulse buys, unused subs, fees.
-        
-        Return JSON array.
+        Return JSON array: [{ id, category, subCategory, confidence, reason }]
     `;
 
     try {
@@ -47,7 +46,8 @@ export async function POST(request: Request) {
                         type: Type.OBJECT,
                         properties: {
                             id: { type: Type.STRING },
-                            category: { type: Type.STRING, enum: ["Essential", "Growth", "Joy", "Drift"] },
+                            category: { type: Type.STRING, enum: ["Income", "Internal Transfer", "Must-have", "Nice-to-have", "Waste", "Save", "Invest"] },
+                            subCategory: { type: Type.STRING },
                             confidence: { type: Type.NUMBER },
                             reason: { type: Type.STRING }
                         }

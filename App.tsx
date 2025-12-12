@@ -14,7 +14,7 @@ function App() {
 
   return (
     <Layout currentView={view} onViewChange={setView}>
-      {view === 'dashboard' && <Dashboard />}
+      {view === 'dashboard' && <Dashboard onNavigate={setView} />}
       {view === 'upload' && <UploadPage onUploadComplete={() => setView('dashboard')} />}
       {view === 'settings' && <SettingsPage onBack={() => setView('dashboard')} />}
     </Layout>

@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Transaction, TransactionCategory } from '../types';
@@ -19,8 +20,8 @@ interface TransactionState {
   // New action for real-time updates
   updateTransactionBatch: (updates: Transaction[]) => void;
   
-  updateCategory: (id: string, category: TransactionCategory) => void;
-  bulkUpdateCategory: (ids: string[], category: TransactionCategory) => void;
+  updateCategory: (id: string, category: TransactionCategory, subCategory?: string) => void;
+  bulkUpdateCategory: (ids: string[], category: TransactionCategory, subCategory?: string) => void;
   setParsing: (status: boolean) => void;
   setCategorizing: (status: boolean) => void;
   setProgressCounts: (processed: number, total: number) => void;
@@ -54,27 +55,41 @@ export const useTransactionStore = create<TransactionState>()(
         return { transactions: newTransactions };
       }),
       
-      updateCategory: (id, category) => {
+      updateCategory: (id, category, subCategory) => {
         const { transactions } = get();
         const txIndex = transactions.findIndex(t => t.id === id);
         if (txIndex === -1) return;
 
         const tx = transactions[txIndex];
-        learnPattern(tx, category);
+        learnPattern(tx, category, subCategory);
 
         const newTransactions = [...transactions];
-        newTransactions[txIndex] = { ...tx, category, isLearned: true, confidence: 1.0, reason: 'Manual correction' };
+        newTransactions[txIndex] = { 
+            ...tx, 
+            category, 
+            subCategory,
+            isLearned: true, 
+            confidence: 1.0, 
+            reason: 'Manual correction' 
+        };
         set({ transactions: newTransactions });
       },
 
-      bulkUpdateCategory: (ids, category) => {
+      bulkUpdateCategory: (ids, category, subCategory) => {
         const { transactions } = get();
         const firstTx = transactions.find(t => ids.includes(t.id));
-        if (firstTx) learnPattern(firstTx, category);
+        if (firstTx) learnPattern(firstTx, category, subCategory);
 
         const newTransactions = transactions.map(tx => {
           if (ids.includes(tx.id)) {
-            return { ...tx, category, isLearned: true, confidence: 1.0, reason: 'Bulk correction' };
+            return { 
+                ...tx, 
+                category, 
+                subCategory,
+                isLearned: true, 
+                confidence: 1.0, 
+                reason: 'Bulk correction' 
+            };
           }
           return tx;
         });

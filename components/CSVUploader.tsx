@@ -16,6 +16,94 @@ type PreviewTab = 'new' | 'duplicates';
 // Extended type for internal use in this component
 type DuplicateTransaction = Transaction & { duplicateReason: 'Already Imported' | 'Duplicate in File' };
 
+interface DuplicateResolutionModalProps {
+  transaction: DuplicateTransaction;
+  allTransactions: Transaction[];
+  onClose: () => void;
+  onImport: () => void;
+}
+
+const DuplicateResolutionModal: React.FC<DuplicateResolutionModalProps> = ({ transaction, allTransactions, onClose, onImport }) => {
+  // Find potential matches in existing data to show why it's a duplicate
+  const exactMatches = allTransactions.filter(t => 
+      t.date === transaction.date && 
+      t.amount === transaction.amount && 
+      t.description === transaction.description &&
+      t.id !== transaction.id
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <Card className="w-full max-w-lg bg-white shadow-xl animate-in zoom-in-95 duration-200">
+        <CardHeader className="border-b border-gray-100 pb-4">
+          <div className="flex justify-between items-start">
+             <CardTitle className="text-lg flex items-center gap-2 text-orange-600">
+                <AlertTriangle className="w-5 h-5" />
+                Duplicate Detected
+             </CardTitle>
+             <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+             </button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6 space-y-6">
+            <div className="space-y-2">
+                <p className="text-sm text-gray-500">
+                    This transaction appears to be a duplicate of an existing record or another entry in this file.
+                </p>
+                <div className="p-4 bg-orange-50 rounded-lg border border-orange-100 space-y-2">
+                    <div className="flex justify-between">
+                        <span className="text-sm font-medium text-orange-900">New Transaction</span>
+                        <Badge variant="outline" className="bg-white text-orange-600 border-orange-200">
+                            {transaction.duplicateReason}
+                        </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm mt-2">
+                        <div>
+                            <span className="text-xs text-orange-700/70 block uppercase">Date</span>
+                            <span className="font-medium text-orange-900">{transaction.date}</span>
+                        </div>
+                        <div className="text-right">
+                             <span className="text-xs text-orange-700/70 block uppercase">Amount</span>
+                             <span className="font-medium text-orange-900 font-mono">{formatCurrency(transaction.amount)}</span>
+                        </div>
+                        <div className="col-span-2">
+                             <span className="text-xs text-orange-700/70 block uppercase">Description</span>
+                             <span className="font-medium text-orange-900 truncate block">{transaction.description}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {exactMatches.length > 0 && (
+                <div className="space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                        Existing Match ({exactMatches.length})
+                    </p>
+                    {exactMatches.slice(0, 1).map(match => (
+                        <div key={match.id} className="p-3 bg-gray-50 rounded border border-gray-200 opacity-75">
+                             <div className="flex justify-between text-sm text-gray-700">
+                                 <span>{match.date}</span>
+                                 <span className="font-mono">{formatCurrency(match.amount)}</span>
+                             </div>
+                             <p className="text-xs text-gray-500 mt-1 truncate">{match.description}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+                <Button variant="outline" onClick={onClose}>Discard</Button>
+                <Button onClick={onImport} className="bg-orange-600 hover:bg-orange-700 text-white">
+                    Import Anyway
+                </Button>
+            </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 const ITEMS_PER_PAGE = 10;
 
 // Helper to get transaction signature
@@ -32,7 +120,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
   const [headers, setHeaders] = useState<string[]>([]);
   
   // Mapping State
-  const [mapping, setMapping] = useState<CsvMapping>({ dateCol: '', descCol: '', amountCol: '', hasHeader: true, delimiter: ',' });
+  const [mapping, setMapping] = useState<CsvMapping>({ dateCol: '', descCol: '', amountCol: '', categoryCol: '', hasHeader: true, delimiter: ',' });
   const [mappingPreview, setMappingPreview] = useState<Transaction[]>([]);
   
   // Preview State
@@ -96,6 +184,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
                 dateCol: detected.dateCol || '',
                 descCol: detected.descCol || '',
                 amountCol: detected.amountCol || '',
+                categoryCol: detected.categoryCol || '',
             };
             setMapping(completeMapping);
             await processFile(selectedFile, completeMapping);
@@ -105,6 +194,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
                 dateCol: looseMatch('date') || extractedHeaders[0] || '',
                 descCol: looseMatch('desc') || looseMatch('memo') || extractedHeaders[1] || '',
                 amountCol: looseMatch('amount') || looseMatch('amt') || extractedHeaders[2] || '',
+                categoryCol: looseMatch('category') || looseMatch('type') || '',
                 hasHeader: true,
                 delimiter: delimiter
             });
@@ -231,7 +321,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
                   <p className="text-sm text-gray-500">We couldn't auto-detect your bank format. Please map the columns below.</p>
               </CardHeader>
               <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                           <label className="text-sm font-medium">Date Column</label>
                           <select 
@@ -262,6 +352,19 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
                               {headers.map(h => <option key={h} value={h}>{h}</option>)}
                           </select>
                       </div>
+                      <div className="space-y-2">
+                          <label className="text-sm font-medium flex items-center gap-1">
+                            Category <span className="text-gray-400 font-normal">(Optional)</span>
+                          </label>
+                          <select 
+                            className="w-full p-2 border rounded-md bg-gray-50"
+                            value={mapping.categoryCol || ''}
+                            onChange={(e) => setMapping({...mapping, categoryCol: e.target.value})}
+                          >
+                              <option value="">-- None --</option>
+                              {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                      </div>
                   </div>
 
                   {/* Mapping Preview Table */}
@@ -276,6 +379,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
                                   <tr>
                                       <th className="px-4 py-2 font-medium bg-gray-50/50">Date</th>
                                       <th className="px-4 py-2 font-medium bg-gray-50/50">Description</th>
+                                      <th className="px-4 py-2 font-medium bg-gray-50/50">Category (Raw)</th>
                                       <th className="px-4 py-2 font-medium text-right bg-gray-50/50">Amount</th>
                                   </tr>
                               </thead>
@@ -288,13 +392,16 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
                                           <td className="px-4 py-2 text-gray-900 truncate max-w-[200px] text-xs">
                                             {row.description ? row.description : <span className="text-red-300 italic">Empty</span>}
                                           </td>
+                                          <td className="px-4 py-2 text-gray-500 truncate max-w-[120px] text-xs">
+                                            {row.originalCategory || <span className="text-gray-300 italic">N/A</span>}
+                                          </td>
                                           <td className={cn("px-4 py-2 text-right font-mono text-xs", isNaN(row.amount) ? "text-red-400" : "text-gray-700")}>
                                               {isNaN(row.amount) ? 'NaN' : formatCurrency(row.amount)}
                                           </td>
                                       </tr>
                                   )) : (
                                        <tr>
-                                          <td colSpan={3} className="px-4 py-8 text-center text-gray-400 italic">
+                                          <td colSpan={4} className="px-4 py-8 text-center text-gray-400 italic">
                                               No preview available
                                           </td>
                                       </tr>
@@ -399,7 +506,15 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
                                           )}
                                       >
                                           <td className="p-3 text-gray-500 whitespace-nowrap">{t.date}</td>
-                                          <td className="p-3 truncate max-w-[200px]" title={t.description}>{t.description}</td>
+                                          <td className="p-3 truncate max-w-[200px]" title={t.description}>
+                                            {t.description}
+                                            {t.originalCategory && (
+                                                <div className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                                                    <Info className="w-3 h-3" />
+                                                    Cat: {t.originalCategory}
+                                                </div>
+                                            )}
+                                          </td>
                                           
                                           {/* Duplicate Reason Column */}
                                           {activeTab === 'duplicates' && (
@@ -561,155 +676,4 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
       </div>
     </div>
   );
-};
-
-// --- MODAL COMPONENT ---
-
-interface ModalProps {
-    transaction: DuplicateTransaction;
-    allTransactions: Transaction[];
-    onClose: () => void;
-    onImport: () => void;
-}
-
-const DuplicateResolutionModal: React.FC<ModalProps> = ({ transaction, allTransactions, onClose, onImport }) => {
-    // Find collisions
-    const sig = getTxSignature(transaction);
-    const conflicts = allTransactions.filter(t => t.id !== transaction.id && getTxSignature(t) === sig);
-
-    // Get raw keys from the duplicate transaction to display all available data
-    const rawData = transaction.raw || { 
-        Date: transaction.date, 
-        Description: transaction.description, 
-        Amount: transaction.amount 
-    };
-    const keys = Object.keys(rawData);
-
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col">
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                    <div>
-                        <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                            <AlertTriangle className="w-6 h-6 text-orange-500" />
-                            Duplicate Detected
-                        </h3>
-                        <p className="text-sm text-gray-500 mt-1">
-                            This record matches {conflicts.length} existing {conflicts.length === 1 ? 'transaction' : 'transactions'} by Date, Description, and Amount.
-                        </p>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
-                        <X className="w-5 h-5 text-gray-500" />
-                    </button>
-                </div>
-
-                <div className="p-0 overflow-y-auto flex-1 bg-gray-50/30">
-                    <div className="flex flex-col md:flex-row h-full">
-                        {/* LEFT: The Incoming Record */}
-                        <div className="w-full md:w-1/2 border-r border-gray-200 bg-white p-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <Badge className="bg-accent text-white border-none px-3 py-1">Incoming Record</Badge>
-                                {transaction.index !== undefined && (
-                                    <div className="flex items-center text-sm text-gray-400 font-mono">
-                                        <Hash className="w-3 h-3 mr-1" />
-                                        Row {transaction.index}
-                                    </div>
-                                )}
-                            </div>
-                            
-                            <div className="rounded-lg border border-orange-100 overflow-hidden shadow-sm">
-                                <table className="w-full text-sm">
-                                    <tbody className="divide-y divide-gray-50">
-                                        {keys.map((key, i) => (
-                                            <tr key={key} className={i % 2 === 0 ? "bg-orange-50/20" : "bg-white"}>
-                                                <td className="px-4 py-3 text-gray-500 font-medium w-1/3 truncate text-xs uppercase tracking-wide" title={key}>{key}</td>
-                                                <td className="px-4 py-3 text-gray-900 font-mono text-sm break-all">{String(rawData[key])}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {/* RIGHT: Conflicting Records */}
-                        <div className="w-full md:w-1/2 bg-gray-50/50 p-6 overflow-y-auto">
-                            <div className="flex items-center gap-2 mb-4">
-                                <Badge variant="outline" className="bg-white px-3 py-1">Conflicting Records</Badge>
-                                <span className="text-xs text-gray-400">Found in database or file</span>
-                            </div>
-
-                            <div className="space-y-6">
-                                {conflicts.map((conflict, idx) => (
-                                    <div key={conflict.id} className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-                                        <div className="bg-gray-50 px-4 py-2 border-b border-gray-100 flex justify-between items-center">
-                                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                                                Conflict #{idx + 1}
-                                            </span>
-                                            {conflict.index !== undefined ? (
-                                                <span className="text-xs text-gray-400 font-mono flex items-center">
-                                                    <Hash className="w-3 h-3 mr-1" />
-                                                    Row {conflict.index}
-                                                </span>
-                                            ) : (
-                                                 <span className="text-xs text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full flex items-center">
-                                                    <Database className="w-3 h-3 mr-1" />
-                                                    Database
-                                                </span>
-                                            )}
-                                        </div>
-                                        
-                                        <div className="p-4">
-                                            {conflict.raw ? (
-                                                <div className="space-y-2">
-                                                    <div className="grid grid-cols-[1fr_2fr] gap-2 text-xs border-b border-gray-100 pb-2 mb-2">
-                                                         {Object.entries(conflict.raw).slice(0, 5).map(([k, v]) => (
-                                                            <React.Fragment key={k}>
-                                                                <span className="font-medium text-gray-500 truncate text-right pr-2">{k}</span>
-                                                                <span className="text-gray-800 font-mono truncate">{String(v)}</span>
-                                                            </React.Fragment>
-                                                        ))}
-                                                    </div>
-                                                    {Object.keys(conflict.raw).length > 5 && (
-                                                        <div className="text-center">
-                                                            <span className="text-[10px] text-gray-400 italic bg-gray-50 px-2 py-1 rounded-full">
-                                                                + {Object.keys(conflict.raw).length - 5} more fields
-                                                            </span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-                                                    <span className="text-gray-400 text-xs uppercase tracking-wide">Date</span>
-                                                    <span className="font-medium text-gray-700">{conflict.date}</span>
-                                                    <span className="text-gray-400 text-xs uppercase tracking-wide">Desc</span>
-                                                    <span className="font-medium text-gray-700 truncate">{conflict.description}</span>
-                                                    <span className="text-gray-400 text-xs uppercase tracking-wide">Amt</span>
-                                                    <span className="font-medium text-gray-700 font-mono">{formatCurrency(conflict.amount)}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="p-6 border-t border-gray-100 bg-white rounded-b-xl flex justify-between items-center">
-                    <div className="text-xs text-gray-400">
-                        Please verify if this is a true duplicate before importing.
-                    </div>
-                    <div className="flex gap-3">
-                        <Button variant="ghost" onClick={onClose} className="hover:bg-red-50 hover:text-red-600">
-                            Discard Incoming
-                        </Button>
-                        <Button onClick={onImport} className="bg-accent hover:bg-accent-hover text-white shadow-md shadow-accent/20">
-                            <Copy className="w-4 h-4 mr-2" />
-                            Import as Copy
-                        </Button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
 };

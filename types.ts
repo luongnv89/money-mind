@@ -1,8 +1,12 @@
+
 export enum TransactionCategory {
-  Essential = 'Essential',
-  Growth = 'Growth',
-  Joy = 'Joy',
-  Drift = 'Drift',
+  Income = 'Income',
+  InternalTransfer = 'Internal Transfer',
+  MustHave = 'Must-have',
+  NiceToHave = 'Nice-to-have',
+  Waste = 'Waste',
+  Save = 'Save',
+  Invest = 'Invest',
   Uncategorized = 'Uncategorized'
 }
 
@@ -12,6 +16,8 @@ export interface Transaction {
   description: string;
   amount: number;
   category: TransactionCategory;
+  subCategory?: string;
+  originalCategory?: string; // Category from bank import
   confidence: number;
   reason?: string;
   isLearned?: boolean;
@@ -22,6 +28,7 @@ export interface Transaction {
 export interface LocalPattern {
   keyword: string;
   category: TransactionCategory;
+  subCategory?: string;
   confidence: number;
   learnedFrom: string;
   correctedAt: string;
@@ -53,6 +60,7 @@ export interface BankFormat {
   dateCol: string;
   descCol: string;
   amountCol: string;
+  categoryCol?: string;
   debitCreditCols?: boolean; // For Citi/Capital One style split columns
 }
 
@@ -60,6 +68,7 @@ export interface CsvMapping {
   dateCol: string;
   descCol: string;
   amountCol: string;
+  categoryCol?: string;
   hasHeader: boolean;
   delimiter?: string;
 }

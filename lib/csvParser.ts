@@ -1,3 +1,4 @@
+
 import Papa from 'papaparse';
 import { BankFormat, Transaction, TransactionCategory, CsvMapping } from '../types';
 import { SUPPORTED_BANKS } from '../constants';
@@ -129,12 +130,14 @@ export const getPreviewTransactions = (file: File, mapping: CsvMapping, limit: n
                          
                          const date = row[mapping.dateCol];
                          const desc = row[mapping.descCol];
+                         const originalCat = mapping.categoryCol ? row[mapping.categoryCol] : undefined;
 
                          return {
                              id: `preview-${idx}`,
                              date: date ? String(date) : '',
                              description: desc ? String(desc) : '',
                              amount: isNaN(amount) ? 0 : amount,
+                             originalCategory: originalCat ? String(originalCat) : undefined,
                              category: TransactionCategory.Uncategorized,
                              confidence: 0,
                              raw: row,
@@ -171,12 +174,15 @@ export const parseCSVWithMapping = (file: File, mapping: CsvMapping): Promise<Tr
                          const amount = parseAmount(row[mapping.amountCol]);
                          let date = row[mapping.dateCol];
                          if (!date) date = new Date().toISOString(); // Fallback
+                         
+                         const originalCat = mapping.categoryCol ? row[mapping.categoryCol] : undefined;
 
                          return {
                              id: uuidv4(),
                              date: String(date),
                              description: row[mapping.descCol] || 'Unknown',
                              amount: isNaN(amount) ? 0 : amount,
+                             originalCategory: originalCat ? String(originalCat) : undefined,
                              category: TransactionCategory.Uncategorized,
                              confidence: 0,
                              raw: row, // Store original row
@@ -204,6 +210,7 @@ export const detectBankFormat = (headers: string[]): Partial<CsvMapping> | null 
                 dateCol: bank.dateCol,
                 descCol: bank.descCol,
                 amountCol: bank.amountCol,
+                categoryCol: bank.categoryCol, // Included if present in bank definition
                 hasHeader: true
             };
         }

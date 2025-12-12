@@ -1,3 +1,4 @@
+
 import { Transaction, LocalPattern, TransactionCategory } from '../types';
 
 const STORAGE_KEY = 'financePatterns';
@@ -25,7 +26,7 @@ export const extractMerchantName = (description: string): string => {
   return cleaned.trim().substring(0, 20); // Limit length
 };
 
-export const learnPattern = (transaction: Transaction, newCategory: TransactionCategory) => {
+export const learnPattern = (transaction: Transaction, newCategory: TransactionCategory, newSubCategory?: string) => {
   const patterns = getPatterns();
   const keyword = extractMerchantName(transaction.description);
   
@@ -35,6 +36,7 @@ export const learnPattern = (transaction: Transaction, newCategory: TransactionC
     patterns[existingIndex] = {
       ...patterns[existingIndex],
       category: newCategory,
+      subCategory: newSubCategory,
       confidence: Math.min(patterns[existingIndex].confidence + 0.1, 1.0),
       timesApplied: patterns[existingIndex].timesApplied + 1,
       correctedAt: new Date().toISOString(),
@@ -43,6 +45,7 @@ export const learnPattern = (transaction: Transaction, newCategory: TransactionC
     patterns.push({
       keyword,
       category: newCategory,
+      subCategory: newSubCategory,
       confidence: 0.8,
       learnedFrom: transaction.description,
       correctedAt: new Date().toISOString(),
@@ -71,6 +74,7 @@ export const applyPatterns = (transactions: Transaction[]): Transaction[] => {
       return {
         ...tx,
         category: match.category,
+        subCategory: match.subCategory,
         confidence: match.confidence,
         reason: 'Learned from your history',
         isLearned: true,
