@@ -44,7 +44,6 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
     }, [messages, isOpen]);
 
     const isAIReady = React.useMemo(() => {
-        if (isDemoMode) return false;
         if (aiMode === 'local') return true;
         
         // Check availability based on current mode and existence of key string (encrypted or not)
@@ -53,7 +52,7 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
         }
         // Default Cloud (Gemini)
         return !!geminiConfig.apiKey && geminiConfig.apiKey.length > 0;
-    }, [isDemoMode, aiMode, geminiConfig.apiKey, groqConfig.apiKey]);
+    }, [aiMode, geminiConfig.apiKey, groqConfig.apiKey]);
 
     const buildFinancialContext = (txs: Transaction[]) => {
         const now = new Date();
@@ -175,7 +174,8 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
                                     <p className="text-[10px] text-white/80 font-medium">Your Sassy Budget Buddy</p>
                                 </div>
                             </div>
-                            {!isAIReady && (
+                            {/* If we have demo data AND no AI key, show DEMO. If we have AI key, we are 'Live' even with demo data. */}
+                            {!isAIReady && isDemoMode && (
                                 <div className="bg-white/20 px-2 py-0.5 rounded text-[10px] font-bold border border-white/10">
                                     DEMO
                                 </div>

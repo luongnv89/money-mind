@@ -18,12 +18,18 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewChange }) => {
     const { clearAll, transactions } = useTransactionStore();
-    const { isDemoMode, setDemoMode } = useSettingsStore();
+    const { isDemoMode, setDemoMode, aiMode, geminiConfig, groqConfig } = useSettingsStore();
 
     const handleClear = () => {
         clearAll();
         setDemoMode(false);
     };
+
+    const isAIReady = React.useMemo(() => {
+        if (aiMode === 'local') return true;
+        if (aiMode === 'groq') return !!groqConfig.apiKey && groqConfig.apiKey.length > 0;
+        return !!geminiConfig.apiKey && geminiConfig.apiKey.length > 0;
+    }, [aiMode, geminiConfig.apiKey, groqConfig.apiKey]);
 
     return (
         <div className="min-h-screen flex flex-col font-sans">
@@ -31,9 +37,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
             <MonkeySmileChat onNavigate={onViewChange} />
             
             {isDemoMode && (
-                <div className="bg-indigo-600 text-white text-center py-2 text-sm font-medium flex items-center justify-center gap-2 animate-in slide-in-from-top">
+                <div className={cn(
+                    "text-white text-center py-2 text-sm font-medium flex items-center justify-center gap-2 animate-in slide-in-from-top",
+                    isAIReady ? "bg-emerald-600" : "bg-indigo-600"
+                )}>
                     <AlertCircle className="w-4 h-4" />
-                    Demo Mode Active — AI analysis is simulated without API keys.
+                    {isAIReady 
+                        ? "Demo Data Active — Connected to custom AI." 
+                        : "Demo Mode Active — AI analysis is simulated without API keys."
+                    }
                 </div>
             )}
             <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-sm">
