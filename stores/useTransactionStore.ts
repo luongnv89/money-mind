@@ -1,7 +1,8 @@
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Transaction, TransactionCategory } from '../types';
-import { learnPattern, clearPatterns } from '../lib/localStorage';
+import { learnPattern, clearPatterns, applyPatterns } from '../lib/localStorage';
 
 interface TransactionState {
   transactions: Transaction[];
@@ -21,7 +22,8 @@ interface TransactionState {
   
   updateCategory: (id: string, category: TransactionCategory, subCategory?: string) => void;
   bulkUpdateCategory: (ids: string[], category: TransactionCategory, subCategory?: string) => void;
-  approveTransaction: (id: string) => void; // New action
+  approveTransaction: (id: string) => void; 
+  applyLocalPatterns: () => number; // Returns count of changes
   
   setParsing: (status: boolean) => void;
   setCategorizing: (status: boolean) => void;
@@ -47,7 +49,6 @@ export const useTransactionStore = create<TransactionState>()(
           error: null 
       })),
 
-      // efficiently updates a batch of transactions by ID
       updateTransactionBatch: (updates) => set((state) => {
         const updateMap = new Map(updates.map(u => [u.id, u]));
         const newTransactions = state.transactions.map(t => 
@@ -58,22 +59,41 @@ export const useTransactionStore = create<TransactionState>()(
       
       updateCategory: (id, category, subCategory) => {
         const { transactions } = get();
-        const txIndex = transactions.findIndex(t => t.id === id);
-        if (txIndex === -1) return;
+        const targetTx = transactions.find(t => t.id === id);
+        if (!targetTx) return;
 
-        const tx = transactions[txIndex];
-        learnPattern(tx, category, subCategory);
+        learnPattern(targetTx, category, subCategory);
 
-        const newTransactions = [...transactions];
-        newTransactions[txIndex] = { 
-            ...tx, 
-            category, 
-            subCategory,
-            isLearned: true,
-            isApproved: true, // Manual update automatically approves
-            confidence: 1.0, 
-            reason: 'Manual correction' 
-        };
+        const newTransactions = transactions.map(t => {
+            // The manually updated transaction
+            if (t.id === id) {
+                return { 
+                    ...t, 
+                    category, 
+                    subCategory,
+                    isLearned: true,
+                    isApproved: true, // Manual update automatically approves
+                    confidence: 1.0, 
+                    reason: 'Manual correction' 
+                };
+            }
+
+            // Automatically apply to same description
+            if (t.description === targetTx.description) {
+                return {
+                    ...t,
+                    category,
+                    subCategory,
+                    isLearned: true,
+                    isApproved: false, // Keep in waiting status (Verify button visible)
+                    confidence: 0.9, 
+                    reason: 'Matched similar transaction' 
+                };
+            }
+            
+            return t;
+        });
+
         set({ transactions: newTransactions });
       },
 
@@ -115,19 +135,28 @@ export const useTransactionStore = create<TransactionState>()(
         }));
       },
 
+      applyLocalPatterns: () => {
+          let count = 0;
+          set((state) => {
+              const result = applyPatterns(state.transactions);
+              count = result.appliedCount;
+              return { transactions: result.transactions };
+          });
+          return count;
+      },
+
       setParsing: (status) => set({ isParsing: status }),
       setCategorizing: (status) => set({ isCategorizing: status }),
       setProgressCounts: (processed, total) => set({ processedCount: processed, totalToProcess: total }),
       setError: (error) => set({ error }),
       
       clearAll: () => {
-        // Removed confirm()
         set({ transactions: [], error: null, processedCount: 0, totalToProcess: 0 });
       }
     }),
     {
       name: 'moneymind-transactions',
-      partialize: (state) => ({ transactions: state.transactions }), // Only persist transactions
+      partialize: (state) => ({ transactions: state.transactions }), 
     }
   )
 );

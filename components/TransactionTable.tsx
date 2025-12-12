@@ -4,8 +4,8 @@ import { useTransactionStore } from '../stores/useTransactionStore';
 import { TransactionCategory, Transaction } from '../types';
 import { CATEGORY_COLORS, CATEGORY_HIERARCHY } from '../constants';
 import { cn, formatCurrency, formatDate } from '../lib/utils';
-import { Button } from './UI';
-import { Edit2, Download, ChevronLeft, ChevronRight, Search, Check, CheckCircle2, CircleDashed } from 'lucide-react';
+import { Button, Input } from './UI';
+import { Edit2, Download, ChevronLeft, ChevronRight, Search, Check, CheckCircle2, CircleDashed, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
 import Papa from 'papaparse';
 
 const ITEMS_PER_PAGE = 10;
@@ -32,23 +32,19 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({ anchorRect, current
         }
     }, []);
 
-    // Handle scroll to close dropdown, but ONLY if scrolling outside
+    // Handle scroll to close dropdown
     useEffect(() => {
         const handleScroll = (e: Event) => {
-            // Check if the scroll event originated from inside the dropdown container
             if (containerRef.current && containerRef.current.contains(e.target as Node)) {
                 return;
             }
-            // If scrolling happens outside (e.g. main body), close the dropdown to keep it anchored correctly
             onClose();
         };
-
-        // Capture true is needed to catch scroll events which don't bubble
         window.addEventListener('scroll', handleScroll, { capture: true });
         return () => window.removeEventListener('scroll', handleScroll, { capture: true });
     }, [onClose]);
 
-    // Calculate position (viewport relative since we use fixed container)
+    // Calculate position
     const positionStyle = useMemo(() => {
         const padding = 8;
         const width = 300;
@@ -56,39 +52,32 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({ anchorRect, current
         const viewportHeight = window.innerHeight;
         const viewportWidth = window.innerWidth;
         
-        // Default: Drop down
         let top: number | undefined = anchorRect.bottom + padding;
         let bottom: number | undefined = undefined;
         let left = anchorRect.left;
 
-        // Check vertical space
         const spaceBelow = viewportHeight - anchorRect.bottom;
         const spaceAbove = anchorRect.top;
 
-        // If not enough space below AND more space above, flip upwards
         if (spaceBelow < maxDropdownHeight && spaceAbove > spaceBelow) {
              top = undefined;
              bottom = viewportHeight - anchorRect.top + padding;
         }
 
-        // Check horizontal space
         if (left + width > viewportWidth) {
             left = viewportWidth - width - padding;
         }
         
-        // Ensure it doesn't go off the left edge
         left = Math.max(padding, left);
 
         return { top, bottom, left, width };
     }, [anchorRect]);
 
-    // Filter categories
-    const filteredHierarchy = useMemo(() => {
+    const filteredHierarchy = useMemo<Record<string, string[]>>(() => {
         const term = searchTerm.toLowerCase();
         const result: Record<string, string[]> = {};
 
         Object.entries(CATEGORY_HIERARCHY).forEach(([cat, subs]) => {
-            // If header matches, show all. If subs match, show them.
             if (cat.toLowerCase().includes(term)) {
                 result[cat] = subs;
             } else {
@@ -103,18 +92,15 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({ anchorRect, current
 
     return createPortal(
         <div className="fixed inset-0 z-[9999] flex items-start justify-start" style={{ pointerEvents: 'none' }}>
-            {/* Backdrop for click outside */}
             <div 
                 className="absolute inset-0 bg-transparent" 
                 style={{ pointerEvents: 'auto' }} 
                 onClick={onClose} 
             />
-            
-            {/* Dropdown Panel */}
             <div 
                 ref={containerRef}
                 className={cn(
-                    "absolute bg-white rounded-lg shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100",
+                    "absolute bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100",
                     positionStyle.bottom !== undefined ? "origin-bottom-left" : "origin-top-left"
                 )}
                 style={{ 
@@ -126,7 +112,6 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({ anchorRect, current
                     pointerEvents: 'auto'
                 }}
             >
-                {/* Search Header */}
                 <div className="p-2 border-b border-gray-100 bg-gray-50/50 sticky top-0 z-10">
                     <div className="relative">
                         <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
@@ -142,11 +127,9 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({ anchorRect, current
                         />
                     </div>
                 </div>
-
-                {/* List */}
                 <div className="overflow-y-auto flex-1 py-1">
                     {Object.entries(filteredHierarchy).length > 0 ? (
-                        Object.entries(filteredHierarchy).map(([cat, subs]: [string, string[]]) => {
+                        Object.entries(filteredHierarchy).map(([cat, subs]) => {
                              const catStyle = CATEGORY_COLORS[cat as TransactionCategory] || CATEGORY_COLORS[TransactionCategory.Uncategorized];
                              return (
                                 <div key={cat} className="mb-1">
@@ -156,8 +139,6 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({ anchorRect, current
                                     )}>
                                         {cat}
                                     </div>
-                                    
-                                    {/* General Option */}
                                     {(searchTerm === '' || cat.toLowerCase().includes(searchTerm.toLowerCase())) && (
                                         <button
                                             onClick={() => onSelect(cat as TransactionCategory, undefined)}
@@ -170,9 +151,7 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({ anchorRect, current
                                             {currentCategory === cat && !currentSubCategory && <Check className="w-4 h-4" />}
                                         </button>
                                     )}
-
-                                    {/* Subcategories */}
-                                    {subs.map((sub: string) => (
+                                    {Array.isArray(subs) && subs.map((sub: string) => (
                                         <button
                                             key={sub}
                                             onClick={() => onSelect(cat as TransactionCategory, sub)}
@@ -200,6 +179,28 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({ anchorRect, current
     );
 };
 
+// --- Sortable Header Helper ---
+
+const SortHeader = ({ label, sKey, currentSort, onSort, className }: { label: string, sKey: string, currentSort: any, onSort: (k: string) => void, className?: string }) => {
+    return (
+        <th 
+            className={cn("px-6 py-3 font-medium cursor-pointer hover:bg-gray-100 transition-colors group select-none", className)}
+            onClick={() => onSort(sKey)}
+        >
+            <div className="flex items-center gap-1.5">
+                {label}
+                <span className="text-gray-400 group-hover:text-gray-600 flex flex-col">
+                    {currentSort.key === sKey ? (
+                        currentSort.direction === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />
+                    ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50 transition-opacity" />
+                    )}
+                </span>
+            </div>
+        </th>
+    );
+};
+
 // --- Main Table Component ---
 
 interface TransactionTableProps {
@@ -208,39 +209,103 @@ interface TransactionTableProps {
 
 export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions }) => {
   const { updateCategory, approveTransaction } = useTransactionStore();
-  const [filter, setFilter] = useState<TransactionCategory | 'All'>('All');
-  const [currentPage, setCurrentPage] = useState(1);
   
-  // Dropdown State
+  // State
+  const [categoryFilter, setCategoryFilter] = useState<TransactionCategory | 'All'>('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
+  const [currentPage, setCurrentPage] = useState(1);
   const [activeDropdown, setActiveDropdown] = useState<{ id: string, rect: DOMRect } | null>(null);
 
-  // Filter data (Category filter on top of Time filter)
-  const filteredData = transactions.filter(t => filter === 'All' || t.category === filter);
-
-  // Pagination Logic
-  const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-  const paginatedData = filteredData.slice(
-      (currentPage - 1) * ITEMS_PER_PAGE,
-      currentPage * ITEMS_PER_PAGE
-  );
-
-  useEffect(() => {
-      setCurrentPage(1);
-  }, [filter, transactions.length]);
-
-  useEffect(() => {
-      if (currentPage > totalPages && totalPages > 0) {
-          setCurrentPage(totalPages);
-      }
-  }, [totalPages, currentPage]);
+  // Handlers
+  const handleSort = (key: string) => {
+      setSortConfig(current => {
+          if (current.key === key) {
+              return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+          }
+          // Default to descending for amounts and dates, ascending for text
+          const defaultDesc = ['date', 'amount', 'confidence'].includes(key);
+          return { key, direction: defaultDesc ? 'desc' : 'asc' };
+      });
+  };
 
   const handleCategorySelect = (id: string, category: TransactionCategory, subCategory?: string) => {
       updateCategory(id, category, subCategory);
       setActiveDropdown(null);
   };
   
+  // Process Data
+  const processedData = useMemo<Transaction[]>(() => {
+    let data = [...transactions];
+
+    // 1. Filter by Category
+    if (categoryFilter !== 'All') {
+        data = data.filter(t => t.category === categoryFilter);
+    }
+
+    // 2. Filter by Search
+    if (searchQuery.trim()) {
+        const lowerQuery = searchQuery.toLowerCase().trim();
+        data = data.filter(t => 
+            t.description.toLowerCase().includes(lowerQuery) ||
+            t.amount.toString().includes(lowerQuery) ||
+            t.subCategory?.toLowerCase().includes(lowerQuery) ||
+            (t.originalCategory && t.originalCategory.toLowerCase().includes(lowerQuery))
+        );
+    }
+
+    // 3. Sort
+    data.sort((a, b) => {
+        const key = sortConfig.key;
+        const direction = sortConfig.direction === 'asc' ? 1 : -1;
+
+        if (key === 'date') {
+            return (new Date(a.date).getTime() - new Date(b.date).getTime()) * direction;
+        }
+        if (key === 'amount') {
+            return (a.amount - b.amount) * direction;
+        }
+        if (key === 'description') {
+            return a.description.localeCompare(b.description) * direction;
+        }
+        if (key === 'category') {
+            return a.category.localeCompare(b.category) * direction;
+        }
+        if (key === 'confidence') {
+            return (a.confidence - b.confidence) * direction;
+        }
+        if (key === 'status') {
+             const aVal = a.isApproved ? 1 : 0;
+             const bVal = b.isApproved ? 1 : 0;
+             return (aVal - bVal) * direction;
+        }
+        return 0;
+    });
+
+    return data;
+  }, [transactions, categoryFilter, searchQuery, sortConfig]);
+
+  // Reset pagination on filter change
+  useEffect(() => {
+      setCurrentPage(1);
+  }, [categoryFilter, searchQuery, transactions.length]);
+
+  // Pagination Logic
+  const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE);
+  const paginatedData = processedData.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+  );
+
+  // Auto-correct page if out of bounds
+  useEffect(() => {
+      if (currentPage > totalPages && totalPages > 0) {
+          setCurrentPage(totalPages);
+      }
+  }, [totalPages, currentPage]);
+
   const handleExport = () => {
-      const csv = Papa.unparse(transactions.map(({id, isLearned, ...rest}) => rest));
+      const csv = Papa.unparse(processedData.map(({id, isLearned, ...rest}) => rest));
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
@@ -262,45 +327,64 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
 
   return (
     <div className="w-full space-y-4">
-      {/* Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto scrollbar-hide">
-          {['All', ...Object.values(TransactionCategory)].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setFilter(cat as any)}
-              className={cn(
-                "px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap",
-                filter === cat 
-                  ? "bg-gray-900 text-white" 
-                  : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-              )}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-        <Button variant="outline" size="sm" onClick={handleExport} className="h-8">
-            <Download className="w-3 h-3 mr-2" /> Export CSV
-        </Button>
+      {/* Search and Filters Bar */}
+      <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
+              <div className="relative w-full sm:w-80">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input 
+                    placeholder="Search transactions..." 
+                    className="pl-9 bg-white"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  {searchQuery && (
+                      <button 
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                          <X className="w-4 h-4" />
+                      </button>
+                  )}
+              </div>
+              <Button variant="outline" size="sm" onClick={handleExport} className="shrink-0 w-full sm:w-auto">
+                  <Download className="w-3 h-3 mr-2" /> Export Processed CSV
+              </Button>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 w-full scrollbar-hide">
+              {['All', ...Object.values(TransactionCategory)].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCategoryFilter(cat as any)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap border",
+                    categoryFilter === cat 
+                      ? "bg-gray-900 text-white border-gray-900" 
+                      : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                  )}
+                >
+                  {cat}
+                </button>
+              ))}
+          </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto min-h-[400px]">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500">
+            <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500 sticky top-0 z-10 shadow-sm">
               <tr>
-                <th className="px-6 py-3 font-medium">Date</th>
-                <th className="px-6 py-3 font-medium">Description</th>
-                <th className="px-6 py-3 font-medium">Amount</th>
-                <th className="px-6 py-3 font-medium">Category</th>
-                <th className="px-6 py-3 font-medium">Confidence</th>
-                <th className="px-6 py-3 font-medium text-center">Status</th>
+                <SortHeader label="Date" sKey="date" currentSort={sortConfig} onSort={handleSort} />
+                <SortHeader label="Description" sKey="description" currentSort={sortConfig} onSort={handleSort} />
+                <SortHeader label="Amount" sKey="amount" currentSort={sortConfig} onSort={handleSort} />
+                <SortHeader label="Category" sKey="category" currentSort={sortConfig} onSort={handleSort} />
+                <SortHeader label="Confidence" sKey="confidence" currentSort={sortConfig} onSort={handleSort} />
+                <SortHeader label="Status" sKey="status" currentSort={sortConfig} onSort={handleSort} className="text-center" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {paginatedData.map((t) => {
-                // Safely get colors with fallback
                 const categoryColors = CATEGORY_COLORS[t.category] || CATEGORY_COLORS[TransactionCategory.Uncategorized];
                 
                 return (
@@ -319,7 +403,6 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                   <td className="px-6 py-3">
                     <button 
                         onClick={(e) => {
-                            // Use getBoundingClientRect to get absolute viewport position
                             const rect = e.currentTarget.getBoundingClientRect();
                             setActiveDropdown({ id: t.id, rect });
                         }}
@@ -362,32 +445,37 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                         </div>
                     ) : (
                         <div className="flex items-center justify-center gap-2">
-                             <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
-                                <CircleDashed className="w-3.5 h-3.5" />
-                                <span className="text-[10px] font-medium">Wait</span>
-                             </div>
                              <button 
                                 onClick={() => approveTransaction(t.id)}
-                                className="p-1.5 rounded-full bg-white border border-gray-300 text-gray-400 hover:text-green-600 hover:border-green-500 hover:bg-green-50 transition-all shadow-sm"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-gray-300 text-gray-500 hover:text-green-600 hover:border-green-500 hover:bg-green-50 transition-all shadow-sm"
                                 title="Click to Approve"
                              >
-                                <Check className="w-4 h-4" />
+                                <span className="text-[10px] font-medium">Verify</span>
+                                <Check className="w-3 h-3" />
                              </button>
                         </div>
                     )}
                   </td>
                 </tr>
               )})}
+              
+              {paginatedData.length === 0 && (
+                <tr>
+                    <td colSpan={6} className="p-12 text-center text-gray-500 italic text-sm">
+                        No transactions found matching your filters.
+                    </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
         
         {/* Pagination Footer */}
-        {filteredData.length > 0 ? (
+        {processedData.length > 0 && (
             <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-                <span className="text-xs text-gray-500">
-                    Showing <span className="font-medium">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> to <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)}</span> of <span className="font-medium">{filteredData.length}</span> results
-                </span>
+                <div className="text-xs text-gray-500">
+                    Showing <span className="font-medium">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span> to <span className="font-medium">{Math.min(currentPage * ITEMS_PER_PAGE, processedData.length)}</span> of <span className="font-medium">{processedData.length}</span> results
+                </div>
                 <div className="flex gap-1">
                     <Button 
                         variant="outline" 
@@ -412,14 +500,9 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                     </Button>
                 </div>
             </div>
-        ) : (
-            <div className="p-12 text-center text-gray-500 italic text-sm">
-                No transactions found for this filter.
-            </div>
         )}
       </div>
 
-      {/* Render Portal Dropdown */}
       {activeDropdown && (
           <CategoryDropdown 
               anchorRect={activeDropdown.rect}

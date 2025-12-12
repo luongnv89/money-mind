@@ -226,7 +226,8 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
           let parsed = await parseCSVWithMapping(f, m);
           
           if (shouldApplyPatterns) {
-              parsed = applyPatterns(parsed);
+              const result = applyPatterns(parsed);
+              parsed = result.transactions;
           }
 
           // Deduplication Logic

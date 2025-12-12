@@ -1,3 +1,4 @@
+
 import { Transaction, AIMode, TransactionCategory, AppSettings } from '../types';
 import { useSettingsStore, getDecryptedApiKey } from '../stores/useSettingsStore';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -178,10 +179,19 @@ const categorizeWithGemini = async (
                 if (onChunkProcessed) onChunkProcessed(results);
             }
         } catch (e: any) {
+            console.error("Gemini Batch Failed", e);
             if (e.status === 429 || e.message?.includes('429')) {
                 throw new Error("Gemini Rate Limit Exceeded (429). Please try again in 1 minute.");
             }
-            console.error("Gemini Batch Failed", e);
+            
+            // Fallback for failed batch so the UI knows they failed
+            const fallbackResults = batch.map(t => ({
+                id: t.id,
+                category: TransactionCategory.Uncategorized,
+                confidence: 0,
+                reason: "AI Request Failed: " + (e.message || "Unknown error")
+            }));
+            if (onChunkProcessed) onChunkProcessed(fallbackResults);
         }
         
         await new Promise(r => setTimeout(r, 4000));
@@ -294,7 +304,18 @@ const categorizeWithGroq = async (
         } catch (e: any) {
             console.error("Groq Batch Failed", e);
              // Propagate rate limits or specific errors
-            if (e.message.includes("Rate Limit") || e.message.includes("JSON")) throw e;
+            if (e.message.includes("Rate Limit") || e.message.includes("JSON")) {
+                 throw e;
+            }
+
+            // Fallback for failed batch
+            const fallbackResults = batch.map(t => ({
+                id: t.id,
+                category: TransactionCategory.Uncategorized,
+                confidence: 0,
+                reason: "AI Request Failed: " + (e.message || "Unknown error")
+            }));
+            if (onChunkProcessed) onChunkProcessed(fallbackResults);
         }
 
         // Rate limit buffer
@@ -349,7 +370,8 @@ const categorizeWithOllama = async (
             } catch (parseError) {
                  // Fallback simple parsing if model chats instead of JSON
                  console.warn("Failed to parse JSON from Ollama", data.response);
-                 continue;
+                 // Don't throw here, just treat as failed tx
+                 throw new Error("Invalid JSON response");
             }
             
             const processedResult: CategorizationResult = {
@@ -366,7 +388,15 @@ const categorizeWithOllama = async (
              if (e.message === 'Failed to fetch') {
                  throw new Error("CORS Error. Run: $env:OLLAMA_ORIGINS=\"*\"; ollama serve (Windows) OR OLLAMA_ORIGINS=\"*\" ollama serve (Mac/Linux)");
             }
-            console.error(e);
+            
+            // Mark individual failure
+            const failedResult: CategorizationResult = {
+                id: tx.id,
+                category: TransactionCategory.Uncategorized,
+                confidence: 0,
+                reason: "AI Error: " + (e.message || "Unknown")
+            };
+            if (onChunkProcessed) onChunkProcessed([failedResult]);
         }
     }
 };

@@ -100,26 +100,39 @@ export const learnPattern = (transaction: Transaction, newCategory: TransactionC
   savePatterns(patterns);
 };
 
-export const applyPatterns = (transactions: Transaction[]): Transaction[] => {
+export const applyPatterns = (transactions: Transaction[]): { transactions: Transaction[], appliedCount: number } => {
   const patterns = getPatterns();
-  if (patterns.length === 0) return transactions;
+  if (patterns.length === 0) return { transactions, appliedCount: 0 };
 
-  return transactions.map((tx) => {
+  let appliedCount = 0;
+  const newTransactions = transactions.map((tx) => {
+    // Skip transactions that are already approved/verified by the user
+    if (tx.isApproved) return tx;
+
     const merchant = extractMerchantName(tx.description);
     const match = patterns.find((p) => merchant.includes(p.keyword) || p.keyword.includes(merchant));
     
     if (match && match.confidence > 0.6) {
-      return {
-        ...tx,
-        category: match.category,
-        subCategory: match.subCategory,
-        confidence: match.confidence,
-        reason: 'Learned from your history',
-        isLearned: true,
-      };
+      // Check if we are actually changing anything (category or upgrading confidence)
+      const isUpgrade = tx.confidence < match.confidence;
+      const isChange = tx.category !== match.category || tx.subCategory !== match.subCategory;
+      
+      if (isChange || isUpgrade) {
+          appliedCount++;
+          return {
+            ...tx,
+            category: match.category,
+            subCategory: match.subCategory,
+            confidence: match.confidence,
+            reason: 'Learned from your history',
+            isLearned: true,
+          };
+      }
     }
     return tx;
   });
+
+  return { transactions: newTransactions, appliedCount };
 };
 
 export const clearPatterns = () => {
