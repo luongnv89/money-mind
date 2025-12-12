@@ -1,0 +1,5 @@
+{
+  "name": "MoneyMind",
+  "description": "A privacy-first, anonymous AI financial analyzer that helps you understand your spending patterns without storing your data.",
+  "requestFramePermissions": []
+}
