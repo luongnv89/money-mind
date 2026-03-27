@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { TransactionCategory, Transaction } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from './UI';
-import { formatCurrency, cn } from '../lib/utils';
+import { formatCurrency, cn, safeNewDate } from '../lib/utils';
 import { Zap, TrendingUp, PiggyBank, ShieldCheck, Target } from 'lucide-react';
 
 const COLORS = {
@@ -33,7 +33,7 @@ const BudgetMetricCard = ({
     barColorClass
 }: { 
     title: string, 
-    icon: any, 
+    icon: React.ElementType, 
     current: number, 
     average: number, 
     type?: 'expense' | 'savings',
@@ -100,14 +100,18 @@ const BudgetMetricCard = ({
     );
 };
 
-export const MonthlyPerformance: React.FC<InsightsDashboardProps> = ({ transactions, allTransactions }) => {
+export const MonthlyPerformance: React.FC<InsightsDashboardProps> = ({ transactions: _transactions, allTransactions }) => {
   // 1. Calculate Core Budget Metrics (Current Month vs Historical Average)
   const budgetMetrics = useMemo(() => {
     if (allTransactions.length === 0) return null;
 
     // A. Setup Dates
-    const sortedTx = [...allTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const validTxs = allTransactions.filter(t => !!safeNewDate(t.date));
+    if (validTxs.length === 0) return null;
+
+    const sortedTx = [...validTxs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const latestDateStr = sortedTx[sortedTx.length - 1].date;
+    
     // If no transactions, fallback
     const currentMonthKey = latestDateStr ? latestDateStr.substring(0, 7) : new Date().toISOString().substring(0, 7);
     
@@ -144,7 +148,10 @@ export const MonthlyPerformance: React.FC<InsightsDashboardProps> = ({ transacti
     return {
         current: currentTotals,
         average: averages,
-        monthLabel: new Date(currentMonthKey + '-02').toLocaleString('default', { month: 'long', year: 'numeric' })
+        monthLabel: (() => {
+            const d = safeNewDate(currentMonthKey + '-02');
+            return d ? d.toLocaleString('default', { month: 'long', year: 'numeric' }) : currentMonthKey;
+        })()
     };
   }, [allTransactions]);
 
@@ -211,14 +218,19 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ transactio
       
       expenses.forEach(t => {
           const m = t.date.substring(0, 7);
-          byMonth[m] = (byMonth[m] || 0) + Math.abs(t.amount);
+          if (m.length === 7 && m.includes('-')) {
+            byMonth[m] = (byMonth[m] || 0) + Math.abs(t.amount);
+          }
       });
       
-      return Object.keys(byMonth).sort().slice(-6).map(m => ({
-          month: m,
-          label: new Date(m + '-02').toLocaleString('default', { month: 'short' }),
-          amount: byMonth[m]
-      }));
+      return Object.keys(byMonth).sort().slice(-6).map(m => {
+          const d = safeNewDate(m + '-02');
+          return {
+            month: m,
+            label: d ? d.toLocaleString('default', { month: 'short' }) : m,
+            amount: byMonth[m]
+          };
+      });
   }, [allTransactions]);
 
   return (
@@ -243,7 +255,7 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ transactio
                               <Cell key={`cell-${index}`} fill={COLORS[entry.name as TransactionCategory] || COLORS.Uncategorized} />
                               ))}
                           </Pie>
-                          <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                          <Tooltip formatter={(value: unknown) => typeof value === 'number' ? formatCurrency(value) : String(value)} />
                           <Legend verticalAlign="middle" align="right" layout="vertical" iconSize={8} wrapperStyle={{ fontSize: '11px' }} />
                       </PieChart>
                   </ResponsiveContainer>
@@ -271,7 +283,7 @@ export const InsightsDashboard: React.FC<InsightsDashboardProps> = ({ transactio
                           <Tooltip 
                               cursor={{ fill: '#f9fafb' }}
                               contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                              formatter={(value: number) => [formatCurrency(value), 'Total']}
+                              formatter={(value: unknown) => [typeof value === 'number' ? formatCurrency(value) : String(value), 'Total']}
                           />
                           <Bar dataKey="amount" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} />
                       </BarChart>

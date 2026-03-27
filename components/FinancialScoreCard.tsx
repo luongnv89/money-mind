@@ -3,7 +3,7 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './UI';
 import { Transaction } from '../types';
 import { calculateFinancialScore } from '../services/scoreService';
-import { Trophy, TrendingUp, AlertCircle, CheckCircle2, Lightbulb, ArrowRight, Target } from 'lucide-react';
+import { TrendingUp, AlertCircle, CheckCircle2, Lightbulb, Target } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface FinancialScoreCardProps {

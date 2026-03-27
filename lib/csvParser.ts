@@ -1,6 +1,6 @@
 
 import Papa from 'papaparse';
-import { BankFormat, Transaction, TransactionCategory, CsvMapping } from '../types';
+import { Transaction, TransactionCategory, CsvMapping } from '../types';
 import { SUPPORTED_BANKS } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -38,7 +38,7 @@ const detectBestDelimiter = (file: File): Promise<string> => {
 };
 
 // Robust number parser for handling various currency formats (US vs EU)
-const parseAmount = (val: any): number => {
+const parseAmount = (val: unknown): number => {
     if (typeof val === 'number') return val;
     if (!val) return 0;
     
@@ -121,10 +121,8 @@ export const autoDetectMapping = (headers: string[], delimiter: string): CsvMapp
 
 // 1. Get headers with robust delimiter detection
 export const getCSVHeaders = (file: File): Promise<{ headers: string[], delimiter: string }> => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const delimiter = await detectBestDelimiter(file);
-      
+  return new Promise((resolve, reject) => {
+    detectBestDelimiter(file).then(delimiter => {
       Papa.parse(file, {
         header: true,
         preview: 1, // Read only first few lines
@@ -150,9 +148,9 @@ export const getCSVHeaders = (file: File): Promise<{ headers: string[], delimite
         },
         error: (err) => reject(err)
       });
-    } catch (e) {
+    }).catch(e => {
       reject(e);
-    }
+    });
   });
 };
 
@@ -165,7 +163,7 @@ export const getPreviewTransactions = (file: File, mapping: CsvMapping, limit: n
             dynamicTyping: false, // Turn off dynamic typing to handle amounts manually
             delimiter: mapping.delimiter,
             complete: (results) => {
-                const data = results.data as Record<string, any>[];
+                const data = results.data as Record<string, unknown>[];
                 if (!data || data.length === 0) {
                     resolve([]);
                     return;
@@ -193,7 +191,7 @@ export const getPreviewTransactions = (file: File, mapping: CsvMapping, limit: n
                          } as Transaction;
                     });
                     resolve(transactions);
-                } catch(e) {
+                } catch(_e) {
                     resolve([]);
                 }
             },
@@ -211,14 +209,14 @@ export const parseCSVWithMapping = (file: File, mapping: CsvMapping): Promise<Tr
             dynamicTyping: false, // Turn off dynamic typing to handle amounts manually
             delimiter: mapping.delimiter, // Use the delimiter found during header detection
             complete: (results) => {
-                const data = results.data as Record<string, any>[];
+                const data = results.data as Record<string, unknown>[];
                 if (!data || data.length === 0) {
                     reject(new Error("No data found in CSV"));
                     return;
                 }
                 
                 try {
-                    const transactions = data.map((row, idx) => {
+                    const transactions: Transaction[] = data.map((row, idx) => {
                          const amount = parseAmount(row[mapping.amountCol]);
                          let date = row[mapping.dateCol];
                          if (!date) date = new Date().toISOString(); // Fallback
@@ -228,14 +226,14 @@ export const parseCSVWithMapping = (file: File, mapping: CsvMapping): Promise<Tr
                          return {
                              id: uuidv4(),
                              date: String(date),
-                             description: row[mapping.descCol] || 'Unknown',
+                             description: String(row[mapping.descCol] || 'Unknown'),
                              amount: isNaN(amount) ? 0 : amount,
                              originalCategory: originalCat ? String(originalCat) : undefined,
                              category: TransactionCategory.Uncategorized,
                              confidence: 0,
                              raw: row, // Store original row
                              index: idx + 2 // 1-based index
-                         }
+                         } as Transaction;
                     }).filter(t => t.description !== 'Unknown' && t.amount !== 0);
 
                     resolve(transactions);

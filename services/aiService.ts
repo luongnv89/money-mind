@@ -1,5 +1,5 @@
 
-import { Transaction, AIMode, TransactionCategory, AppSettings } from '../types';
+import { Transaction, AIMode, TransactionCategory } from '../types';
 import { useSettingsStore, getDecryptedApiKey } from '../stores/useSettingsStore';
 import { GoogleGenAI, Type } from "@google/genai";
 import { CATEGORY_HIERARCHY } from '../constants';
@@ -30,7 +30,7 @@ export const testAiConnection = async (): Promise<boolean> => {
                 });
                 if (!response.ok) throw new Error("Server demo unavailable");
                 return true;
-            } catch (e) {
+            } catch (_e) {
                 throw new Error("No API Key set and Demo Server unreachable.");
             }
         }
@@ -42,8 +42,8 @@ export const testAiConnection = async (): Promise<boolean> => {
                 contents: "Hello, reply with 'OK'.",
             });
             return !!response.text;
-        } catch (e: any) {
-            throw new Error(`Gemini Error: ${e.message}`);
+        } catch (e: unknown) {
+            throw new Error(`Gemini Error: ${e instanceof Error ? e.message : String(e)}`);
         }
     } else if (mode === 'groq') {
         const apiKey = getDecryptedApiKey(settings);
@@ -68,8 +68,8 @@ export const testAiConnection = async (): Promise<boolean> => {
                 throw new Error(err.error?.message || 'Groq connection failed');
             }
             return true;
-        } catch (e: any) {
-            throw new Error(`Groq Error: ${e.message}`);
+        } catch (e: unknown) {
+            throw new Error(`Groq Error: ${e instanceof Error ? e.message : String(e)}`);
         }
     } else {
         const { baseUrl, port, model } = settings.ollamaConfig;
@@ -89,9 +89,10 @@ export const testAiConnection = async (): Promise<boolean> => {
             });
             if (!response.ok) throw new Error("Ollama connection refused");
             return true;
-        } catch (e: any) {
+        } catch (e: unknown) {
             // Specific handling for CORS/Network errors typical with local LLMs in browser
-            if (e.message === 'Failed to fetch' || e.name === 'TypeError') {
+            const errorMessage = e instanceof Error ? e.message : String(e);
+            if (errorMessage === 'Failed to fetch' || (e instanceof Error && e.name === 'TypeError')) {
                  throw new Error(
                     "Connection Failed. \n\n" +
                     "1. QUIT the Ollama app from your taskbar/menu bar.\n" +
@@ -100,7 +101,7 @@ export const testAiConnection = async (): Promise<boolean> => {
                     "   Windows (PowerShell):\n   $env:OLLAMA_ORIGINS=\"*\"; ollama serve"
                  );
             }
-            throw new Error(`Local AI Error: ${e.message}. Is Ollama running?`);
+            throw new Error(`Local AI Error: ${errorMessage}. Is Ollama running?`);
         }
     }
 };
@@ -158,8 +159,8 @@ export const chatWithFinancialAgent = async (
                 
                 const data = await response.json();
                 resultText = data.response;
-            } catch (e: any) {
-                throw new Error(e.message || "Failed to connect to demo server");
+            } catch (e: unknown) {
+                throw new Error(e instanceof Error ? e.message : "Failed to connect to demo server");
             }
          } else {
              const ai = new GoogleGenAI({ apiKey });
@@ -327,9 +328,11 @@ const categorizeWithGemini = async (
                 const results: CategorizationResult[] = JSON.parse(text);
                 if (onChunkProcessed) onChunkProcessed(results);
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Gemini Batch Failed", e);
-            if (e.status === 429 || e.message?.includes('429')) {
+            const errorMessage = e instanceof Error ? e.message : String(e);
+            const status = (e as { status?: number }).status;
+            if (status === 429 || errorMessage?.includes('429')) {
                 throw new Error("Gemini Rate Limit Exceeded (429). Please try again in 1 minute.");
             }
             
@@ -338,7 +341,7 @@ const categorizeWithGemini = async (
                 id: t.id,
                 category: TransactionCategory.Uncategorized,
                 confidence: 0,
-                reason: "AI Request Failed: " + (e.message || "Unknown error")
+                reason: "AI Request Failed: " + errorMessage
             }));
             if (onChunkProcessed) onChunkProcessed(fallbackResults);
         }
@@ -433,13 +436,13 @@ const categorizeWithGroq = async (
                             parsed = arrayValue;
                         }
                     }
-                } catch (e) {
+                } catch (_e) {
                     console.error("Failed to parse Groq JSON", content);
                 }
 
                 if (Array.isArray(parsed)) {
                     // Normalize fields
-                    const results: CategorizationResult[] = parsed.map((item: any) => ({
+                    const results: CategorizationResult[] = parsed.map((item: { id: string; category?: TransactionCategory; subCategory?: string; confidence?: number; reason?: string }) => ({
                         id: item.id,
                         category: item.category || TransactionCategory.Uncategorized,
                         subCategory: item.subCategory,
@@ -450,10 +453,11 @@ const categorizeWithGroq = async (
                 }
             }
 
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Groq Batch Failed", e);
+            const errorMessage = e instanceof Error ? e.message : String(e);
              // Propagate rate limits or specific errors
-            if (e.message.includes("Rate Limit") || e.message.includes("JSON")) {
+            if (errorMessage.includes("Rate Limit") || errorMessage.includes("JSON")) {
                  throw e;
             }
 
@@ -462,7 +466,7 @@ const categorizeWithGroq = async (
                 id: t.id,
                 category: TransactionCategory.Uncategorized,
                 confidence: 0,
-                reason: "AI Request Failed: " + (e.message || "Unknown error")
+                reason: "AI Request Failed: " + errorMessage
             }));
             if (onChunkProcessed) onChunkProcessed(fallbackResults);
         }
@@ -516,7 +520,7 @@ const categorizeWithOllama = async (
             // Handle cases where Ollama doesn't enforce JSON mode perfectly
             try {
                 result = JSON.parse(data.response);
-            } catch (parseError) {
+            } catch (_parseError) {
                  // Fallback simple parsing if model chats instead of JSON
                  console.warn("Failed to parse JSON from Ollama", data.response);
                  // Don't throw here, just treat as failed tx
@@ -533,8 +537,9 @@ const categorizeWithOllama = async (
 
             if (onChunkProcessed) onChunkProcessed([processedResult]);
 
-        } catch (e: any) {
-             if (e.message === 'Failed to fetch') {
+        } catch (e: unknown) {
+             const errorMessage = e instanceof Error ? e.message : String(e);
+             if (errorMessage === 'Failed to fetch') {
                  throw new Error("CORS Error. Run: $env:OLLAMA_ORIGINS=\"*\"; ollama serve (Windows) OR OLLAMA_ORIGINS=\"*\" ollama serve (Mac/Linux)");
             }
             
@@ -543,7 +548,7 @@ const categorizeWithOllama = async (
                 id: tx.id,
                 category: TransactionCategory.Uncategorized,
                 confidence: 0,
-                reason: "AI Error: " + (e.message || "Unknown")
+                reason: "AI Error: " + errorMessage
             };
             if (onChunkProcessed) onChunkProcessed([failedResult]);
         }

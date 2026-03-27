@@ -22,7 +22,7 @@ export interface Transaction {
   reason?: string;
   isLearned?: boolean;
   isApproved?: boolean; // User has verified this transaction
-  raw?: Record<string, any>;
+  raw?: Record<string, unknown>;
   index?: number; // Original CSV row number
 }
 
@@ -62,6 +62,7 @@ export interface UsageStats {
 
 export interface AppSettings {
   aiMode: AIMode;
+  isDemoMode: boolean;
   applyPatterns: boolean;
   enableFunnyAlerts: boolean; // New setting
   geminiConfig: GeminiConfig;

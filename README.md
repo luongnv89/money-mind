@@ -27,45 +27,78 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
 ## ⚙️ Setup & Installation
 
 ### Prerequisites
--   Node.js v20+
--   NPM
--   (Optional) Vercel CLI for local serverless testing: `npm i -g vercel`
+-   **Node.js v20+**
+-   **NPM** (or Yarn/PNPM)
+-   (Optional) **Vercel CLI** for testing serverless functions locally: `npm i -g vercel`
+-   (Optional) **Ollama** for local AI: [ollama.com](https://ollama.com)
 
-### Installation
+### Local Development
 
-1.  Clone the repository:
+1.  **Clone the repository:**
     ```bash
     git clone https://github.com/yourusername/moneymind.git
     cd moneymind
     ```
 
-2.  Install dependencies:
+2.  **Install dependencies:**
     ```bash
     npm install
     ```
 
-3.  **Configure API Key:**
-    To use the serverless backend features (like the Demo Chat proxy), rename `.env.example` to `.env` and add your Google Gemini API key:
+3.  **Configure Environment Variables:**
+    Create a `.env` file in the root directory (or copy from `.env.example`):
     ```bash
     cp .env.example .env
     ```
-    Edit `.env`:
+    Add your API keys to `.env`:
     ```env
-    API_KEY=your_actual_api_key_here
+    GEMINI_API_KEY=your_google_gemini_api_key
+    GROQ_API_KEY=your_groq_api_key
     ```
+    *Note: You can also configure these keys directly within the application's **Settings** page.*
 
-4.  Start the development server:
+4.  **Start the development server:**
     
-    *Option A (Frontend Only):*
+    **Option A: Standard Vite Dev (Frontend Only)**
     ```bash
     npm run dev
     ```
-    *Note: The `/api/chat` endpoint will not work in this mode unless you proxy it manually.*
+    This starts the app at `http://localhost:3000`. The frontend will use the keys from `.env` or your in-app settings.
 
-    *Option B (Full Stack with Serverless):*
+    **Option B: Full-Stack Dev (with Serverless Functions)**
+    If you want to test the serverless endpoints in the `api/` folder:
     ```bash
     vercel dev
     ```
+    This requires the Vercel CLI and will simulate the production environment.
+
+### Deployment
+
+#### 1. Static Site Deployment (SPA)
+MoneyMind is primarily a Single Page Application (SPA). You can deploy it to any static hosting provider (GitHub Pages, Netlify, Vercel, etc.):
+
+1.  **Build the project:**
+    ```bash
+    npm run build
+    ```
+2.  **Deploy the `dist/` folder.**
+    Ensure your hosting provider is configured to redirect all requests to `index.html` (standard SPA routing).
+
+#### 2. Vercel Deployment (Full-Stack)
+If you want to utilize the serverless functions in the `api/` directory (e.g., for the demo chat proxy):
+
+1.  Push your code to a GitHub repository.
+2.  Connect the repository to **Vercel**.
+3.  Add your `GEMINI_API_KEY` or `API_KEY` to the **Environment Variables** in the Vercel project settings.
+4.  Vercel will automatically detect the `api/` folder and deploy the functions.
+
+## 🤖 AI Configuration
+
+MoneyMind supports three AI modes, configurable in the **Settings** page:
+
+1.  **Cloud (Gemini):** Uses Google's Gemini models. Requires a free API key from [Google AI Studio](https://aistudio.google.com/).
+2.  **Cloud (Groq):** Uses Groq's ultra-fast inference. Requires an API key from [Groq Console](https://console.groq.com/).
+3.  **Local (Ollama):** 100% private. Requires Ollama running locally (`ollama serve`) and the `llama3.2` (or similar) model pulled (`ollama pull llama3.2`).
 
 ## 🧪 Quality Assurance
 

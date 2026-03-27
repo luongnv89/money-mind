@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Button } from '../components/UI';
-import { Shield, Lock, Eye, Trash2, Server } from 'lucide-react';
+import { Shield, Lock, Server } from 'lucide-react';
 
 export const PrivacyPolicy: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     return (

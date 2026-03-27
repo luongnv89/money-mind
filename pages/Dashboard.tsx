@@ -13,7 +13,7 @@ import { Button, Card, CardContent } from '../components/UI';
 import { AddTransactionModal } from '../components/AddTransactionModal';
 import { Zap, AlertOctagon, Loader2, Settings, Calendar, RefreshCw, X, Activity, CheckCircle2, AlertTriangle, ArrowRightLeft, BookOpen, RotateCcw, Plus, LayoutDashboard, List } from 'lucide-react';
 import { TransactionCategory, Transaction } from '../types';
-import { cn } from '../lib/utils';
+import { cn, safeNewDate } from '../lib/utils';
 
 interface DashboardProps {
     onNavigate: (view: 'settings' | 'upload' | 'dashboard') => void;
@@ -46,7 +46,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         setProgressCounts
     } = useTransactionStore();
     
-    const { aiMode, geminiConfig, isDemoMode, enableFunnyAlerts } = useSettingsStore();
+    const { aiMode, isDemoMode, enableFunnyAlerts } = useSettingsStore();
     const { addToast } = useToastStore();
 
     // Time Filter & Tab State
@@ -69,7 +69,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             }, 1000);
             return () => clearTimeout(timer);
         }
-    }, [transactions.length, isCategorizing, enableFunnyAlerts]);
+    }, [transactions, isCategorizing, enableFunnyAlerts, addToast]);
 
     // Check if AI is configured or in demo mode
     const isAIConfigured = useMemo(() => {
@@ -77,12 +77,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         if (aiMode === 'local') return true; // Assume local is always "ready" to try
         const key = getDecryptedApiKey(useSettingsStore.getState());
         return !!key && key.length > 0;
-    }, [aiMode, geminiConfig, isDemoMode]);
+    }, [aiMode, isDemoMode]);
 
     // Check if we have local patterns
     const hasPatterns = useMemo(() => {
         return getPatterns().length > 0;
-    }, [transactions]); // Re-check when transactions change (implies potential learning)
+    }, []); // Re-check when transactions change (implies potential learning)
 
     // Filter Logic
     const displayedTransactions = useMemo(() => {
@@ -114,7 +114,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         if (displayedTransactions.length === 0) return '';
         
         const timestamps = displayedTransactions
-            .map(t => new Date(t.date).getTime())
+            .map(t => {
+                const d = safeNewDate(t.date);
+                return d ? d.getTime() : NaN;
+            })
             .filter(t => !isNaN(t));
             
         if (timestamps.length === 0) return '';
@@ -122,17 +125,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         const min = Math.min(...timestamps);
         const max = Math.max(...timestamps);
         
-        const format = (ts: number) => new Intl.DateTimeFormat('en-US', { 
-            month: 'short', 
-            day: 'numeric', 
-            year: 'numeric' 
-        }).format(new Date(ts));
+        const format = (ts: number) => {
+            const d = new Date(ts);
+            return new Intl.DateTimeFormat('en-US', { 
+                month: 'short', 
+                day: 'numeric', 
+                year: 'numeric' 
+            }).format(d);
+        };
 
         if (min === max) return format(min);
         return `${format(min)} - ${format(max)}`;
     }, [displayedTransactions]);
 
-    const performAIAnalysis = async (transactionsToProcess: any[]) => {
+    const performAIAnalysis = async (transactionsToProcess: Transaction[]) => {
          setCategorizing(true);
          setAnalysisStats(null);
          setError(null); // Clear previous errors
@@ -155,18 +161,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                      }
                  });
 
-                 // 2. Prepare updates
-                 const updates = results.map(res => {
-                     const original = transactions.find(t => t.id === res.id);
-                     if (!original) return null;
-                     return { 
-                         ...original, 
-                         category: res.category,
-                         subCategory: res.subCategory, // Ensure subCategory is passed
-                         confidence: res.confidence, 
-                         reason: res.reason 
-                     };
-                 }).filter(Boolean) as any[];
+                // 2. Prepare updates
+                const updates = results.map(res => {
+                    const original = transactions.find(t => t.id === res.id);
+                    if (!original) return null;
+                    return { 
+                        ...original, 
+                        category: res.category,
+                        subCategory: res.subCategory, // Ensure subCategory is passed
+                        confidence: res.confidence, 
+                        reason: res.reason 
+                    };
+                }).filter(Boolean) as Transaction[];
  
                  // 3. Commit updates
                  updateTransactionBatch(updates);
@@ -193,8 +199,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                  });
              }
              
-         } catch (e: any) {
-             setError(e.message);
+        } catch (e: unknown) {
+             if (e instanceof Error) {
+                 setError(e.message);
+             } else {
+                 setError(String(e));
+             }
          } finally {
              setCategorizing(false);
              setProgressCounts(0, 0);

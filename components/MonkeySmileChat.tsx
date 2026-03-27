@@ -4,8 +4,8 @@ import { useTransactionStore } from '../stores/useTransactionStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { chatWithFinancialAgent } from '../services/aiService';
 import { Transaction, TransactionCategory } from '../types';
-import { MessageCircle, Send, X, Smile, Settings, Loader2 } from 'lucide-react';
-import { Button, Input, Card, CardHeader, CardContent } from './UI';
+import { Send, X, Smile, Settings } from 'lucide-react';
+import { Button, Input, Card } from './UI';
 import { cn, formatCurrency } from '../lib/utils';
 
 interface Message {
@@ -22,7 +22,7 @@ interface MonkeySmileChatProps {
 export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) => {
     const { transactions } = useTransactionStore();
     // Subscribe to config objects so component re-renders when keys are updated
-    const { isDemoMode, aiMode, geminiConfig, groqConfig } = useSettingsStore();
+    const { isDemoMode, aiMode, groqConfig } = useSettingsStore();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
         { 
@@ -56,7 +56,7 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
         }
         
         return false;
-    }, [aiMode, geminiConfig.apiKey, groqConfig.apiKey]);
+    }, [aiMode, groqConfig.apiKey]);
 
     const buildFinancialContext = (txs: Transaction[]) => {
         if (txs.length === 0) return "No transaction data available.";
@@ -154,15 +154,16 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
                 timestamp: Date.now()
             };
             setMessages(prev => [...prev, botMsg]);
-        } catch (error: any) {
+        } catch (error: unknown) {
             // Handle Budget Error specifically
-            const isBudgetError = error.message.includes("Budget Exceeded");
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            const isBudgetError = errorMessage.includes("Budget Exceeded");
             const errorMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
                 content: isBudgetError 
-                    ? `🙊 Uh oh! ${error.message}\n\nGo to Settings to reset your usage limits.` 
-                    : `Oops! Something went wrong: ${error.message}`,
+                    ? `🙊 Uh oh! ${errorMessage}\n\nGo to Settings to reset your usage limits.` 
+                    : `Oops! Something went wrong: ${errorMessage}`,
                 timestamp: Date.now()
             };
             setMessages(prev => [...prev, errorMsg]);

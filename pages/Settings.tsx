@@ -2,16 +2,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useSettingsStore, getDecryptedApiKey, getEnvGeminiApiKey } from '../stores/useSettingsStore';
 import { clearPatterns, getPatterns, importPatterns } from '../lib/localStorage';
-import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '../components/UI';
-import { Trash2, CheckCircle, Circle, Cloud, Cpu, Terminal, Key, Server, PlayCircle, AlertCircle, Loader2, Zap, Download, Upload, MessageCircle, Info, BarChart2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, Button, Input } from '../components/UI';
+import { Trash2, CheckCircle, Cloud, Cpu, Terminal, Key, Server, PlayCircle, AlertCircle, Zap, Download, Upload, Info, BarChart2 } from 'lucide-react';
 import { testAiConnection } from '../services/aiService';
 import { useToastStore } from '../stores/useToastStore';
 
 export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const { 
         aiMode, setAiMode, 
-        applyPatterns, toggleApplyPatterns,
-        enableFunnyAlerts, toggleFunnyAlerts, 
         geminiConfig, setGeminiConfig,
         groqConfig, setGroqConfig,
         ollamaConfig, setOllamaConfig,
@@ -33,7 +31,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         try { return atob(geminiConfig.apiKey); } catch { return geminiConfig.apiKey; }
     })();
 
-    const isUsingEnvKey = envKey && currentStoredKey === envKey;
+    const isUsingEnvKey = !!envKey && currentStoredKey === envKey;
     const isUsingCustomKey = currentStoredKey && (!envKey || currentStoredKey !== envKey);
 
     // Force model to gemini-flash-lite-latest if using Env Key
@@ -96,9 +94,9 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             await testAiConnection();
             setTestResult('success');
             setTestMessage('Connection successful!');
-        } catch (e: any) {
+        } catch (e: unknown) {
             setTestResult('error');
-            setTestMessage(e.message);
+            setTestMessage(e instanceof Error ? e.message : String(e));
         } finally {
             setIsTesting(false);
         }
@@ -168,6 +166,60 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     </CardContent>
                 </Card>
             )}
+
+            <Card>
+                <CardHeader className="bg-gray-50/50 border-b border-gray-100">
+                    <CardTitle className="flex items-center gap-2">
+                        <Download className="w-5 h-5 text-accent" />
+                        Data Management
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                                <BarChart2 className="w-4 h-4 text-accent" />
+                                Categorization Patterns
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                                You have <strong>{patternCount}</strong> custom categorization patterns stored locally. 
+                                These help the AI learn from your manual corrections.
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                <Button size="sm" variant="outline" onClick={handleExportPatterns}>
+                                    <Download className="w-3.5 h-3.5 mr-2" />
+                                    Export
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={handleImportClick}>
+                                    <Upload className="w-3.5 h-3.5 mr-2" />
+                                    Import
+                                </Button>
+                                <Input 
+                                    type="file" 
+                                    ref={fileInputRef} 
+                                    className="hidden" 
+                                    accept=".json" 
+                                    onChange={handleFileChange} 
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <h3 className="text-sm font-medium text-gray-900 flex items-center gap-2">
+                                <Trash2 className="w-4 h-4 text-red-500" />
+                                Reset & Clear
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                                Permanently delete all learned patterns. This cannot be undone.
+                            </p>
+                            <Button size="sm" variant="outline" className="text-red-600 border-red-200 hover:bg-red-50" onClick={handleClearPatterns}>
+                                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                                Clear All Patterns
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
 
             <Card className="overflow-hidden">
                 <CardHeader className="bg-gray-50/50 border-b border-gray-100">

@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { X, Check, DollarSign, Calendar, Type as TypeIcon, Tag } from 'lucide-react';
-import { Button, Input, Card, CardHeader, CardTitle, CardContent } from './UI';
+import { X, DollarSign, Calendar, Tag } from 'lucide-react';
+import { Button, Input } from './UI';
 import { Transaction, TransactionCategory } from '../types';
 import { CATEGORY_HIERARCHY } from '../constants';
 import { cn } from '../lib/utils';

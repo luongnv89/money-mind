@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Transaction, TransactionCategory } from '../types';
-import { learnPattern, clearPatterns, applyPatterns } from '../lib/localStorage';
+import { learnPattern, applyPatterns } from '../lib/localStorage';
 
 interface TransactionState {
   transactions: Transaction[];

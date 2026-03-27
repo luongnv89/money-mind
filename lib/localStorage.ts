@@ -23,12 +23,12 @@ export const importPatterns = (json: string): { success: boolean, count: number,
     const map = new Map(currentPatterns.map(p => [p.keyword, p]));
     let newCount = 0;
 
-    imported.forEach((p: any) => {
+    imported.forEach((p: Partial<LocalPattern>) => {
       // Basic validation ensuring required fields exist
       if (typeof p.keyword === 'string' && typeof p.category === 'string') {
         const validPattern: LocalPattern = {
            keyword: p.keyword,
-           category: p.category,
+           category: p.category as TransactionCategory,
            subCategory: p.subCategory,
            // Use imported confidence or default to high confidence if manually imported
            confidence: typeof p.confidence === 'number' ? p.confidence : 1.0, 
@@ -45,8 +45,8 @@ export const importPatterns = (json: string): { success: boolean, count: number,
 
     savePatterns(Array.from(map.values()));
     return { success: true, count: newCount };
-  } catch (e: any) {
-    return { success: false, count: 0, error: e.message };
+  } catch (e: unknown) {
+    return { success: false, count: 0, error: e instanceof Error ? e.message : 'Unknown error' };
   }
 };
 

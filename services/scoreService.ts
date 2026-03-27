@@ -1,32 +1,40 @@
 
 import { Transaction, TransactionCategory } from '../types';
+import { safeNewDate } from '../lib/utils';
 
 export interface ScoreBreakdown {
-    label: string;
-    points: number; // positive or negative
-    reason: string;
-    type: 'positive' | 'negative' | 'neutral';
+  label: string;
+  points: number; // positive or negative
+  reason: string;
+  type: 'positive' | 'negative' | 'neutral';
 }
 
 export interface FinancialScore {
-    score: number;
-    grade: string; // "A+", "B", etc.
-    breakdown: ScoreBreakdown[];
-    tips: string[];
-    hasEnoughData: boolean;
+  score: number;
+  grade: string; // "A+", "B", etc.
+  breakdown: ScoreBreakdown[];
+  tips: string[];
+  hasEnoughData: boolean;
 }
 
 export const calculateFinancialScore = (allTransactions: Transaction[]): FinancialScore => {
-    // 1. Validation: Need at least some expense data
-    const expenses = allTransactions.filter(t => t.amount < 0 && t.category !== TransactionCategory.InternalTransfer);
-    if (expenses.length < 5) {
-        return { score: 0, grade: '-', breakdown: [], tips: ["Add more transactions to generate a score."], hasEnoughData: false };
-    }
+  // 1. Validation: Need at least some expense data
+  const expenses = allTransactions.filter(t => t.amount < 0 && t.category !== TransactionCategory.InternalTransfer);
+  if (expenses.length < 5) {
+    return { score: 0, grade: '-', breakdown: [], tips: ["Add more transactions to generate a score."], hasEnoughData: false };
+  }
 
-    // 2. Setup Timeframes (Current Month vs History)
-    const sortedTx = expenses.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const latestDate = new Date(sortedTx[sortedTx.length - 1].date);
-    const currentMonthKey = latestDate.toISOString().substring(0, 7); // YYYY-MM
+  // 2. Setup Timeframes (Current Month vs History)
+  const sortedTx = expenses
+    .filter(t => !!safeNewDate(t.date))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  if (sortedTx.length === 0) {
+    return { score: 0, grade: '-', breakdown: [], tips: ["No valid transaction dates found."], hasEnoughData: false };
+  }
+
+  const latestDate = new Date(sortedTx[sortedTx.length - 1].date);
+  const currentMonthKey = latestDate.toISOString().substring(0, 7); // YYYY-MM
     
     const currentMonthTx = expenses.filter(t => t.date.startsWith(currentMonthKey));
     const historyTx = expenses.filter(t => !t.date.startsWith(currentMonthKey));

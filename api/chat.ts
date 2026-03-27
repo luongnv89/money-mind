@@ -40,7 +40,7 @@ export async function POST(request: Request) {
             headers: { 'Content-Type': 'application/json' } 
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error("Chat API Error:", error);
         return new Response(JSON.stringify({ error: "Demo AI is currently unavailable." }), { status: 500 });
     }

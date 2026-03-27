@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // Batching to prevent huge context
-    const simplifiedTransactions = transactions.map((t: any) => ({
+    const simplifiedTransactions = transactions.map((t: { id: string; description: string; amount: number; date: string; originalCategory?: string }) => ({
         id: t.id,
         desc: t.description,
         amt: t.amount,
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
         });
 
         return new Response(response.text, { headers: { 'Content-Type': 'application/json' } });
-    } catch (error) {
+    } catch {
         return new Response(JSON.stringify({ error: "AI Processing Failed" }), { status: 500 });
     }
 }

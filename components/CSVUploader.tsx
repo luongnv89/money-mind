@@ -1,7 +1,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Upload, FileText, AlertCircle, ArrowRight, Check, AlertTriangle, X, ArrowLeft, Trash2, PlusCircle, ChevronLeft, ChevronRight, RefreshCw, Copy, Database, Info, ExternalLink, Hash } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge } from './UI';
+import { Upload, ArrowRight, AlertTriangle, X, ArrowLeft, Trash2, PlusCircle, ChevronLeft, ChevronRight, Copy, Database, Info, Check, AlertCircle } from 'lucide-react';
+import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from './UI';
 import { getCSVHeaders, detectBankFormat, parseCSVWithMapping, getPreviewTransactions, autoDetectMapping } from '../lib/csvParser';
 import { useTransactionStore } from '../stores/useTransactionStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -135,21 +135,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
   const { addTransactions, transactions: existingTransactions, setError, error, clearAll } = useTransactionStore();
   const { applyPatterns: shouldApplyPatterns, isDemoMode, setDemoMode } = useSettingsStore();
 
-  // Reset when component mounts or unmounts
-  useEffect(() => {
-    return () => {
-        if (state !== 'idle') reset();
-    };
-  }, []);
-
-  // Update preview when mapping changes
-  useEffect(() => {
-    if (state === 'mapping' && file) {
-        getPreviewTransactions(file, mapping).then(setMappingPreview);
-    }
-  }, [mapping, state, file]);
-
-  const reset = () => {
+  const reset = React.useCallback(() => {
     setState('idle');
     setFile(null);
     setHeaders([]);
@@ -160,7 +146,21 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
     setSelectedDuplicate(null);
     setError(null);
     setMappingPreview([]);
-  };
+  }, [setError]);
+
+  // Reset when component mounts or unmounts
+  useEffect(() => {
+    return () => {
+        if (state !== 'idle') reset();
+    };
+  }, [state, reset]);
+
+  // Update preview when mapping changes
+  useEffect(() => {
+    if (state === 'mapping' && file) {
+        getPreviewTransactions(file, mapping).then(setMappingPreview);
+    }
+  }, [mapping, state, file]);
 
   const handleFileSelection = async (selectedFile: File) => {
     if (selectedFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
@@ -213,7 +213,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
         // Go to mapping screen for user verification
         setState('mapping');
 
-    } catch (e: any) {
+    } catch (e: unknown) {
         setError("Failed to read CSV. Check file format.");
         console.error(e);
         reset();
@@ -260,8 +260,8 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
           }
           setState('preview');
 
-      } catch (e: any) {
-          setError(e.message);
+      } catch (e: unknown) {
+          setError(e instanceof Error ? e.message : "An unknown error occurred");
           setState('idle');
       }
   };
@@ -278,7 +278,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
   const restoreDuplicate = (tx: DuplicateTransaction) => {
       // Create a new transaction based on the duplicate, but with a new ID and modified description
       // We explicitly exclude duplicateReason from the new object
-      const { duplicateReason, ...rawTx } = tx;
+      const { duplicateReason: _, ...rawTx } = tx;
       
       const restoredTx: Transaction = {
           ...rawTx,

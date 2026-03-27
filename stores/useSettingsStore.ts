@@ -1,7 +1,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppSettings, AIMode, GeminiConfig, OllamaConfig, GroqConfig, UsageStats } from '../types';
+import { AppSettings, AIMode, GeminiConfig, OllamaConfig, GroqConfig } from '../types';
 
 interface SettingsState extends AppSettings {
   setAiMode: (mode: AIMode) => void;
@@ -20,18 +20,18 @@ interface SettingsState extends AppSettings {
 
 // Simple obfuscation to prevent plain-text read in local storage (not military grade encryption)
 const encrypt = (text: string) => {
-    try { return btoa(text); } catch(e) { return text; }
+    try { return btoa(text); } catch(_e) { return text; }
 };
 const decrypt = (text: string) => {
-    try { return atob(text); } catch(e) { return text; }
+    try { return atob(text); } catch(_e) { return text; }
 };
 
 // Detect Environment Keys for Gemini
 export const getEnvGeminiApiKey = () => {
     try {
         // Safe check for browser environments where process might not be defined
-        const env = typeof process !== 'undefined' ? process.env : {};
-        return (env as any).GOOGLE_API_KEY || (env as any).GEMINI_API_KEY || (env as any).API_KEY || '';
+        const env = (typeof process !== 'undefined' ? process.env : {}) as Record<string, string | undefined>;
+        return env.GOOGLE_API_KEY || env.GEMINI_API_KEY || env.API_KEY || '';
     } catch {
         return '';
     }

@@ -6,7 +6,7 @@ import { TransactionCategory, Transaction } from '../types';
 import { CATEGORY_COLORS, CATEGORY_HIERARCHY } from '../constants';
 import { cn, formatCurrency, formatDate } from '../lib/utils';
 import { Button, Input } from './UI';
-import { Edit2, Download, ChevronLeft, ChevronRight, Search, Check, CheckCircle2, CircleDashed, ArrowUpDown, ArrowUp, ArrowDown, X, Trash2 } from 'lucide-react';
+import { Edit2, Download, ChevronLeft, ChevronRight, Search, Check, CheckCircle2, ArrowUpDown, ArrowUp, ArrowDown, X, Trash2 } from 'lucide-react';
 import Papa from 'papaparse';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -183,7 +183,7 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({ anchorRect, current
 
 // --- Sortable Header Helper ---
 
-const SortHeader = ({ label, sKey, currentSort, onSort, className }: { label: string, sKey: string, currentSort: any, onSort: (k: string) => void, className?: string }) => {
+const SortHeader = ({ label, sKey, currentSort, onSort, className }: { label: string, sKey: string, currentSort: { key: string, direction: 'asc' | 'desc' }, onSort: (k: string) => void, className?: string }) => {
     return (
         <th 
             className={cn("px-6 py-3 font-medium cursor-pointer hover:bg-gray-100 transition-colors group select-none", className)}
@@ -265,7 +265,11 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
         const direction = sortConfig.direction === 'asc' ? 1 : -1;
 
         if (key === 'date') {
-            return (new Date(a.date).getTime() - new Date(b.date).getTime()) * direction;
+            const dateA = new Date(a.date).getTime();
+            const dateB = new Date(b.date).getTime();
+            const valA = isNaN(dateA) ? 0 : dateA;
+            const valB = isNaN(dateB) ? 0 : dateB;
+            return (valA - valB) * direction;
         }
         if (key === 'amount') {
             return (a.amount - b.amount) * direction;
@@ -310,7 +314,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
   }, [totalPages, currentPage]);
 
   const handleExport = () => {
-      const csv = Papa.unparse(processedData.map(({id, isLearned, ...rest}) => rest));
+      const csv = Papa.unparse(processedData.map(({id: _id, isLearned: _isLearned, ...rest}) => rest));
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
@@ -378,7 +382,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
               {['All', ...Object.values(TransactionCategory)].map((cat) => (
                 <button
                   key={cat}
-                  onClick={() => setCategoryFilter(cat as any)}
+                  onClick={() => setCategoryFilter(cat as TransactionCategory | 'All')}
                   className={cn(
                     "px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap border",
                     categoryFilter === cat 

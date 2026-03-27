@@ -143,7 +143,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
                             <div className="flex items-center gap-2 font-mono text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
                                 <span>v1.0.0</span>
                                 <span className="text-gray-300">|</span>
-                                <span title="Commit Hash">{((import.meta as any).env?.VITE_COMMIT_HASH as string) || 'dev-local'}</span>
+                                <span title="Commit Hash">{(import.meta.env?.VITE_COMMIT_HASH as string) || 'dev-local'}</span>
                             </div>
                         </div>
                     </div>
