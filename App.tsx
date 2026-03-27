@@ -3,9 +3,10 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { UploadPage } from './pages/Upload';
 import { SettingsPage } from './pages/Settings';
+import { PrivacyPolicy } from './pages/PrivacyPolicy';
 import { useTransactionStore } from './stores/useTransactionStore';
 
-type View = 'dashboard' | 'upload' | 'settings';
+type View = 'dashboard' | 'upload' | 'settings' | 'privacy';
 
 function App() {
   const { transactions } = useTransactionStore();
@@ -17,6 +18,7 @@ function App() {
       {view === 'dashboard' && <Dashboard onNavigate={setView} />}
       {view === 'upload' && <UploadPage onUploadComplete={() => setView('dashboard')} />}
       {view === 'settings' && <SettingsPage onBack={() => setView('dashboard')} />}
+      {view === 'privacy' && <PrivacyPolicy onBack={() => setView('dashboard')} />}
     </Layout>
   );
 }

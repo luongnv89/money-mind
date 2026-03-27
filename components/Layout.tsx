@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useTransactionStore } from '../stores/useTransactionStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -8,7 +7,7 @@ import { cn } from '../lib/utils';
 import { ToastContainer } from './Toast';
 import { MonkeySmileChat } from './MonkeySmileChat';
 
-type View = 'dashboard' | 'upload' | 'settings';
+type View = 'dashboard' | 'upload' | 'settings' | 'privacy';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -103,15 +102,50 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
             </main>
 
             <footer className="border-t border-gray-200 bg-gray-50 mt-auto">
-                <div className="container mx-auto max-w-7xl px-4 py-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-gray-500">
-                    <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4" />
-                        <span>Private by default. Open source.</span>
-                    </div>
-                    <div className="flex gap-6">
-                        <a href="#" className="hover:text-accent">Privacy Policy</a>
-                        <a href="#" className="hover:text-accent">GitHub</a>
-                        <a href="#" className="hover:text-accent">Contact</a>
+                <div className="container mx-auto max-w-7xl px-4 py-8">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-gray-500">
+                        {/* Left Side: Copyright & Branding */}
+                        <div className="flex flex-col items-center md:items-start gap-2">
+                            <div className="flex items-center gap-2 text-gray-900 font-medium">
+                                <Shield className="w-4 h-4 text-accent" />
+                                <span>Private by default. Open source.</span>
+                            </div>
+                            <p className="text-center md:text-left">
+                                &copy; {new Date().getFullYear()} <a href="https://luongnv.com" target="_blank" rel="noopener noreferrer" className="text-gray-700 hover:text-accent transition-colors font-medium">luongnv89</a>.
+                                <span className="hidden sm:inline"> All rights reserved.</span>
+                            </p>
+                        </div>
+
+                        {/* Right Side: Version & Links */}
+                        <div className="flex flex-col items-center md:items-end gap-2">
+                            <div className="flex gap-6">
+                                <button 
+                                    onClick={() => onViewChange('privacy')}
+                                    className="hover:text-accent transition-colors"
+                                >
+                                    Privacy Policy
+                                </button>
+                                <a 
+                                    href="https://github.com/luongnv89/money-mind" 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="hover:text-accent transition-colors"
+                                >
+                                    GitHub
+                                </a>
+                                <a 
+                                    href="mailto:luongnv89@gmail.com" 
+                                    className="hover:text-accent transition-colors"
+                                >
+                                    Contact
+                                </a>
+                            </div>
+                            <div className="flex items-center gap-2 font-mono text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
+                                <span>v1.0.0</span>
+                                <span className="text-gray-300">|</span>
+                                <span title="Commit Hash">{((import.meta as any).env?.VITE_COMMIT_HASH as string) || 'dev-local'}</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </footer>

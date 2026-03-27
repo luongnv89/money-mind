@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useTransactionStore } from '../stores/useTransactionStore';
-import { useSettingsStore, getDecryptedApiKey } from '../stores/useSettingsStore';
+import { useSettingsStore } from '../stores/useSettingsStore';
 import { chatWithFinancialAgent } from '../services/aiService';
 import { Transaction, TransactionCategory } from '../types';
 import { MessageCircle, Send, X, Smile, Settings, Loader2 } from 'lucide-react';
@@ -46,17 +46,27 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
     const isAIReady = React.useMemo(() => {
         if (aiMode === 'local') return true;
         
-        // Check availability based on current mode and existence of key string (encrypted or not)
+        // If Cloud mode, we allow fallback to server proxy if no key is present
+        if (aiMode === 'cloud') {
+            return true; 
+        }
+
         if (aiMode === 'groq') {
             return !!groqConfig.apiKey && groqConfig.apiKey.length > 0;
         }
-        // Default Cloud (Gemini)
-        return !!geminiConfig.apiKey && geminiConfig.apiKey.length > 0;
+        
+        return false;
     }, [aiMode, geminiConfig.apiKey, groqConfig.apiKey]);
 
     const buildFinancialContext = (txs: Transaction[]) => {
-        const now = new Date();
-        const currentMonthPrefix = now.toISOString().slice(0, 7); // YYYY-MM
+        if (txs.length === 0) return "No transaction data available.";
+
+        // Find the latest date in the dataset to determine the "Current Month" context
+        // This ensures that if the data is from 2023, we analyze 2023, not today's empty month.
+        const sortedTxs = [...txs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const latestDate = sortedTxs[0].date; 
+        const currentMonthPrefix = latestDate.slice(0, 7); // YYYY-MM
+
         const monthlyTx = txs.filter(t => t.date.startsWith(currentMonthPrefix));
 
         const income = monthlyTx.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
@@ -76,16 +86,30 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
             .map(([cat, amt]) => `${cat}: ${formatCurrency(amt)}`)
             .join(', ');
 
+        // Calculate All-Time stats for broader context
+        const allTimeIncome = txs.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
+        const allTimeExpenses = txs.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+        const netWorthProxy = allTimeIncome - allTimeExpenses; // Crude approximation within dataset
+
         return `
-        Month: ${currentMonthPrefix}
-        Total Income: ${formatCurrency(income)}
-        Total Expenses: ${formatCurrency(expenses)}
-        Net Balance (Income - Expenses): ${formatCurrency(income - expenses)}
-        Nice-to-Have Spend: ${formatCurrency(niceToHave)}
-        Waste Spend: ${formatCurrency(waste)}
-        Top Spending Categories: ${topCategories}
-        Total Transactions: ${monthlyTx.length}
-        Recent Transactions: ${monthlyTx.slice(0, 5).map(t => `${t.description} (${formatCurrency(t.amount)})`).join(', ')}
+        CONTEXT PERIOD: ${currentMonthPrefix} (Most recent data available)
+        
+        MONTHLY SNAPSHOT (${currentMonthPrefix}):
+        - Total Income: ${formatCurrency(income)}
+        - Total Expenses: ${formatCurrency(expenses)}
+        - Net Balance: ${formatCurrency(income - expenses)}
+        - 'Nice-to-Have' Spend: ${formatCurrency(niceToHave)}
+        - 'Waste' Spend: ${formatCurrency(waste)}
+        - Top Categories: ${topCategories}
+        - Transaction Count: ${monthlyTx.length}
+        
+        RECENT TRANSACTIONS (Last 5): 
+        ${monthlyTx.slice(0, 5).map(t => `- ${t.date}: ${t.description} (${formatCurrency(t.amount)}) [${t.category}]`).join('\n')}
+
+        ALL-TIME DATA (${txs.length} txs total):
+        - Total Inflow: ${formatCurrency(allTimeIncome)}
+        - Total Outflow: ${formatCurrency(allTimeExpenses)}
+        - Calculated Net (Inflow - Outflow): ${formatCurrency(netWorthProxy)}
         `;
     };
 
@@ -111,7 +135,7 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
                     const errorMsg: Message = {
                         id: (Date.now() + 1).toString(),
                         role: 'assistant',
-                        content: "I'd love to chat, but I need a brain! 🧠\n\nYou are currently in Demo Mode or missing an API Key. Please go to Settings to connect your own AI model for real-time chat.",
+                        content: "I'd love to chat, but I need a brain! 🧠\n\nPlease go to Settings to configure your AI model.",
                         timestamp: Date.now()
                     };
                     setMessages(prev => [...prev, errorMsg]);
@@ -131,10 +155,14 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
             };
             setMessages(prev => [...prev, botMsg]);
         } catch (error: any) {
+            // Handle Budget Error specifically
+            const isBudgetError = error.message.includes("Budget Exceeded");
             const errorMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
-                content: `Oops! Something went wrong: ${error.message}`,
+                content: isBudgetError 
+                    ? `🙊 Uh oh! ${error.message}\n\nGo to Settings to reset your usage limits.` 
+                    : `Oops! Something went wrong: ${error.message}`,
                 timestamp: Date.now()
             };
             setMessages(prev => [...prev, errorMsg]);

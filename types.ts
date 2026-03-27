@@ -54,6 +54,12 @@ export interface OllamaConfig {
   model: string;
 }
 
+export interface UsageStats {
+    txAnalyzed: number;
+    chatMessages: number;
+    lastReset: string;
+}
+
 export interface AppSettings {
   aiMode: AIMode;
   applyPatterns: boolean;
@@ -61,6 +67,7 @@ export interface AppSettings {
   geminiConfig: GeminiConfig;
   groqConfig: GroqConfig;
   ollamaConfig: OllamaConfig;
+  usage: UsageStats; // Budget control
 }
 
 export interface BankFormat {

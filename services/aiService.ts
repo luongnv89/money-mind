@@ -20,7 +20,20 @@ export const testAiConnection = async (): Promise<boolean> => {
     
     if (mode === 'cloud') {
         const apiKey = getDecryptedApiKey(settings);
-        if (!apiKey) throw new Error("Missing API Key");
+        // If no key, we test the server endpoint availability
+        if (!apiKey) {
+            try {
+                const response = await fetch('/api/chat', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({ message: "ping", context: "ping" })
+                });
+                if (!response.ok) throw new Error("Server demo unavailable");
+                return true;
+            } catch (e) {
+                throw new Error("No API Key set and Demo Server unreachable.");
+            }
+        }
         
         try {
             const ai = new GoogleGenAI({ apiKey });
@@ -99,6 +112,12 @@ export const chatWithFinancialAgent = async (
     financialContext: string
 ): Promise<string> => {
     const settings = useSettingsStore.getState();
+    
+    // Usage Check
+    if (!settings.checkUsageLimit('chat')) {
+        throw new Error("Budget Exceeded: You have reached the limit of 10 messages. Please reset usage in Settings.");
+    }
+
     const apiKey = getDecryptedApiKey(settings);
     
     // System prompt defines the persona
@@ -117,16 +136,41 @@ export const chatWithFinancialAgent = async (
     6. If they are doing well (high savings, positive net), cheer them on!
     7. Never make up numbers. If the data isn't in the context, say "I don't see that in your records."`;
 
+    let resultText = "";
+
     if (settings.aiMode === 'cloud') {
-         if (!apiKey) throw new Error("Missing API Key");
-         const ai = new GoogleGenAI({ apiKey });
-         const response = await ai.models.generateContent({
-             model: settings.geminiConfig.model,
-             contents: [
-                 { role: 'user', parts: [{ text: systemPrompt + "\n\nUser Question: " + userQuery }] }
-             ]
-         });
-         return response.text || "I'm speechless 🐵 (No response from AI)";
+         // Fallback to Server Proxy if no local key provided
+         if (!apiKey) {
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: userQuery,
+                        context: financialContext
+                    })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || "Demo server error");
+                }
+                
+                const data = await response.json();
+                resultText = data.response;
+            } catch (e: any) {
+                throw new Error(e.message || "Failed to connect to demo server");
+            }
+         } else {
+             const ai = new GoogleGenAI({ apiKey });
+             const response = await ai.models.generateContent({
+                 model: settings.geminiConfig.model,
+                 contents: [
+                     { role: 'user', parts: [{ text: systemPrompt + "\n\nUser Question: " + userQuery }] }
+                 ]
+             });
+             resultText = response.text || "I'm speechless 🐵 (No response from AI)";
+         }
     } else if (settings.aiMode === 'groq') {
          if (!apiKey) throw new Error("Missing API Key");
          const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -150,7 +194,7 @@ export const chatWithFinancialAgent = async (
         }
 
         const data = await response.json();
-        return data.choices?.[0]?.message?.content || "Groq is silent 🐵";
+        resultText = data.choices?.[0]?.message?.content || "Groq is silent 🐵";
     } else {
         // Ollama
         const { baseUrl, port, model } = settings.ollamaConfig;
@@ -170,8 +214,12 @@ export const chatWithFinancialAgent = async (
         if (!response.ok) throw new Error("Ollama connection failed");
         
         const data = await response.json();
-        return data.response || "Thinking... 🐵";
+        resultText = data.response || "Thinking... 🐵";
     }
+
+    // Increment Usage if successful
+    settings.incrementUsage('chat');
+    return resultText;
 };
 
 // --- Main Categorization Service ---
@@ -183,9 +231,17 @@ export const categorizeWithAI = async (
 ): Promise<void> => {
   const settings = useSettingsStore.getState();
 
+  // Usage Check
+  if (!settings.checkUsageLimit('analysis', transactions.length)) {
+      throw new Error(`Budget Exceeded: Analyzing ${transactions.length} transactions would exceed your limit of 150. Please reset usage in Settings.`);
+  }
+
   // Demo Mode Interception
   if (settings.isDemoMode) {
       await simulateCategorization(transactions, onChunkProcessed);
+      // Demo mode doesn't consume budget in this simulation implementation, 
+      // but conceptually you might want it to. 
+      // For now, we skip decrement for pure simulation to be friendly.
       return;
   }
   
@@ -200,6 +256,10 @@ export const categorizeWithAI = async (
   } else {
     await categorizeWithOllama(toProcess, onChunkProcessed);
   }
+
+  // Increment Usage after attempting processing
+  // Note: In a robust system we'd count actual successes, but for budget control counting attempts is safer.
+  settings.incrementUsage('analysis', transactions.length);
 };
 
 const categorizeWithGemini = async (
@@ -234,7 +294,7 @@ const categorizeWithGemini = async (
             ${JSON.stringify(batch.map(t => ({ id: t.id, desc: t.description, amt: t.amount, cat: t.originalCategory })))}
             
             Instructions:
-            1. Select the most appropriate Category and Subcategory from the hierarchy.
+            1. Select the most appropriate Category and Subcategory.
             2. Use the 'cat' field (original bank category) as a hint if available.
             3. Return a valid JSON array matching the schema.
         `;

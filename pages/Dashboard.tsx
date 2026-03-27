@@ -40,6 +40,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         addTransactions,
         applyLocalPatterns,
         setError,
+        error,
         processedCount,
         totalToProcess,
         setProgressCounts
@@ -134,6 +135,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     const performAIAnalysis = async (transactionsToProcess: any[]) => {
          setCategorizing(true);
          setAnalysisStats(null);
+         setError(null); // Clear previous errors
          setProgressCounts(0, transactionsToProcess.length);
          const startTime = Date.now();
          let changesDetected = 0;
@@ -397,6 +399,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                     </div>
                 )}
             </div>
+
+            {/* Error Message for Budget Limits */}
+            {error && error.includes("Budget Exceeded") && (
+                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                     <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />
+                     <div className="flex-1">
+                         <h3 className="text-sm font-semibold text-red-900">Usage Limit Reached</h3>
+                         <p className="text-sm text-red-700 mt-1">{error}</p>
+                         <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => onNavigate('settings')}
+                            className="mt-3 border-red-200 hover:bg-red-100 text-red-700"
+                         >
+                             Go to Settings to Reset
+                         </Button>
+                     </div>
+                     <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
+                         <X className="w-4 h-4" />
+                     </button>
+                 </div>
+            )}
+            {error && !error.includes("Budget Exceeded") && (
+                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between gap-3 animate-in fade-in">
+                     <div className="flex items-center gap-3">
+                         <AlertTriangle className="w-5 h-5 text-red-600" />
+                         <span className="text-sm text-red-700">{error}</span>
+                     </div>
+                     <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">
+                         <X className="w-4 h-4" />
+                     </button>
+                 </div>
+            )}
 
             {/* Analysis Stats Summary */}
             {analysisStats && (

@@ -132,8 +132,8 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
   const [selectedDuplicate, setSelectedDuplicate] = useState<DuplicateTransaction | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const { addTransactions, transactions: existingTransactions, setError, error } = useTransactionStore();
-  const { applyPatterns: shouldApplyPatterns } = useSettingsStore();
+  const { addTransactions, transactions: existingTransactions, setError, error, clearAll } = useTransactionStore();
+  const { applyPatterns: shouldApplyPatterns, isDemoMode, setDemoMode } = useSettingsStore();
 
   // Reset when component mounts or unmounts
   useEffect(() => {
@@ -310,6 +310,12 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
   };
 
   const confirmImport = () => {
+      // If user is importing data while in Demo Mode, assume they want to start fresh with real data.
+      if (isDemoMode) {
+          clearAll();
+          setDemoMode(false);
+      }
+      
       addTransactions(stagedTransactions);
       reset();
       if (onUploadComplete) onUploadComplete();

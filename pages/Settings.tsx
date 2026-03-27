@@ -1,9 +1,9 @@
 
-import React, { useState, useRef } from 'react';
-import { useSettingsStore, getDecryptedApiKey } from '../stores/useSettingsStore';
+import React, { useState, useRef, useEffect } from 'react';
+import { useSettingsStore, getDecryptedApiKey, getEnvGeminiApiKey } from '../stores/useSettingsStore';
 import { clearPatterns, getPatterns, importPatterns } from '../lib/localStorage';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input, Badge } from '../components/UI';
-import { Trash2, CheckCircle, Circle, Cloud, Cpu, Terminal, Key, Server, PlayCircle, AlertCircle, Loader2, Zap, Download, Upload, MessageCircle } from 'lucide-react';
+import { Trash2, CheckCircle, Circle, Cloud, Cpu, Terminal, Key, Server, PlayCircle, AlertCircle, Loader2, Zap, Download, Upload, MessageCircle, Info, BarChart2 } from 'lucide-react';
 import { testAiConnection } from '../services/aiService';
 import { useToastStore } from '../stores/useToastStore';
 
@@ -14,7 +14,8 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         enableFunnyAlerts, toggleFunnyAlerts, 
         geminiConfig, setGeminiConfig,
         groqConfig, setGroqConfig,
-        ollamaConfig, setOllamaConfig
+        ollamaConfig, setOllamaConfig,
+        usage
     } = useSettingsStore();
 
     const { addToast } = useToastStore();
@@ -24,6 +25,23 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     const [testMessage, setTestMessage] = useState('');
     const [patternCount, setPatternCount] = useState(getPatterns().length);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Logic to detect key usage state
+    const envKey = getEnvGeminiApiKey();
+    // Decrypt locally for comparison
+    const currentStoredKey = (() => {
+        try { return atob(geminiConfig.apiKey); } catch { return geminiConfig.apiKey; }
+    })();
+
+    const isUsingEnvKey = envKey && currentStoredKey === envKey;
+    const isUsingCustomKey = currentStoredKey && (!envKey || currentStoredKey !== envKey);
+
+    // Force model to gemini-flash-lite-latest if using Env Key
+    useEffect(() => {
+        if (aiMode === 'cloud' && isUsingEnvKey && geminiConfig.model !== 'models/gemini-flash-lite-latest') {
+            setGeminiConfig({ model: 'models/gemini-flash-lite-latest' });
+        }
+    }, [aiMode, isUsingEnvKey, geminiConfig.model, setGeminiConfig]);
 
     const handleClearPatterns = () => {
         // Removed confirm()
@@ -86,12 +104,70 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         }
     };
 
+    // Usage Calculations
+    const txPercent = Math.min((usage.txAnalyzed / 150) * 100, 100);
+    const chatPercent = Math.min((usage.chatMessages / 10) * 100, 100);
+
     return (
         <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4">
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
                 <Button variant="outline" onClick={onBack}>Back to Dashboard</Button>
             </div>
+
+            {/* Usage Budget Card - Only show if using Environment/Demo Key (Limited) */}
+            {aiMode === 'cloud' && isUsingEnvKey && (
+                <Card>
+                    <CardHeader className="bg-gray-50/50 border-b border-gray-100">
+                        <CardTitle className="flex items-center gap-2">
+                            <BarChart2 className="w-5 h-5 text-accent" />
+                            Usage Budget
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-6 pt-6">
+                         <div className="flex items-center justify-between">
+                             <p className="text-sm text-gray-500">
+                                 To ensure fair usage, AI analysis is limited per user.
+                                 <br/><span className="text-xs text-gray-400">Limits are hard-coded and cannot be reset manually.</span>
+                             </p>
+                         </div>
+
+                         <div className="space-y-4">
+                             {/* TX Analysis */}
+                             <div className="space-y-2">
+                                 <div className="flex justify-between text-sm font-medium">
+                                     <span>Transaction Analysis</span>
+                                     <span className={txPercent >= 100 ? "text-red-600" : "text-gray-700"}>
+                                         {usage.txAnalyzed} / 150
+                                     </span>
+                                 </div>
+                                 <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                     <div 
+                                         className={`h-full transition-all duration-500 ${txPercent >= 100 ? 'bg-red-500' : 'bg-accent'}`}
+                                         style={{ width: `${txPercent}%` }}
+                                     />
+                                 </div>
+                             </div>
+
+                             {/* Chat Messages */}
+                             <div className="space-y-2">
+                                 <div className="flex justify-between text-sm font-medium">
+                                     <span>MonkeySmile Messages</span>
+                                     <span className={chatPercent >= 100 ? "text-red-600" : "text-gray-700"}>
+                                         {usage.chatMessages} / 10
+                                     </span>
+                                 </div>
+                                 <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
+                                     <div 
+                                         className={`h-full transition-all duration-500 ${chatPercent >= 100 ? 'bg-red-500' : 'bg-blue-500'}`}
+                                         style={{ width: `${chatPercent}%` }}
+                                     />
+                                 </div>
+                             </div>
+                         </div>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card className="overflow-hidden">
                 <CardHeader className="bg-gray-50/50 border-b border-gray-100">
@@ -129,19 +205,43 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     <div className="p-6 space-y-6">
                         {aiMode === 'cloud' && (
                             <div className="space-y-4 animate-in fade-in duration-300">
+                                {isUsingEnvKey && (
+                                     <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-start gap-3">
+                                          <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+                                          <div>
+                                              <p className="text-sm font-medium text-blue-900">Testing Mode</p>
+                                              <p className="text-xs text-blue-700 mt-1 leading-relaxed">
+                                                  You are using our api key for testing. You can use the Gemini service, but usage is limited to the <code>gemini‑flash‑lite‑latest</code> model. To use without limit, please use your own key
+                                              </p>
+                                          </div>
+                                     </div>
+                                )}
+                                
+                                {isUsingCustomKey && (
+                                     <div className="bg-green-50 border border-green-100 rounded-lg p-3 flex items-start gap-3">
+                                          <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                                          <div>
+                                              <p className="text-sm font-medium text-green-900">Full Access</p>
+                                              <div className="text-xs text-green-700 mt-1 leading-relaxed">
+                                                  Your key allows full access. Available models:
+                                              </div>
+                                          </div>
+                                     </div>
+                                )}
+
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                                         <Key className="w-4 h-4" /> API Key
                                     </label>
                                     <Input 
                                         type="password" 
-                                        placeholder="Enter your Gemini API Key" 
+                                        placeholder="Enter your Gemini API Key (or leave empty for demo)" 
                                         value={getDecryptedApiKey(useSettingsStore.getState())} 
                                         onChange={(e) => setGeminiConfig({ apiKey: e.target.value })}
                                         className="font-mono"
                                     />
                                     <p className="text-xs text-gray-500">
-                                        Your key is encrypted and stored locally in your browser.
+                                        Your key is encrypted and stored locally. Leave empty to use the shared demo key (chat only).
                                     </p>
                                 </div>
                                 <div className="space-y-2">
@@ -152,11 +252,19 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                                         className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                                         value={geminiConfig.model}
                                         onChange={(e) => setGeminiConfig({ model: e.target.value })}
+                                        disabled={isUsingEnvKey} // Disable selection if forced to Lite
                                     >
-                                        <option value="models/gemini-flash-latest">gemini-flash-latest (Recommended)</option>
-                                        <option value="models/gemini-flash-lite-latest">gemini-flash-lite-latest (Fastest)</option>
-                                        <option value="models/gemini-3-pro-preview">gemini-3-pro-preview (Most Capable)</option>
+                                        {isUsingEnvKey ? (
+                                            <option value="models/gemini-flash-lite-latest">gemini-flash-lite-latest (Fastest)</option>
+                                        ) : (
+                                            <>
+                                                <option value="models/gemini-flash-latest">gemini-flash-latest (Recommended)</option>
+                                                <option value="models/gemini-flash-lite-latest">gemini-flash-lite-latest (Fastest)</option>
+                                                <option value="models/gemini-3-pro-preview">gemini-3-pro-preview (Most Capable)</option>
+                                            </>
+                                        )}
                                     </select>
+                                    {isUsingEnvKey && <p className="text-xs text-gray-400">Model selection locked in testing mode.</p>}
                                 </div>
                             </div>
                         )}
@@ -286,76 +394,6 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                                             Test Connection
                                         </>
                                     )}
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Experience</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                     <div className="flex items-center justify-between">
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <MessageCircle className="w-4 h-4 text-accent" />
-                                <h4 className="font-medium text-gray-900">Funny Financial Alerts</h4>
-                            </div>
-                            <p className="text-sm text-gray-500 mt-1">
-                                Get humorous pop-ups when your spending spikes or drifts from average.
-                            </p>
-                        </div>
-                        <div 
-                            className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${enableFunnyAlerts ? 'bg-accent' : 'bg-gray-300'}`}
-                            onClick={toggleFunnyAlerts}
-                        >
-                            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${enableFunnyAlerts ? 'translate-x-6' : 'translate-x-0'}`} />
-                        </div>
-                    </div>
-
-                    <div className="border-t border-gray-100 pt-6">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h4 className="font-medium text-gray-900">Apply Learned Patterns</h4>
-                                <p className="text-sm text-gray-500">Auto-categorize transactions based on your previous corrections.</p>
-                            </div>
-                            <div 
-                                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${applyPatterns ? 'bg-accent' : 'bg-gray-300'}`}
-                                onClick={toggleApplyPatterns}
-                            >
-                                <div className={`w-4 h-4 rounded-full bg-white transition-transform ${applyPatterns ? 'translate-x-6' : 'translate-x-0'}`} />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="border-t border-gray-100 pt-6">
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div className="flex-1">
-                                <h4 className="font-medium text-gray-900">Stored Patterns: {patternCount}</h4>
-                                <p className="text-sm text-gray-500">Patterns are stored in your browser's LocalStorage.</p>
-                            </div>
-                            
-                            <div className="flex gap-2 w-full sm:w-auto">
-                                {/* Import/Export Logic */}
-                                <input 
-                                    type="file" 
-                                    accept=".json" 
-                                    ref={fileInputRef} 
-                                    className="hidden" 
-                                    onChange={handleFileChange} 
-                                />
-                                
-                                <Button variant="outline" size="sm" onClick={handleExportPatterns} className="flex-1 sm:flex-none">
-                                    <Download className="w-4 h-4 mr-2" /> Export
-                                </Button>
-                                <Button variant="outline" size="sm" onClick={handleImportClick} className="flex-1 sm:flex-none">
-                                    <Upload className="w-4 h-4 mr-2" /> Import
-                                </Button>
-                                <Button variant="danger" size="sm" onClick={handleClearPatterns} disabled={patternCount === 0} className="flex-1 sm:flex-none">
-                                    <Trash2 className="w-4 h-4 mr-2" /> Clear
                                 </Button>
                             </div>
                         </div>

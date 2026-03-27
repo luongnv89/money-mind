@@ -1,7 +1,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppSettings, AIMode, GeminiConfig, OllamaConfig, GroqConfig } from '../types';
+import { AppSettings, AIMode, GeminiConfig, OllamaConfig, GroqConfig, UsageStats } from '../types';
 
 interface SettingsState extends AppSettings {
   setAiMode: (mode: AIMode) => void;
@@ -12,6 +12,10 @@ interface SettingsState extends AppSettings {
   setGroqConfig: (config: Partial<GroqConfig>) => void;
   setOllamaConfig: (config: Partial<OllamaConfig>) => void;
   resetSettings: () => void;
+  
+  // Usage Control
+  checkUsageLimit: (type: 'analysis' | 'chat', amount?: number) => boolean;
+  incrementUsage: (type: 'analysis' | 'chat', amount?: number) => void;
 }
 
 // Simple obfuscation to prevent plain-text read in local storage (not military grade encryption)
@@ -22,16 +26,31 @@ const decrypt = (text: string) => {
     try { return atob(text); } catch(e) { return text; }
 };
 
+// Detect Environment Keys for Gemini
+export const getEnvGeminiApiKey = () => {
+    try {
+        // Safe check for browser environments where process might not be defined
+        const env = typeof process !== 'undefined' ? process.env : {};
+        return (env as any).GOOGLE_API_KEY || (env as any).GEMINI_API_KEY || (env as any).API_KEY || '';
+    } catch {
+        return '';
+    }
+};
+
+// Hard limits as per requirement
+const MAX_TX_ANALYSIS = 150;
+const MAX_CHAT_MESSAGES = 10;
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       aiMode: 'cloud',
       isDemoMode: false,
       applyPatterns: true,
       enableFunnyAlerts: true, // Default to true
       
       geminiConfig: {
-        apiKey: '',
+        apiKey: encrypt(getEnvGeminiApiKey()),
         model: 'models/gemini-flash-latest'
       },
 
@@ -44,6 +63,12 @@ export const useSettingsStore = create<SettingsState>()(
         baseUrl: 'http://localhost',
         port: '11434',
         model: 'llama3.2'
+      },
+
+      usage: {
+          txAnalyzed: 0,
+          chatMessages: 0,
+          lastReset: new Date().toISOString()
       },
 
       setAiMode: (mode) => set({ aiMode: mode }),
@@ -76,10 +101,53 @@ export const useSettingsStore = create<SettingsState>()(
           isDemoMode: false,
           applyPatterns: true,
           enableFunnyAlerts: true,
-          geminiConfig: { apiKey: '', model: 'models/gemini-flash-latest' },
+          geminiConfig: { apiKey: encrypt(getEnvGeminiApiKey()), model: 'models/gemini-flash-latest' },
           groqConfig: { apiKey: '', model: 'llama-3.1-8b-instant' },
-          ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: 'llama3.2' }
+          ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: 'llama3.2' },
+          usage: { txAnalyzed: 0, chatMessages: 0, lastReset: new Date().toISOString() }
       }),
+
+      checkUsageLimit: (type, amount = 1) => {
+          const { usage, aiMode, geminiConfig } = get();
+          
+          // Unlimited for Local
+          if (aiMode === 'local') return true; 
+
+          // Check if Custom Key (Cloud) -> Unlimited
+          if (aiMode === 'cloud') {
+              const envKey = getEnvGeminiApiKey();
+              const currentKey = decrypt(geminiConfig.apiKey);
+              // If user has a key, and it's NOT the environment key, they are unlimited
+              if (currentKey && currentKey !== envKey) {
+                  return true;
+              }
+          }
+          
+          // Check if Groq Key present -> Unlimited
+          if (aiMode === 'groq') {
+               const key = decrypt(get().groqConfig.apiKey);
+               if (key) return true;
+          }
+
+          // Otherwise, enforce limits (Demo/Env Key)
+          if (type === 'analysis') {
+              return (usage.txAnalyzed + amount) <= MAX_TX_ANALYSIS;
+          }
+          if (type === 'chat') {
+              return (usage.chatMessages + amount) <= MAX_CHAT_MESSAGES;
+          }
+          return true;
+      },
+
+      incrementUsage: (type, amount = 1) => set((state) => {
+          const newUsage = { ...state.usage };
+          if (type === 'analysis') {
+              newUsage.txAnalyzed += amount;
+          } else {
+              newUsage.chatMessages += amount;
+          }
+          return { usage: newUsage };
+      })
     }),
     {
       name: 'moneymind-settings',
