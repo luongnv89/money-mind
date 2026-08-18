@@ -17,7 +17,15 @@ describe('ConfirmDialog', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     React.act(() => {
-      root.render(<ConfirmDialog isOpen={false} title="Test" message="Msg" onConfirm={() => {}} onCancel={() => {}} />);
+      root.render(
+        <ConfirmDialog
+          isOpen={false}
+          title="Test"
+          message="Msg"
+          onConfirm={() => {}}
+          onCancel={() => {}}
+        />
+      );
     });
     expect(container.textContent).not.toContain('Test');
   });
@@ -27,7 +35,15 @@ describe('ConfirmDialog', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     React.act(() => {
-      root.render(<ConfirmDialog isOpen={true} title="Delete" message="Are you sure?" onConfirm={() => {}} onCancel={() => {}} />);
+      root.render(
+        <ConfirmDialog
+          isOpen={true}
+          title="Delete"
+          message="Are you sure?"
+          onConfirm={() => {}}
+          onCancel={() => {}}
+        />
+      );
     });
     expect(container.textContent).toContain('Delete');
     expect(container.textContent).toContain('Are you sure?');
@@ -39,7 +55,15 @@ describe('ConfirmDialog', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     React.act(() => {
-      root.render(<ConfirmDialog isOpen={true} title="Delete" message="Msg" onConfirm={onConfirm} onCancel={() => {}} />);
+      root.render(
+        <ConfirmDialog
+          isOpen={true}
+          title="Delete"
+          message="Msg"
+          onConfirm={onConfirm}
+          onCancel={() => {}}
+        />
+      );
     });
     const btns = container.querySelectorAll('button');
     expect(btns.length).toBeGreaterThanOrEqual(2);
@@ -53,7 +77,15 @@ describe('ConfirmDialog', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     React.act(() => {
-      root.render(<ConfirmDialog isOpen={true} title="Delete" message="Msg" onConfirm={() => {}} onCancel={onCancel} />);
+      root.render(
+        <ConfirmDialog
+          isOpen={true}
+          title="Delete"
+          message="Msg"
+          onConfirm={() => {}}
+          onCancel={onCancel}
+        />
+      );
     });
     const btns = container.querySelectorAll('button');
     expect(btns.length).toBeGreaterThanOrEqual(2);
@@ -66,7 +98,16 @@ describe('ConfirmDialog', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     React.act(() => {
-      root.render(<ConfirmDialog isOpen={true} title="Danger" message="Msg" onConfirm={() => {}} onCancel={() => {}} variant="danger" />);
+      root.render(
+        <ConfirmDialog
+          isOpen={true}
+          title="Danger"
+          message="Msg"
+          onConfirm={() => {}}
+          onCancel={() => {}}
+          variant="danger"
+        />
+      );
     });
     // The confirm button is the last button in the dialog
     const btns = container.querySelectorAll('button');
@@ -80,7 +121,17 @@ describe('ConfirmDialog', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     React.act(() => {
-      root.render(<ConfirmDialog isOpen={true} title="Test" message="Msg" onConfirm={() => {}} onCancel={() => {}} confirmText="Delete" cancelText="Go Back" />);
+      root.render(
+        <ConfirmDialog
+          isOpen={true}
+          title="Test"
+          message="Msg"
+          onConfirm={() => {}}
+          onCancel={() => {}}
+          confirmText="Delete"
+          cancelText="Go Back"
+        />
+      );
     });
     const btns = container.querySelectorAll('button');
     expect(btns.length).toBeGreaterThanOrEqual(2);
