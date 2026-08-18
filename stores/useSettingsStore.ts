@@ -17,15 +17,15 @@ interface SettingsState extends AppSettings {
   incrementUsage: (type: 'analysis' | 'chat', amount?: number) => void;
 }
 
-// Simple obfuscation to prevent plain-text read in local storage (not military grade encryption)
-const encrypt = (text: string) => {
+// Simple base64 obfuscation to prevent plain-text read in local storage (not encryption)
+const obfuscate = (text: string) => {
   try {
     return btoa(text);
   } catch (_e) {
     return text;
   }
 };
-const decrypt = (text: string) => {
+const deobfuscate = (text: string) => {
   try {
     return atob(text);
   } catch (_e) {
@@ -60,7 +60,7 @@ export const useSettingsStore = create<SettingsState>()(
       enableFunnyAlerts: true, // Default to true
 
       geminiConfig: {
-        apiKey: encrypt(getEnvGeminiApiKey()),
+        apiKey: obfuscate(getEnvGeminiApiKey()),
         model: 'models/gemini-flash-latest',
       },
 
@@ -90,7 +90,7 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => {
           const newConfig = { ...state.geminiConfig, ...config };
           if (config.apiKey) {
-            newConfig.apiKey = encrypt(config.apiKey);
+            newConfig.apiKey = obfuscate(config.apiKey);
           }
           return { geminiConfig: newConfig };
         }),
@@ -99,7 +99,7 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => {
           const newConfig = { ...state.groqConfig, ...config };
           if (config.apiKey) {
-            newConfig.apiKey = encrypt(config.apiKey);
+            newConfig.apiKey = obfuscate(config.apiKey);
           }
           return { groqConfig: newConfig };
         }),
@@ -116,7 +116,7 @@ export const useSettingsStore = create<SettingsState>()(
           applyPatterns: true,
           enableFunnyAlerts: true,
           geminiConfig: {
-            apiKey: encrypt(getEnvGeminiApiKey()),
+            apiKey: obfuscate(getEnvGeminiApiKey()),
             model: 'models/gemini-flash-latest',
           },
           groqConfig: { apiKey: '', model: 'llama-3.1-8b-instant' },
@@ -133,7 +133,7 @@ export const useSettingsStore = create<SettingsState>()(
         // Check if Custom Key (Cloud) -> Unlimited
         if (aiMode === 'cloud') {
           const envKey = getEnvGeminiApiKey();
-          const currentKey = decrypt(geminiConfig.apiKey);
+          const currentKey = deobfuscate(geminiConfig.apiKey);
           // If user has a key, and it's NOT the environment key, they are unlimited
           if (currentKey && currentKey !== envKey) {
             return true;
@@ -142,7 +142,7 @@ export const useSettingsStore = create<SettingsState>()(
 
         // Check if Groq Key present -> Unlimited
         if (aiMode === 'groq') {
-          const key = decrypt(get().groqConfig.apiKey);
+          const key = deobfuscate(get().groqConfig.apiKey);
           if (key) return true;
         }
 
@@ -174,10 +174,10 @@ export const useSettingsStore = create<SettingsState>()(
 );
 
 // Helper to get usable key based on active mode
-export const getDecryptedApiKey = (storeState: SettingsState) => {
+export const getObfuscatedApiKey = (storeState: SettingsState) => {
   if (storeState.aiMode === 'groq') {
-    return decrypt(storeState.groqConfig.apiKey);
+    return deobfuscate(storeState.groqConfig.apiKey);
   }
   // Default to gemini for cloud mode
-  return decrypt(storeState.geminiConfig.apiKey);
+  return deobfuscate(storeState.geminiConfig.apiKey);
 };

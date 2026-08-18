@@ -1,5 +1,5 @@
 import { Transaction, AIMode, TransactionCategory } from '../types';
-import { useSettingsStore, getDecryptedApiKey } from '../stores/useSettingsStore';
+import { useSettingsStore, getObfuscatedApiKey } from '../stores/useSettingsStore';
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORY_HIERARCHY } from '../constants';
 
@@ -18,7 +18,7 @@ export const testAiConnection = async (): Promise<boolean> => {
   const mode = settings.aiMode;
 
   if (mode === 'cloud') {
-    const apiKey = getDecryptedApiKey(settings);
+    const apiKey = getObfuscatedApiKey(settings);
     // If no key, we test the server endpoint availability
     if (!apiKey) {
       try {
@@ -45,7 +45,7 @@ export const testAiConnection = async (): Promise<boolean> => {
       throw new Error(`Gemini Error: ${e instanceof Error ? e.message : String(e)}`);
     }
   } else if (mode === 'groq') {
-    const apiKey = getDecryptedApiKey(settings);
+    const apiKey = getObfuscatedApiKey(settings);
     if (!apiKey) throw new Error('Missing Groq API Key');
 
     try {
@@ -120,7 +120,7 @@ export const chatWithFinancialAgent = async (
     );
   }
 
-  const apiKey = getDecryptedApiKey(settings);
+  const apiKey = getObfuscatedApiKey(settings);
 
   // System prompt defines the persona
   const systemPrompt = `You are MonkeySmile 🐵, a sassy, fun, and brutally honest financial buddy.
@@ -271,7 +271,7 @@ const categorizeWithGemini = async (
   onChunkProcessed?: (results: CategorizationResult[]) => void
 ): Promise<void> => {
   const settings = useSettingsStore.getState();
-  const apiKey = getDecryptedApiKey(settings);
+  const apiKey = getObfuscatedApiKey(settings);
   const model = settings.geminiConfig.model;
 
   if (!apiKey) {
@@ -358,7 +358,7 @@ const categorizeWithGroq = async (
   onChunkProcessed?: (results: CategorizationResult[]) => void
 ): Promise<void> => {
   const settings = useSettingsStore.getState();
-  const apiKey = getDecryptedApiKey(settings);
+  const apiKey = getObfuscatedApiKey(settings);
   const model = settings.groqConfig.model;
   const hierarchyStr = JSON.stringify(CATEGORY_HIERARCHY);
 

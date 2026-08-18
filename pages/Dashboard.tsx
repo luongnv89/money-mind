@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { useTransactionStore } from '../stores/useTransactionStore';
-import { useSettingsStore, getDecryptedApiKey } from '../stores/useSettingsStore';
+import { useSettingsStore, getObfuscatedApiKey } from '../stores/useSettingsStore';
 import { getPatterns, learnPattern } from '../lib/localStorage';
 import { TransactionTable } from '../components/TransactionTable';
 import { InsightsDashboard, MonthlyPerformance } from '../components/InsightsDashboard';
@@ -91,7 +91,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const isAIConfigured = useMemo(() => {
     if (isDemoMode) return true;
     if (aiMode === 'local') return true; // Assume local is always "ready" to try
-    const key = getDecryptedApiKey(useSettingsStore.getState());
+    const key = getObfuscatedApiKey(useSettingsStore.getState());
     return !!key && key.length > 0;
   }, [aiMode, isDemoMode]);
 
