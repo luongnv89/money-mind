@@ -1,5 +1,50 @@
 import { describe, expect, it } from 'vitest';
-import { autoDetectMapping, detectBankFormat } from './csvParser';
+import { autoDetectMapping, detectBankFormat, parseAmount } from './csvParser';
+
+describe('parseAmount', () => {
+  it('passes numbers through unchanged', () => {
+    expect(parseAmount(1234.56)).toBe(1234.56);
+    expect(parseAmount(-61.75)).toBe(-61.75);
+    expect(parseAmount(0)).toBe(0);
+  });
+
+  it('returns 0 for empty, nullish and falsy input', () => {
+    expect(parseAmount('')).toBe(0);
+    expect(parseAmount(null)).toBe(0);
+    expect(parseAmount(undefined)).toBe(0);
+  });
+
+  it('parses plain decimals', () => {
+    expect(parseAmount('123.45')).toBe(123.45);
+    expect(parseAmount('-61.75')).toBe(-61.75);
+  });
+
+  it('parses US-formatted amounts (1,234.56)', () => {
+    expect(parseAmount('1,234.56')).toBe(1234.56);
+    expect(parseAmount('12,345.67')).toBe(12345.67);
+  });
+
+  it('parses EU-formatted amounts (1.234,56)', () => {
+    expect(parseAmount('1.234,56')).toBe(1234.56);
+  });
+
+  it('parses bare-comma decimal amounts (-61,75)', () => {
+    expect(parseAmount('-61,75')).toBe(-61.75);
+  });
+
+  it('parses NBSP-separated EU amounts (1 131,98)', () => {
+    expect(parseAmount('1\u00A0131,98')).toBe(1131.98);
+  });
+
+  it('parses space-separated EU amounts', () => {
+    expect(parseAmount('1 131,98')).toBe(1131.98);
+  });
+
+  it('returns NaN for unparseable input', () => {
+    expect(parseAmount('abc')).toBeNaN();
+    expect(parseAmount('N/A')).toBeNaN();
+  });
+});
 
 describe('autoDetectMapping', () => {
   it('maps exactly-named columns', () => {

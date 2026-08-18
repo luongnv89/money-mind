@@ -37,7 +37,7 @@ const detectBestDelimiter = (file: File): Promise<string> => {
 };
 
 // Robust number parser for handling various currency formats (US vs EU)
-const parseAmount = (val: unknown): number => {
+export const parseAmount = (val: unknown): number => {
   if (typeof val === 'number') return val;
   if (!val) return 0;
 
