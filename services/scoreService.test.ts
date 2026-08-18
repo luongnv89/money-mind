@@ -56,14 +56,13 @@ describe('calculateFinancialScore', () => {
     expect(() => calculateFinancialScore(spend(8, { date: 'not-a-date' }))).not.toThrow();
   });
 
-  // characterization — Task 2.1 will invert this
-  // Today the current-month bucket matches the raw date string against the ISO
-  // currentMonthKey ('2025-03'), so valid non-ISO dates (e.g. US '03/09/2025')
-  // never match and the whole set is silently treated as history. Both inputs
-  // are the same eight March-2025 expenses; only the string format differs.
-  // When Task 2.1 normalizes date handling, the non-ISO result must match the
-  // ISO result — flip the second assertion back to `toBe(true)`.
-  it('misclassifies non-ISO dates as history instead of the current month', () => {
+  // characterization — Task 2.1 inverted this
+  // Before Task 2.1, non-ISO dates (e.g. US '03/09/2025') were stored raw and
+  // never matched the ISO currentMonthKey ('2025-03'), so the whole set was
+  // silently treated as history (no 'History' first-month label). Now dates
+  // are normalized to YYYY-MM-DD in the parser, so both inputs produce the
+  // same result — both are first-month (no real history).
+  it('classifies normalized non-ISO dates the same as ISO dates', () => {
     const iso = spend(8, { date: '2025-03-09' });
     const nonIso = spend(8, { date: '03/09/2025' });
 
@@ -71,7 +70,13 @@ describe('calculateFinancialScore', () => {
     const nonIsoResult = calculateFinancialScore(nonIso);
 
     expect(isoResult.hasEnoughData).toBe(true);
+    expect(nonIsoResult.hasEnoughData).toBe(true);
+    // Both should be first-month (no history) — both show 'History' first-month label
+    // The bug was that non-ISO had NO 'History' label because all tx were misclassified
     expect(isoResult.breakdown.some((b) => b.label === 'History')).toBe(true);
-    expect(nonIsoResult.breakdown.some((b) => b.label === 'History')).toBe(false);
+    expect(nonIsoResult.breakdown.some((b) => b.label === 'History')).toBe(true);
+    // Both should produce the same grade
+    expect(isoResult.grade).toBe(nonIsoResult.grade);
+    expect(isoResult.score).toBe(nonIsoResult.score);
   });
 });

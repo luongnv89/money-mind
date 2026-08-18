@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { Transaction, TransactionCategory } from '../types';
+import { normalizeDate } from './utils';
 
 export const getDemoTransactions = (): Transaction[] => {
   const today = new Date();
@@ -15,7 +16,7 @@ export const getDemoTransactions = (): Transaction[] => {
 
     transactions.push({
       id: uuidv4(),
-      date: date.toISOString().split('T')[0],
+      date: normalizeDate(date.toISOString().split('T')[0]),
       description: desc,
       amount: parseFloat(amount.toFixed(2)),
       category: TransactionCategory.Uncategorized,
