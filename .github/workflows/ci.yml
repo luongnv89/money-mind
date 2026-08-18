@@ -55,8 +55,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: NPM Audit (High+)
-        run: npm audit --audit-level=high
-        continue-on-error: true
+        run: npm audit --package-lock-only --audit-level=high
 
       - name: Trivy Filesystem Scan
         uses: aquasecurity/trivy-action@v0.36.0
