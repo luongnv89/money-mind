@@ -6,6 +6,7 @@ import {
 } from '../stores/useSettingsStore';
 import { clearPatterns, getPatterns, importPatterns } from '../lib/localStorage';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input } from '../components/UI';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
   Trash2,
   CheckCircle,
@@ -40,6 +41,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   const { addToast } = useToastStore();
 
+  const [showClearPatternsConfirm, setShowClearPatternsConfirm] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [testMessage, setTestMessage] = useState('');
@@ -72,10 +74,14 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   }, [aiMode, isUsingEnvKey, geminiConfig.model, setGeminiConfig]);
 
   const handleClearPatterns = () => {
-    // Removed confirm()
     clearPatterns();
     setPatternCount(0);
     addToast('Patterns cleared successfully', 'success');
+  };
+
+  const handleConfirmClearPatterns = () => {
+    handleClearPatterns();
+    setShowClearPatternsConfirm(false);
   };
 
   const handleExportPatterns = () => {
@@ -255,11 +261,20 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 size="sm"
                 variant="outline"
                 className="text-red-600 border-red-200 hover:bg-red-50"
-                onClick={handleClearPatterns}
+                onClick={() => setShowClearPatternsConfirm(true)}
               >
                 <Trash2 className="w-3.5 h-3.5 mr-2" />
                 Clear All Patterns
               </Button>
+              <ConfirmDialog
+                isOpen={showClearPatternsConfirm}
+                title="Clear All Patterns"
+                message="Are you sure you want to delete all learned categorization patterns? This action cannot be undone."
+                confirmText="Clear All"
+                variant="danger"
+                onConfirm={handleConfirmClearPatterns}
+                onCancel={() => setShowClearPatternsConfirm(false)}
+              />
             </div>
           </div>
         </CardContent>
