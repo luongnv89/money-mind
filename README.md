@@ -27,7 +27,7 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
 ## ⚙️ Setup & Installation
 
 ### Prerequisites
--   **Node.js 24+ (LTS)**
+-   **Node.js v20+**
 -   **NPM** (or Yarn/PNPM)
 -   (Optional) **Vercel CLI** for testing serverless functions locally: `npm i -g vercel`
 -   (Optional) **Ollama** for local AI: [ollama.com](https://ollama.com)
@@ -105,15 +105,12 @@ MoneyMind supports three AI modes, configurable in the **Settings** page:
 We enforce a strict "Shift-Left" quality strategy.
 
 ### Manual Commands
--   `npm run dev`: Start the Vite dev server.
--   `npm run build`: Type-check and build the production bundle.
--   `npm run preview`: Preview the production build.
 -   `npm run lint`: Run ESLint.
--   `npm run typecheck`: Run the TypeScript compiler.
 -   `npm run format`: Fix formatting issues.
--   `npm run format:check`: Verify formatting without modifying files.
--   `npm run test`: Run the test suite once.
--   `npm run test:watch`: Run the test suite in watch mode.
+-   `npm run typecheck`: Run TypeScript compiler.
+-   `npm test` / `npm run test:run`: Run the Vitest suite once.
+-   `npm run test:watch`: Run Vitest in watch mode.
+-   `npm run coverage`: Run the Vitest suite with a line/branch coverage report (`lib/` and `services/`).
 
 ### CI/CD (GitHub Actions)
 On every push or pull request:
