@@ -1,0 +1,31 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+
+describe('ci.yml quality gate (Task 0.6)', () => {
+  it('quality job runs npm test, so behaviour is gated, not just formatting', () => {
+    expect(ci).toMatch(/Run Tests/);
+    expect(ci).toMatch(/npm test/);
+  });
+
+  it('trivy-action is pinned to a release tag, not @master', () => {
+    expect(ci).not.toMatch(/trivy-action@master/);
+    expect(ci).toMatch(/trivy-action@v\d+\.\d+\.\d+/);
+  });
+
+  it('gitleaks has no continue-on-error, so a leak can fail the build', () => {
+    const gitleaksBlock = ci.slice(ci.indexOf('Gitleaks Secret Scan'));
+    const untilNextStep = gitleaksBlock.slice(
+      0,
+      gitleaksBlock.indexOf('\n\n      - name:') < 0
+        ? gitleaksBlock.length
+        : gitleaksBlock.indexOf('\n\n      - name:')
+    );
+    expect(untilNextStep).not.toContain('continue-on-error');
+  });
+
+  it('npm audit runs with a high severity gate', () => {
+    expect(ci).toMatch(/npm audit --audit-level=high/);
+  });
+});
