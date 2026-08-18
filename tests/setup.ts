@@ -33,3 +33,6 @@ if (typeof globalThis.localStorage === 'undefined') {
     writable: true,
   });
 }
+
+// Opt into React's act() batching in tests, so act() calls are first-class.
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

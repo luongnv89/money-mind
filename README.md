@@ -112,8 +112,9 @@ We enforce a strict "Shift-Left" quality strategy.
 -   `npm run typecheck`: Run the TypeScript compiler.
 -   `npm run format`: Fix formatting issues.
 -   `npm run format:check`: Verify formatting without modifying files.
--   `npm run test`: Run the test suite once.
--   `npm run test:watch`: Run the test suite in watch mode.
+-   `npm test` / `npm run test:run`: Run the Vitest suite once.
+-   `npm run test:watch`: Run Vitest in watch mode.
+-   `npm run coverage`: Run the Vitest suite with a line/branch coverage report (`lib/` and `services/`).
 
 ### CI/CD (GitHub Actions)
 On every push or pull request:
