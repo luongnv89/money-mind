@@ -30,6 +30,9 @@ yarn-error.log*
 # Editor folders
 .vscode/
 .idea/
+
+# gitissue run artifacts (machine-local; the auto-pilot lock and state live here)
+.gitissue/
 *.suo
 *.ntvs*
 *.njsproj
