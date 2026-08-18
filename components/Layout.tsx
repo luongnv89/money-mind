@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTransactionStore } from '../stores/useTransactionStore';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { Settings, LogOut, Shield, LayoutDashboard, UploadCloud, AlertCircle } from 'lucide-react';
 import { Button } from './UI';
+import { ConfirmDialog } from './ConfirmDialog';
 import { cn } from '../lib/utils';
 import { ToastContainer } from './Toast';
 import { MonkeySmileChat } from './MonkeySmileChat';
@@ -18,6 +19,8 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewChange }) => {
   const { clearAll, transactions } = useTransactionStore();
   const { isDemoMode, setDemoMode, aiMode, geminiConfig, groqConfig } = useSettingsStore();
+
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const handleClear = () => {
     clearAll();
@@ -93,14 +96,25 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
             </nav>
 
             {transactions.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClear}
-                className="text-red-500 hover:text-red-600 hover:bg-red-50 hidden sm:flex"
-              >
-                <LogOut className="w-4 h-4 mr-2" /> Clear
-              </Button>
+              <>
+                <ConfirmDialog
+                  isOpen={showClearConfirm}
+                  title="Clear All Transactions"
+                  message="Are you sure you want to delete all transactions? This action cannot be undone."
+                  confirmText="Clear All"
+                  variant="danger"
+                  onConfirm={handleClear}
+                  onCancel={() => setShowClearConfirm(false)}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowClearConfirm(true)}
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50 hidden sm:flex"
+                >
+                  <LogOut className="w-4 h-4 mr-2" /> Clear
+                </Button>
+              </>
             )}
             <Button
               variant="ghost"
