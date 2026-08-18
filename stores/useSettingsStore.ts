@@ -174,7 +174,7 @@ export const useSettingsStore = create<SettingsState>()(
 );
 
 // Helper to get usable key based on active mode
-export const getObfuscatedApiKey = (storeState: SettingsState) => {
+export const getDeobfuscatedApiKey = (storeState: SettingsState) => {
   if (storeState.aiMode === 'groq') {
     return deobfuscate(storeState.groqConfig.apiKey);
   }

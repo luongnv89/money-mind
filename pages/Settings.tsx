@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   useSettingsStore,
-  getObfuscatedApiKey,
+  getDeobfuscatedApiKey,
   getEnvGeminiApiKey,
 } from '../stores/useSettingsStore';
 import { clearPatterns, getPatterns, importPatterns } from '../lib/localStorage';
@@ -48,7 +48,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
   // Logic to detect key usage state
   const envKey = getEnvGeminiApiKey();
-  // Decrypt locally for comparison
+  // Deobfuscate locally for comparison
   const currentStoredKey = (() => {
     try {
       return atob(geminiConfig.apiKey);
@@ -347,7 +347,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   <Input
                     type="password"
                     placeholder="Enter your Gemini API Key (or leave empty for demo)"
-                    value={getObfuscatedApiKey(useSettingsStore.getState())}
+                    value={getDeobfuscatedApiKey(useSettingsStore.getState())}
                     onChange={(e) => setGeminiConfig({ apiKey: e.target.value })}
                     className="font-mono"
                   />
@@ -400,7 +400,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   <Input
                     type="password"
                     placeholder="Enter your Groq API Key (gsk_...)"
-                    value={getObfuscatedApiKey(useSettingsStore.getState())}
+                    value={getDeobfuscatedApiKey(useSettingsStore.getState())}
                     onChange={(e) => setGroqConfig({ apiKey: e.target.value })}
                     className="font-mono"
                   />
