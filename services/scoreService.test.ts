@@ -55,4 +55,23 @@ describe('calculateFinancialScore', () => {
   it('survives unparseable dates without throwing', () => {
     expect(() => calculateFinancialScore(spend(8, { date: 'not-a-date' }))).not.toThrow();
   });
+
+  // characterization — Task 2.1 will invert this
+  // Today the current-month bucket matches the raw date string against the ISO
+  // currentMonthKey ('2025-03'), so valid non-ISO dates (e.g. US '03/09/2025')
+  // never match and the whole set is silently treated as history. Both inputs
+  // are the same eight March-2025 expenses; only the string format differs.
+  // When Task 2.1 normalizes date handling, the non-ISO result must match the
+  // ISO result — flip the second assertion back to `toBe(true)`.
+  it('misclassifies non-ISO dates as history instead of the current month', () => {
+    const iso = spend(8, { date: '2025-03-09' });
+    const nonIso = spend(8, { date: '03/09/2025' });
+
+    const isoResult = calculateFinancialScore(iso);
+    const nonIsoResult = calculateFinancialScore(nonIso);
+
+    expect(isoResult.hasEnoughData).toBe(true);
+    expect(isoResult.breakdown.some((b) => b.label === 'History')).toBe(true);
+    expect(nonIsoResult.breakdown.some((b) => b.label === 'History')).toBe(false);
+  });
 });
