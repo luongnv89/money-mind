@@ -34,7 +34,7 @@ Gates run locally via `pre-commit` (installed with Homebrew); config is `.pre-co
 ## Hard rules
 
 - **YOU MUST update dependencies in two places:** `package.json` *and* the esm.sh `importmap` in `index.html`. They have already drifted. Changing only one breaks runtime resolution.
-- **Tailwind is loaded from CDN with its config inlined in `index.html`.** There is no `tailwind.config.js` or `postcss.config.js`; the `tailwindcss`/`postcss`/`autoprefixer` devDeps are vestigial. Custom tokens (`accent`, `accent-light`, `secondary`) are edited in that inline `<script>`.
+- **Tailwind ships from a local PostCSS build.** `tailwind.config.js`, `postcss.config.js`, and `src/index.css` define it; `index.html` loads no CDN. Edit custom tokens (`accent`, `accent-light`, `secondary`) in `tailwind.config.js` — its `content` globs must cover every source file or utilities silently drop out.
 - **Lint runs with `--max-warnings 0`.** `@typescript-eslint/no-explicit-any` is warn-level, so a single `any` fails lint. Type it properly.
 - **Keep Vitest on 3.x.** Vitest 2 refuses Vite 6 as a peer and nests its own Vite 5, which makes `tsc` fail on `vite.config.ts` with unassignable `PluginOption` types.
 - **Do not delete `tests/setup.ts`.** Node 26 defines an inert global `localStorage` that shadows jsdom's; the setup file installs a working one, and every persistence test depends on it.
