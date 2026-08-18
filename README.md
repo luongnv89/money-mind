@@ -5,7 +5,7 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
 
 ## 🚀 Features
 
--   **Zero-Knowledge Privacy:** CSV processing happens 100% in the browser. API keys are encrypted in LocalStorage.
+-   **Zero-Knowledge Privacy:** CSV processing happens 100% in the browser. API keys are obfuscated and stored locally in your browser's LocalStorage (not encrypted).
 -   **AI Categorization:** Automatically categorizes messy bank transactions using LLMs.
 -   **Multi-Model Support:**
     -   ☁️ **Cloud:** Google Gemini (Default), Groq (Fastest).

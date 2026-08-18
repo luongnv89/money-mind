@@ -62,7 +62,7 @@ export const PrivacyPolicy: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           </li>
           <li>
             <strong>API Keys:</strong> If you use Cloud AI (Google/Groq), your API keys are
-            encrypted and stored in LocalStorage.
+            obfuscated and stored locally in your browser's LocalStorage (not encrypted).
           </li>
           <li>
             <strong>Usage Data:</strong> We do not track user behavior or analytics.
