@@ -25,7 +25,15 @@ describe('ci.yml quality gate (Task 0.6)', () => {
     expect(untilNextStep).not.toContain('continue-on-error');
   });
 
-  it('npm audit runs with a high severity gate', () => {
-    expect(ci).toMatch(/npm audit --audit-level=high/);
+  it('npm audit runs as a hard gate (no continue-on-error)', () => {
+    expect(ci).toMatch(/npm audit --package-lock-only --audit-level=high/);
+    const auditBlock = ci.slice(ci.indexOf('NPM Audit'));
+    const untilNextStep = auditBlock.slice(
+      0,
+      auditBlock.indexOf('\n\n      - name:') < 0
+        ? auditBlock.length
+        : auditBlock.indexOf('\n\n      - name:')
+    );
+    expect(untilNextStep).not.toContain('continue-on-error');
   });
 });
