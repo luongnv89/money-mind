@@ -1,4 +1,3 @@
-
 export enum TransactionCategory {
   Income = 'Income',
   InternalTransfer = 'Internal Transfer',
@@ -7,7 +6,7 @@ export enum TransactionCategory {
   Waste = 'Waste',
   Save = 'Save',
   Invest = 'Invest',
-  Uncategorized = 'Uncategorized'
+  Uncategorized = 'Uncategorized',
 }
 
 export interface Transaction {
@@ -55,9 +54,9 @@ export interface OllamaConfig {
 }
 
 export interface UsageStats {
-    txAnalyzed: number;
-    chatMessages: number;
-    lastReset: string;
+  txAnalyzed: number;
+  chatMessages: number;
+  lastReset: string;
 }
 
 export interface AppSettings {

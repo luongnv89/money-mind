@@ -1,0 +1,71 @@
+# Shift-left quality gates: everything that can run locally runs here, so CI is
+# a safety net rather than the first place a problem shows up.
+#   pre-commit stage (~5s): format, secrets, lint, typecheck, unit tests
+#   pre-push stage  (~4s): production build
+#
+# Setup:  pre-commit install   (installs both hook types via the default below)
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
+# Frozen archive of past prompts; not source, never reformat it.
+exclude: '^migrated_prompt_history/'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: detect-private-key
+
+  # Offline secret scan. Trivy stays in CI: it needs a vulnerability DB.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # Project toolchain, run through npm so hooks and CI share one definition.
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier (write)
+        entry: npx prettier --write --ignore-unknown
+        language: system
+        types: [text]
+        exclude: '^(migrated_prompt_history/|package-lock\.json$|.*\.md$)'
+
+      - id: eslint
+        name: eslint (--max-warnings 0)
+        entry: npm run lint
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: typecheck
+        name: tsc --noEmit
+        entry: npm run typecheck
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: tests
+        name: vitest
+        entry: npm test
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # Slowest gate, and tsc already ran: push is enough.
+      - id: build
+        name: production build
+        entry: npm run build
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

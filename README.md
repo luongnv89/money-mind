@@ -58,7 +58,7 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
     *Note: You can also configure these keys directly within the application's **Settings** page.*
 
 4.  **Start the development server:**
-    
+
     **Option A: Standard Vite Dev (Frontend Only)**
     ```bash
     npm run dev
