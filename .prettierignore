@@ -1,0 +1,12 @@
+# Generated / vendored
+dist/
+build/
+coverage/
+node_modules/
+package-lock.json
+
+# Frozen archives — not source
+migrated_prompt_history/
+
+# Prose: leave authored line breaks alone
+*.md
