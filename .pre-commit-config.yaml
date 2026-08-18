@@ -45,21 +45,21 @@ repos:
         entry: npm run lint
         language: system
         pass_filenames: false
-        files: '\.(ts|tsx)$'
+        always_run: true
 
       - id: typecheck
         name: tsc --noEmit
         entry: npm run typecheck
         language: system
         pass_filenames: false
-        files: '\.(ts|tsx|json)$'
+        always_run: true
 
       - id: tests
         name: vitest
         entry: npm test
         language: system
         pass_filenames: false
-        files: '\.(ts|tsx)$'
+        always_run: true
 
       # Slowest gate, and tsc already ran: push is enough.
       - id: build

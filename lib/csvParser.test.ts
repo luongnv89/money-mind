@@ -19,12 +19,23 @@ describe('autoDetectMapping', () => {
     expect(mapping.amountCol).toBe('Debit Amount');
   });
 
-  it('never reuses the date or amount column as the description', () => {
+  it('never reuses the date column as the description', () => {
     const mapping = autoDetectMapping(['Date', 'Amount'], ',');
 
     expect(mapping.dateCol).toBe('Date');
     expect(mapping.amountCol).toBe('Amount');
     expect(mapping.descCol).not.toBe('Date');
+  });
+
+  // Known defect: the `|| headers[1]` fallback in autoDetectMapping bypasses the
+  // [dateCol, amountCol] exclusion it exists to enforce, so a header row with no
+  // description-like column hands back the amount column as the description.
+  // `it.fails` documents the bug and will itself start failing once it is fixed,
+  // as a prompt to turn this into a plain assertion.
+  it.fails('should not reuse the amount column as the description', () => {
+    const mapping = autoDetectMapping(['Date', 'Amount', 'Note'], ',');
+
+    expect(mapping.descCol).not.toBe('Amount');
   });
 
   it('recognises non-English description headers', () => {
