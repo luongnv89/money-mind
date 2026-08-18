@@ -19,20 +19,7 @@ export const testAiConnection = async (): Promise<boolean> => {
 
   if (mode === 'cloud') {
     const apiKey = getDeobfuscatedApiKey(settings);
-    // If no key, we test the server endpoint availability
-    if (!apiKey) {
-      try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: 'ping', context: 'ping' }),
-        });
-        if (!response.ok) throw new Error('Server demo unavailable');
-        return true;
-      } catch (_e) {
-        throw new Error('No API Key set and Demo Server unreachable.');
-      }
-    }
+    if (!apiKey) throw new Error('No API Key set. Configure a Gemini API key in Settings to test the connection.');
 
     try {
       const ai = new GoogleGenAI({ apiKey });
@@ -141,38 +128,16 @@ export const chatWithFinancialAgent = async (
   let resultText = '';
 
   if (settings.aiMode === 'cloud') {
-    // Fallback to Server Proxy if no local key provided
-    if (!apiKey) {
-      try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: userQuery,
-            context: financialContext,
-          }),
-        });
-
-        if (!response.ok) {
-          const err = await response.json();
-          throw new Error(err.error || 'Demo server error');
-        }
-
-        const data = await response.json();
-        resultText = data.response;
-      } catch (e: unknown) {
-        throw new Error(e instanceof Error ? e.message : 'Failed to connect to demo server');
-      }
-    } else {
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: settings.geminiConfig.model,
-        contents: [
-          { role: 'user', parts: [{ text: systemPrompt + '\n\nUser Question: ' + userQuery }] },
-        ],
-      });
-      resultText = response.text || "I'm speechless 🐵 (No response from AI)";
-    }
+    // Require a valid API key — no server fallback
+    if (!apiKey) throw new Error('No API Key set. Configure a Gemini API key in Settings to chat with MonkeySmile.');
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: settings.geminiConfig.model,
+      contents: [
+        { role: 'user', parts: [{ text: systemPrompt + '\n\nUser Question: ' + userQuery }] },
+      ],
+    });
+    resultText = response.text || "I'm speechless 🐵 (No response from AI)";
   } else if (settings.aiMode === 'groq') {
     if (!apiKey) throw new Error('Missing API Key');
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {

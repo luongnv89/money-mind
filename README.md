@@ -17,7 +17,6 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
 ## 🛠 Tech Stack
 
 -   **Frontend:** React 19, TypeScript, Vite
--   **Serverless Backend:** Vercel Functions (in `api/` folder)
 -   **State Management:** Zustand (with LocalStorage persistence)
 -   **Styling:** Tailwind CSS, Lucide React (Icons)
 -   **AI Integration:** Google GenAI SDK, Custom REST connectors for Groq/Ollama
@@ -84,13 +83,16 @@ MoneyMind is primarily a Single Page Application (SPA). You can deploy it to any
 2.  **Deploy the `dist/` folder.**
     Ensure your hosting provider is configured to redirect all requests to `index.html` (standard SPA routing).
 
-#### 2. Vercel Deployment (Full-Stack)
-If you want to utilize the serverless functions in the `api/` directory (e.g., for the demo chat proxy):
+#### 2. Vercel Deployment (Static)
+
+Since MoneyMind is a pure Single Page Application (SPA) with no serverless functions, you can deploy it to Vercel (or any static host) as a static site:
 
 1.  Push your code to a GitHub repository.
 2.  Connect the repository to **Vercel**.
-3.  Add your `GEMINI_API_KEY` or `API_KEY` to the **Environment Variables** in the Vercel project settings.
-4.  Vercel will automatically detect the `api/` folder and deploy the functions.
+3.  Vercel will automatically detect the `vite.config.ts` and build the static SPA.
+4.  Add your `GEMINI_API_KEY` or other API keys as **Environment Variables** in the Vercel project settings — the app reads them from the browser environment at runtime.
+
+**Note:** There are no serverless functions (`api/` directory removed). The app calls AI provider APIs (Gemini, Groq, Ollama) directly from the browser. All API keys are stored locally in the browser's LocalStorage (obfuscated, not encrypted).
 
 ## 🤖 AI Configuration
 
