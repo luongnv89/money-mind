@@ -1,5 +1,5 @@
 import { Transaction, TransactionCategory } from '../types';
-import { safeNewDate } from '../lib/utils';
+import { safeNewDate, normalizeDate } from '../lib/utils';
 
 export interface ScoreBreakdown {
   label: string;
@@ -32,7 +32,13 @@ export const calculateFinancialScore = (allTransactions: Transaction[]): Financi
   }
 
   // 2. Setup Timeframes (Current Month vs History)
-  const sortedTx = expenses
+  // Normalize dates first — consumers may pass raw bank strings
+  const normalizedExpenses = expenses.map((t) => ({
+    ...t,
+    date: normalizeDate(t.date),
+  }));
+
+  const sortedTx = normalizedExpenses
     .filter((t) => !!safeNewDate(t.date))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -49,8 +55,8 @@ export const calculateFinancialScore = (allTransactions: Transaction[]): Financi
   const latestDate = new Date(sortedTx[sortedTx.length - 1].date);
   const currentMonthKey = latestDate.toISOString().substring(0, 7); // YYYY-MM
 
-  const currentMonthTx = expenses.filter((t) => t.date.startsWith(currentMonthKey));
-  const historyTx = expenses.filter((t) => !t.date.startsWith(currentMonthKey));
+  const currentMonthTx = normalizedExpenses.filter((t) => t.date.startsWith(currentMonthKey));
+  const historyTx = normalizedExpenses.filter((t) => !t.date.startsWith(currentMonthKey));
 
   // If this is the very first month, we can't compare history well, but we can score based on composition.
   const isFirstMonth = historyTx.length === 0;
@@ -160,7 +166,7 @@ export const calculateFinancialScore = (allTransactions: Transaction[]): Financi
   }
 
   // --- METRIC 4: Savings/Investments (Bonus) ---
-  const income = allTransactions
+  const income = normalizedExpenses
     .filter((t) => t.category === TransactionCategory.Income && t.date.startsWith(currentMonthKey))
     .reduce((sum, t) => sum + t.amount, 0);
 

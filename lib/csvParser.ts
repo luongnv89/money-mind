@@ -2,6 +2,7 @@ import Papa from 'papaparse';
 import { Transaction, TransactionCategory, CsvMapping } from '../types';
 import { SUPPORTED_BANKS } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
+import { normalizeDate } from './utils';
 
 // Helper to manually detect delimiter by reading first chunk of file
 const detectBestDelimiter = (file: File): Promise<string> => {
@@ -191,13 +192,13 @@ export const getPreviewTransactions = (
             const rawAmt = row[mapping.amountCol];
             const amount = parseAmount(rawAmt);
 
-            const date = row[mapping.dateCol];
+            const rawDate = row[mapping.dateCol];
             const desc = row[mapping.descCol];
             const originalCat = mapping.categoryCol ? row[mapping.categoryCol] : undefined;
 
             return {
               id: `preview-${idx}`,
-              date: date ? String(date) : '',
+              date: normalizeDate(rawDate ? String(rawDate) : ''),
               description: desc ? String(desc) : '',
               amount: isNaN(amount) ? 0 : amount,
               originalCategory: originalCat ? String(originalCat) : undefined,
@@ -236,14 +237,16 @@ export const parseCSVWithMapping = (file: File, mapping: CsvMapping): Promise<Tr
           const transactions: Transaction[] = data
             .map((row, idx) => {
               const amount = parseAmount(row[mapping.amountCol]);
-              let date = row[mapping.dateCol];
-              if (!date) date = new Date().toISOString(); // Fallback
+              const rawDate = row[mapping.dateCol];
+              const fallbackDate = new Date().toISOString().split('T')[0]; // Fallback to today
+              const date = rawDate ? String(rawDate) : fallbackDate;
+              const normalizedDate = normalizeDate(date);
 
               const originalCat = mapping.categoryCol ? row[mapping.categoryCol] : undefined;
 
               return {
                 id: uuidv4(),
-                date: String(date),
+                date: normalizedDate,
                 description: String(row[mapping.descCol] || 'Unknown'),
                 amount: isNaN(amount) ? 0 : amount,
                 originalCategory: originalCat ? String(originalCat) : undefined,
