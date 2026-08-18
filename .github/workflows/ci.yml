@@ -1,11 +1,10 @@
-
 name: CI Quality Checks
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: ['main', 'master']
   pull_request:
-    branches: [ "main", "master" ]
+    branches: ['main', 'master']
 
 jobs:
   quality:
@@ -51,7 +50,7 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true 
+        continue-on-error: true
 
       - name: Trivy Filesystem Scan
         uses: aquasecurity/trivy-action@master

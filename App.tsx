@@ -11,7 +11,7 @@ type View = 'dashboard' | 'upload' | 'settings' | 'privacy';
 function App() {
   const { transactions } = useTransactionStore();
   // If we have transactions, start on dashboard, otherwise start on upload
-  const [view, setView] = useState<View>(() => transactions.length > 0 ? 'dashboard' : 'upload');
+  const [view, setView] = useState<View>(() => (transactions.length > 0 ? 'dashboard' : 'upload'));
 
   return (
     <Layout currentView={view} onViewChange={setView}>
