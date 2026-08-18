@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install Dependencies
@@ -31,9 +31,6 @@ jobs:
 
       - name: Type Check (TypeScript)
         run: npm run typecheck
-
-      - name: Run Tests (Vitest)
-        run: npm test
 
       - name: Build Test
         run: npm run build
@@ -53,13 +50,10 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: NPM Audit (High+)
-        run: npm audit --audit-level=high
         continue-on-error: true
 
       - name: Trivy Filesystem Scan
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: '.'

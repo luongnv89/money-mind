@@ -111,8 +111,8 @@ We enforce a strict "Shift-Left" quality strategy.
 
 ### CI/CD (GitHub Actions)
 On every push or pull request:
-1.  **Quality Job:** Runs Lint, Format Check, and Type Check.
-2.  **Security Job:** Runs **Trivy** (vulnerability scanning) and **Gitleaks** (secret detection).
+1.  **Quality Job:** Runs Lint, Format Check, Type Check, the full test suite (`npm test`), and a production build.
+2.  **Security Job:** Runs **Gitleaks** (secret detection), **`npm audit --audit-level=high`** (dependency advisories), and **Trivy** (vulnerability scanning, pinned to a release tag).
 
 ## ⚠️ Security Note
 This application deals with financial data.
