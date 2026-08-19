@@ -1,5 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { autoDetectMapping, detectBankFormat, parseAmount } from './csvParser';
+import {
+  autoDetectMapping,
+  detectBankFormat,
+  getCSVHeaders,
+  parseAmount,
+  parseCSVWithMapping,
+} from './csvParser';
+import { CsvMapping } from '../types';
+
+const csvFile = (contents: string): File =>
+  new File([contents], 'statement.csv', { type: 'text/csv' });
+
+const mapping: CsvMapping = {
+  dateCol: 'Date',
+  descCol: 'Description',
+  amountCol: 'Amount',
+  categoryCol: '',
+  hasHeader: true,
+  delimiter: ',',
+};
 
 describe('parseAmount', () => {
   it('passes numbers through unchanged', () => {
@@ -100,5 +119,62 @@ describe('detectBankFormat', () => {
 
   it('returns null for unrecognised headers', () => {
     expect(detectBankFormat(['foo', 'bar', 'baz'])).toBeNull();
+  });
+});
+
+describe('getCSVHeaders', () => {
+  it('rejects an empty CSV file with a descriptive error', async () => {
+    await expect(getCSVHeaders(csvFile(''))).rejects.toThrow(/empty or unreadable/i);
+  });
+
+  it('resolves headers for a headers-only CSV file', async () => {
+    await expect(getCSVHeaders(csvFile('Date,Description,Amount\n'))).resolves.toEqual({
+      headers: ['Date', 'Description', 'Amount'],
+      delimiter: ',',
+    });
+  });
+});
+
+describe('parseCSVWithMapping', () => {
+  it('rejects a headers-only CSV file with no data rows', async () => {
+    await expect(
+      parseCSVWithMapping(csvFile('Date,Description,Amount\n'), mapping)
+    ).rejects.toThrow(/No data found/i);
+  });
+
+  it('rejects rows with unparseable amounts with a reason', async () => {
+    const { accepted, rejected } = await parseCSVWithMapping(
+      csvFile('Date,Description,Amount\n2024-01-01,Coffee,abc\n2024-01-02,Lunch,def\n'),
+      mapping
+    );
+
+    expect(accepted).toHaveLength(0);
+    expect(rejected).toHaveLength(2);
+    expect(rejected.map((r) => r.reason)).toEqual([
+      'Unparseable amount: "abc"',
+      'Unparseable amount: "def"',
+    ]);
+  });
+
+  it('preserves a genuine zero-amount row', async () => {
+    const { accepted, rejected } = await parseCSVWithMapping(
+      csvFile('Date,Description,Amount\n2024-01-01,Refund,0\n'),
+      mapping
+    );
+
+    expect(accepted).toHaveLength(1);
+    expect(accepted[0].amount).toBe(0);
+    expect(rejected).toHaveLength(0);
+  });
+
+  it('rejects rows with an empty description', async () => {
+    const { accepted, rejected } = await parseCSVWithMapping(
+      csvFile('Date,Description,Amount\n2024-01-01,,5.00\n'),
+      mapping
+    );
+
+    expect(accepted).toHaveLength(0);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toBe('Empty description');
   });
 });

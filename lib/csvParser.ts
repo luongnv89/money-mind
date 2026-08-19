@@ -131,6 +131,13 @@ export const autoDetectMapping = (headers: string[], delimiter: string): CsvMapp
   };
 };
 
+// Row rejected during parsing
+export interface RejectedRow {
+  row: Record<string, unknown>;
+  reason: string;
+  index: number;
+}
+
 // 1. Get headers with robust delimiter detection
 export const getCSVHeaders = (file: File): Promise<{ headers: string[]; delimiter: string }> => {
   return new Promise((resolve, reject) => {
@@ -138,26 +145,28 @@ export const getCSVHeaders = (file: File): Promise<{ headers: string[]; delimite
       .then((delimiter) => {
         Papa.parse(file, {
           header: true,
-          preview: 1, // Read only first few lines
-          delimiter: delimiter, // Enforce detected delimiter
-          step: (row) => {
-            // We just need the keys from the first row
-            if (row.meta.fields) {
-              resolve({ headers: row.meta.fields, delimiter });
-            } else if (row.data && typeof row.data === 'object') {
-              resolve({ headers: Object.keys(row.data as object), delimiter });
-            }
-          },
+          preview: 1,
+          delimiter: delimiter,
           complete: (results) => {
-            if (results.meta.fields) {
+            // Try meta.fields first
+            if (results.meta.fields && results.meta.fields.length > 0) {
               resolve({ headers: results.meta.fields, delimiter });
-            } else if (results.data.length > 0) {
-              resolve({ headers: Object.keys(results.data[0] as object), delimiter });
-            } else {
-              if (results.errors.length > 0) {
-                reject(new Error('CSV Parse Error: ' + results.errors[0].message));
+              return;
+            }
+            // Try data keys
+            if (results.data && results.data.length > 0) {
+              const keys = Object.keys(results.data[0] as object);
+              if (keys.length > 0) {
+                resolve({ headers: keys, delimiter });
+                return;
               }
             }
+            // Nothing found — reject with descriptive error
+            if (results.errors.length > 0) {
+              reject(new Error('CSV Parse Error: ' + results.errors[0].message));
+              return;
+            }
+            reject(new Error('CSV file is empty or unreadable'));
           },
           error: (err) => reject(err),
         });
@@ -218,14 +227,17 @@ export const getPreviewTransactions = (
   });
 };
 
-// 2. Parse with specific mapping
-export const parseCSVWithMapping = (file: File, mapping: CsvMapping): Promise<Transaction[]> => {
+// 2. Parse with specific mapping — returns accepted + rejected rows
+export const parseCSVWithMapping = (
+  file: File,
+  mapping: CsvMapping
+): Promise<{ accepted: Transaction[]; rejected: RejectedRow[] }> => {
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      dynamicTyping: false, // Turn off dynamic typing to handle amounts manually
-      delimiter: mapping.delimiter, // Use the delimiter found during header detection
+      dynamicTyping: false,
+      delimiter: mapping.delimiter,
       complete: (results) => {
         const data = results.data as Record<string, unknown>[];
         if (!data || data.length === 0) {
@@ -234,31 +246,48 @@ export const parseCSVWithMapping = (file: File, mapping: CsvMapping): Promise<Tr
         }
 
         try {
-          const transactions: Transaction[] = data
-            .map((row, idx) => {
-              const amount = parseAmount(row[mapping.amountCol]);
-              const rawDate = row[mapping.dateCol];
-              const fallbackDate = new Date().toISOString().split('T')[0]; // Fallback to today
-              const date = rawDate ? String(rawDate) : fallbackDate;
-              const normalizedDate = normalizeDate(date);
+          const accepted: Transaction[] = [];
+          const rejected: RejectedRow[] = [];
 
-              const originalCat = mapping.categoryCol ? row[mapping.categoryCol] : undefined;
+          data.forEach((row, idx) => {
+            const rawDesc = row[mapping.descCol];
+            const description = rawDesc ? String(rawDesc).trim() : '';
+            const amount = parseAmount(row[mapping.amountCol]);
+            const rawDate = row[mapping.dateCol];
+            const fallbackDate = new Date().toISOString().split('T')[0];
+            const date = rawDate ? String(rawDate) : fallbackDate;
+            const normalizedDate = normalizeDate(date);
+            const originalCat = mapping.categoryCol ? row[mapping.categoryCol] : undefined;
 
-              return {
-                id: uuidv4(),
-                date: normalizedDate,
-                description: String(row[mapping.descCol] || 'Unknown'),
-                amount: isNaN(amount) ? 0 : amount,
-                originalCategory: originalCat ? String(originalCat) : undefined,
-                category: TransactionCategory.Uncategorized,
-                confidence: 0,
-                raw: row, // Store original row
-                index: idx + 2, // 1-based index
-              } as Transaction;
-            })
-            .filter((t) => t.description !== 'Unknown' && t.amount !== 0);
+            // Build the transaction object
+            const tx: Transaction = {
+              id: uuidv4(),
+              date: normalizedDate,
+              description: description || 'Unknown',
+              amount: isNaN(amount) ? 0 : amount,
+              originalCategory: originalCat ? String(originalCat) : undefined,
+              category: TransactionCategory.Uncategorized,
+              confidence: 0,
+              raw: row,
+              index: idx + 2,
+            };
 
-          resolve(transactions);
+            // Reject rows that cannot produce a usable transaction; keep the rest,
+            // including genuine zero-amount rows that used to be silently dropped.
+            if (isNaN(amount)) {
+              rejected.push({
+                row,
+                reason: `Unparseable amount: "${row[mapping.amountCol]}"`,
+                index: idx + 2,
+              });
+            } else if (description === '') {
+              rejected.push({ row, reason: 'Empty description', index: idx + 2 });
+            } else {
+              accepted.push(tx);
+            }
+          });
+
+          resolve({ accepted, rejected });
         } catch (e) {
           reject(e);
         }
@@ -278,7 +307,7 @@ export const detectBankFormat = (headers: string[]): Partial<CsvMapping> | null 
         dateCol: bank.dateCol,
         descCol: bank.descCol,
         amountCol: bank.amountCol,
-        categoryCol: bank.categoryCol, // Included if present in bank definition
+        categoryCol: bank.categoryCol,
         hasHeader: true,
       };
     }
