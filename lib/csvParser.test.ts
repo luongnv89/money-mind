@@ -167,6 +167,28 @@ describe('parseCSVWithMapping', () => {
     expect(rejected).toHaveLength(0);
   });
 
+  it('rejects a row with a blank amount cell as unparseable', async () => {
+    const { accepted, rejected } = await parseCSVWithMapping(
+      csvFile('Date,Description,Amount\n2024-01-01,Coffee,\n'),
+      mapping
+    );
+
+    expect(accepted).toHaveLength(0);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toBe('Unparseable amount: ""');
+  });
+
+  it('rejects a row missing the amount column as unparseable', async () => {
+    const { accepted, rejected } = await parseCSVWithMapping(
+      csvFile('Date,Description,Amount\n2024-01-01,Coffee\n'),
+      mapping
+    );
+
+    expect(accepted).toHaveLength(0);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toBe('Unparseable amount: ""');
+  });
+
   it('rejects rows with an empty description', async () => {
     const { accepted, rejected } = await parseCSVWithMapping(
       csvFile('Date,Description,Amount\n2024-01-01,,5.00\n'),

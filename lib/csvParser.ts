@@ -252,7 +252,17 @@ export const parseCSVWithMapping = (
           data.forEach((row, idx) => {
             const rawDesc = row[mapping.descCol];
             const description = rawDesc ? String(rawDesc).trim() : '';
-            const amount = parseAmount(row[mapping.amountCol]);
+
+            // A missing or blank amount cell is unparseable — reject it loudly.
+            // Only accept a genuine zero when the string itself parses ('0', '0.00').
+            const rawAmount = row[mapping.amountCol];
+            const amountStr = rawAmount == null ? '' : String(rawAmount).trim();
+            if (amountStr === '') {
+              rejected.push({ row, reason: 'Unparseable amount: ""', index: idx + 2 });
+              return;
+            }
+
+            const amount = parseAmount(rawAmount);
             const rawDate = row[mapping.dateCol];
             const fallbackDate = new Date().toISOString().split('T')[0];
             const date = rawDate ? String(rawDate) : fallbackDate;
@@ -277,7 +287,7 @@ export const parseCSVWithMapping = (
             if (isNaN(amount)) {
               rejected.push({
                 row,
-                reason: `Unparseable amount: "${row[mapping.amountCol]}"`,
+                reason: `Unparseable amount: "${amountStr}"`,
                 index: idx + 2,
               });
             } else if (description === '') {

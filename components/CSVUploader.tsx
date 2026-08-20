@@ -564,7 +564,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
               {rejectedCount > 0 && (
                 <Badge
                   variant="accent"
-                  className="flex items-center gap-1 bg-red-500 hover:bg-red-600"
+                  className="flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100"
                 >
                   <AlertTriangle className="w-4 h-4" />
                   {rejectedCount} rejected row{rejectedCount !== 1 ? 's' : ''}
