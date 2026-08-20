@@ -19,7 +19,10 @@ export const testAiConnection = async (): Promise<boolean> => {
 
   if (mode === 'cloud') {
     const apiKey = getDeobfuscatedApiKey(settings);
-    if (!apiKey) throw new Error('No API Key set. Configure a Gemini API key in Settings to test the connection.');
+    if (!apiKey)
+      throw new Error(
+        'No API Key set. Configure a Gemini API key in Settings to test the connection.'
+      );
 
     try {
       const ai = new GoogleGenAI({ apiKey });
@@ -129,7 +132,10 @@ export const chatWithFinancialAgent = async (
 
   if (settings.aiMode === 'cloud') {
     // Require a valid API key — no server fallback
-    if (!apiKey) throw new Error('No API Key set. Configure a Gemini API key in Settings to chat with MonkeySmile.');
+    if (!apiKey)
+      throw new Error(
+        'No API Key set. Configure a Gemini API key in Settings to chat with MonkeySmile.'
+      );
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: settings.geminiConfig.model,

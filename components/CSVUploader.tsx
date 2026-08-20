@@ -175,6 +175,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
   const [activeTab, setActiveTab] = useState<PreviewTab>('new');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDuplicate, setSelectedDuplicate] = useState<DuplicateTransaction | null>(null);
+  const [rejectedCount, setRejectedCount] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const {
@@ -273,11 +274,11 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
   const processFile = async (f: File, m: CsvMapping) => {
     setState('processing');
     try {
-      let parsed = await parseCSVWithMapping(f, m);
+      const { accepted, rejected } = await parseCSVWithMapping(f, m);
 
+      let parsed = accepted;
       if (shouldApplyPatterns) {
-        const result = applyPatterns(parsed);
-        parsed = result.transactions;
+        parsed = applyPatterns(parsed).transactions;
       }
 
       // Deduplication Logic
@@ -301,6 +302,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
 
       setStagedTransactions(newItems);
       setDuplicateTransactions(duplicates);
+      setRejectedCount(rejected.length);
       setCurrentPage(1);
       // If no new items but duplicates exist, switch to duplicate tab automatically
       if (newItems.length === 0 && duplicates.length > 0) {
@@ -559,6 +561,15 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
                 <Check className="w-5 h-5 text-accent" />
                 Validate Data
               </CardTitle>
+              {rejectedCount > 0 && (
+                <Badge
+                  variant="accent"
+                  className="flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  {rejectedCount} rejected row{rejectedCount !== 1 ? 's' : ''}
+                </Badge>
+              )}
             </div>
 
             {/* Tabs */}
