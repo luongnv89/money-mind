@@ -3,6 +3,7 @@ import {
   autoDetectMapping,
   detectBankFormat,
   getCSVHeaders,
+  getPreviewTransactions,
   parseAmount,
   parseCSVWithMapping,
 } from './csvParser';
@@ -198,5 +199,74 @@ describe('parseCSVWithMapping', () => {
     expect(accepted).toHaveLength(0);
     expect(rejected).toHaveLength(1);
     expect(rejected[0].reason).toBe('Empty description');
+  });
+});
+
+describe('Citi split debit/credit columns', () => {
+  const citiMapping: CsvMapping = {
+    ...mapping,
+    amountCol: '',
+    debitCreditCols: true,
+    debitCol: 'Debit',
+    creditCol: 'Credit',
+  };
+  const citiCsv =
+    'Date,Description,Debit,Credit\n' +
+    '2024-01-01,Groceries,54.20,\n' +
+    '2024-01-02,Salary Deposit,,2500.00\n' +
+    '2024-01-03,Coffee Shop,5.75,\n' +
+    '2024-01-04,Refund,,12.30\n';
+
+  it('detects the Citi layout from its headers', () => {
+    const detected = detectBankFormat(['Date', 'Description', 'Debit', 'Credit']);
+
+    expect(detected).not.toBeNull();
+    expect(detected?.debitCreditCols).toBe(true);
+    expect(detected?.debitCol).toBe('Debit');
+    expect(detected?.creditCol).toBe('Credit');
+  });
+
+  it('still detects single-column bank layouts', () => {
+    const detected = detectBankFormat(['Transaction Date', 'Description', 'Amount', 'Category']);
+
+    expect(detected).not.toBeNull();
+    expect(detected?.debitCreditCols).toBeUndefined();
+  });
+
+  it('combines debit and credit into signed amounts with correct row count', async () => {
+    const { accepted, rejected } = await parseCSVWithMapping(csvFile(citiCsv), citiMapping);
+
+    expect(accepted).toHaveLength(4);
+    expect(rejected).toHaveLength(0);
+    expect(accepted.map((t) => t.amount)).toEqual([-54.2, 2500, -5.75, 12.3]);
+  });
+
+  it('rejects a row where both debit and credit are blank', async () => {
+    const { accepted, rejected } = await parseCSVWithMapping(
+      csvFile('Date,Description,Debit,Credit\n2024-01-01,Mystery,,\n'),
+      citiMapping
+    );
+
+    expect(accepted).toHaveLength(0);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toBe('Unparseable amount: ""');
+  });
+
+  it('rejects a row with an unparseable split value', async () => {
+    const { accepted, rejected } = await parseCSVWithMapping(
+      csvFile('Date,Description,Debit,Credit\n2024-01-01,Bad Row,abc,\n'),
+      citiMapping
+    );
+
+    expect(accepted).toHaveLength(0);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reason).toBe('Unparseable amount: "abc"');
+  });
+
+  it('previews split-column rows with signed amounts', async () => {
+    const preview = await getPreviewTransactions(csvFile(citiCsv), citiMapping);
+
+    expect(preview).toHaveLength(4);
+    expect(preview.map((t) => t.amount)).toEqual([-54.2, 2500, -5.75, 12.3]);
   });
 });

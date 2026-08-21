@@ -77,6 +77,8 @@ export interface BankFormat {
   amountCol: string;
   categoryCol?: string;
   debitCreditCols?: boolean; // For Citi/Capital One style split columns
+  debitCol?: string; // Column holding money-out values when debitCreditCols is set
+  creditCol?: string; // Column holding money-in values when debitCreditCols is set
 }
 
 export interface CsvMapping {
@@ -86,4 +88,7 @@ export interface CsvMapping {
   categoryCol?: string;
   hasHeader: boolean;
   delimiter?: string;
+  debitCreditCols?: boolean; // Amount lives in separate debit/credit columns
+  debitCol?: string;
+  creditCol?: string;
 }

@@ -71,6 +71,27 @@ export const parseAmount = (val: unknown): number => {
   return parseFloat(cleanStr);
 };
 
+// Resolves a signed amount from split debit/credit columns (Citi-style exports).
+// Credits (money in) are positive, debits (money out) are negative.
+export const resolveSplitAmount = (
+  row: Record<string, unknown>,
+  mapping: Pick<CsvMapping, 'debitCreditCols' | 'debitCol' | 'creditCol'>
+): { status: 'ok'; value: number } | { status: 'empty' | 'unparseable'; raw: string } => {
+  const debitRaw = mapping.debitCol ? row[mapping.debitCol] : undefined;
+  const creditRaw = mapping.creditCol ? row[mapping.creditCol] : undefined;
+  const debitStr = debitRaw == null ? '' : String(debitRaw).trim();
+  const creditStr = creditRaw == null ? '' : String(creditRaw).trim();
+
+  if (debitStr === '' && creditStr === '') return { status: 'empty', raw: '' };
+
+  const debit = debitStr === '' ? 0 : parseAmount(debitStr);
+  const credit = creditStr === '' ? 0 : parseAmount(creditStr);
+  if (isNaN(debit) || isNaN(credit)) {
+    return { status: 'unparseable', raw: debitStr || creditStr };
+  }
+  return { status: 'ok', value: credit - debit };
+};
+
 // Auto-detect columns based on heuristics
 export const autoDetectMapping = (headers: string[], delimiter: string): CsvMapping => {
   const lowerHeaders = headers.map((h) => h.toLowerCase().trim());
@@ -198,8 +219,15 @@ export const getPreviewTransactions = (
 
         try {
           const transactions = data.map((row, idx) => {
-            const rawAmt = row[mapping.amountCol];
-            const amount = parseAmount(rawAmt);
+            const split =
+              mapping.debitCreditCols && mapping.debitCol && mapping.creditCol
+                ? resolveSplitAmount(row, mapping)
+                : undefined;
+            const amount = split
+              ? split.status === 'ok'
+                ? split.value
+                : NaN
+              : parseAmount(row[mapping.amountCol]);
 
             const rawDate = row[mapping.dateCol];
             const desc = row[mapping.descCol];
@@ -253,16 +281,38 @@ export const parseCSVWithMapping = (
             const rawDesc = row[mapping.descCol];
             const description = rawDesc ? String(rawDesc).trim() : '';
 
-            // A missing or blank amount cell is unparseable — reject it loudly.
-            // Only accept a genuine zero when the string itself parses ('0', '0.00').
-            const rawAmount = row[mapping.amountCol];
-            const amountStr = rawAmount == null ? '' : String(rawAmount).trim();
-            if (amountStr === '') {
-              rejected.push({ row, reason: 'Unparseable amount: ""', index: idx + 2 });
-              return;
+            // Resolve the amount: either split debit/credit columns (Citi) or a
+            // single amount column. A missing or blank cell is unparseable —
+            // reject it loudly; only accept a genuine zero when the string
+            // itself parses ('0', '0.00').
+            let amount = NaN;
+            let amountStr = '';
+
+            if (mapping.debitCreditCols && mapping.debitCol && mapping.creditCol) {
+              const split = resolveSplitAmount(row, mapping);
+              if (split.status === 'ok') {
+                amount = split.value;
+              } else {
+                rejected.push({
+                  row,
+                  reason:
+                    split.status === 'empty'
+                      ? 'Unparseable amount: ""'
+                      : `Unparseable amount: "${split.raw}"`,
+                  index: idx + 2,
+                });
+                return;
+              }
+            } else {
+              const rawAmount = row[mapping.amountCol];
+              amountStr = rawAmount == null ? '' : String(rawAmount).trim();
+              if (amountStr === '') {
+                rejected.push({ row, reason: 'Unparseable amount: ""', index: idx + 2 });
+                return;
+              }
+              amount = parseAmount(rawAmount);
             }
 
-            const amount = parseAmount(rawAmount);
             const rawDate = row[mapping.dateCol];
             const fallbackDate = new Date().toISOString().split('T')[0];
             const date = rawDate ? String(rawDate) : fallbackDate;
@@ -310,7 +360,12 @@ export const parseCSVWithMapping = (
 export const detectBankFormat = (headers: string[]): Partial<CsvMapping> | null => {
   for (const bank of SUPPORTED_BANKS) {
     const required = [bank.dateCol, bank.descCol];
-    if (!bank.debitCreditCols) required.push(bank.amountCol);
+    if (bank.debitCreditCols) {
+      if (!bank.debitCol || !bank.creditCol) continue;
+      required.push(bank.debitCol, bank.creditCol);
+    } else {
+      required.push(bank.amountCol);
+    }
 
     if (required.every((col) => headers.includes(col))) {
       return {
@@ -319,6 +374,13 @@ export const detectBankFormat = (headers: string[]): Partial<CsvMapping> | null 
         amountCol: bank.amountCol,
         categoryCol: bank.categoryCol,
         hasHeader: true,
+        ...(bank.debitCreditCols
+          ? {
+              debitCreditCols: true,
+              debitCol: bank.debitCol,
+              creditCol: bank.creditCol,
+            }
+          : {}),
       };
     }
   }

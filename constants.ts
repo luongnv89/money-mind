@@ -157,7 +157,15 @@ export const SUPPORTED_BANKS: BankFormat[] = [
     amountCol: 'Amount',
     categoryCol: 'Category',
   },
-  { name: 'Citi', dateCol: 'Date', descCol: 'Description', amountCol: '', debitCreditCols: true }, // Logic handled in parser
+  {
+    name: 'Citi',
+    dateCol: 'Date',
+    descCol: 'Description',
+    amountCol: '',
+    debitCreditCols: true,
+    debitCol: 'Debit',
+    creditCol: 'Credit',
+  },
 ];
 
 export const MAX_FILE_SIZE_MB = 10;
