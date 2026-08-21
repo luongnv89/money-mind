@@ -28,7 +28,6 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
 ### Prerequisites
 -   **Node.js 24+ (LTS)**
 -   **NPM** (or Yarn/PNPM)
--   (Optional) **Vercel CLI** for testing serverless functions locally: `npm i -g vercel`
 -   (Optional) **Ollama** for local AI: [ollama.com](https://ollama.com)
 
 ### Local Development
@@ -48,19 +47,12 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
     MoneyMind does not read API keys from environment variables or `.env` files. Start the app (step 4), open the **Settings** page, and enter your Gemini or Groq key there. Keys are stored locally in your browser's LocalStorage (obfuscated, not encrypted).
 
 4.  **Start the development server:**
-
-    **Option A: Standard Vite Dev (Frontend Only)**
     ```bash
     npm run dev
     ```
     This starts the app at `http://localhost:3000`. Configure your AI keys on the in-app **Settings** page.
 
-    **Option B: Full-Stack Dev (with Serverless Functions)**
-    If you want to test the serverless endpoints in the `api/` folder:
-    ```bash
-    vercel dev
-    ```
-    This requires the Vercel CLI and will simulate the production environment.
+    **Note:** There are no serverless functions — the `api/` directory has been removed. No `vercel dev` step is needed for local development; the Vite dev server is all you need.
 
 ### Deployment
 
