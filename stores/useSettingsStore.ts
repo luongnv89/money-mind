@@ -33,20 +33,6 @@ const deobfuscate = (text: string) => {
   }
 };
 
-// Detect Environment Keys for Gemini
-export const getEnvGeminiApiKey = () => {
-  try {
-    // Safe check for browser environments where process might not be defined
-    const env = (typeof process !== 'undefined' ? process.env : {}) as Record<
-      string,
-      string | undefined
-    >;
-    return env.GOOGLE_API_KEY || env.GEMINI_API_KEY || env.API_KEY || '';
-  } catch {
-    return '';
-  }
-};
-
 // Hard limits as per requirement
 const MAX_TX_ANALYSIS = 150;
 const MAX_CHAT_MESSAGES = 10;
@@ -60,7 +46,7 @@ export const useSettingsStore = create<SettingsState>()(
       enableFunnyAlerts: true, // Default to true
 
       geminiConfig: {
-        apiKey: obfuscate(getEnvGeminiApiKey()),
+        apiKey: '',
         model: 'models/gemini-flash-latest',
       },
 
@@ -116,7 +102,7 @@ export const useSettingsStore = create<SettingsState>()(
           applyPatterns: true,
           enableFunnyAlerts: true,
           geminiConfig: {
-            apiKey: obfuscate(getEnvGeminiApiKey()),
+            apiKey: '',
             model: 'models/gemini-flash-latest',
           },
           groqConfig: { apiKey: '', model: 'llama-3.1-8b-instant' },
@@ -132,10 +118,8 @@ export const useSettingsStore = create<SettingsState>()(
 
         // Check if Custom Key (Cloud) -> Unlimited
         if (aiMode === 'cloud') {
-          const envKey = getEnvGeminiApiKey();
           const currentKey = deobfuscate(geminiConfig.apiKey);
-          // If user has a key, and it's NOT the environment key, they are unlimited
-          if (currentKey && currentKey !== envKey) {
+          if (currentKey) {
             return true;
           }
         }
@@ -146,7 +130,7 @@ export const useSettingsStore = create<SettingsState>()(
           if (key) return true;
         }
 
-        // Otherwise, enforce limits (Demo/Env Key)
+        // Otherwise, enforce limits (no key supplied)
         if (type === 'analysis') {
           return usage.txAnalyzed + amount <= MAX_TX_ANALYSIS;
         }

@@ -3,8 +3,21 @@ import { Transaction, LocalPattern, TransactionCategory } from '../types';
 const STORAGE_KEY = 'financePatterns';
 
 export const getPatterns = (): LocalPattern[] => {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored ? JSON.parse(stored) : [];
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) {
+      console.warn('Corrupt financePatterns storage, resetting to empty.');
+      clearPatterns();
+      return [];
+    }
+    return parsed as LocalPattern[];
+  } catch {
+    console.warn('Corrupt financePatterns storage, resetting to empty.');
+    clearPatterns();
+    return [];
+  }
 };
 
 const savePatterns = (patterns: LocalPattern[]) => {

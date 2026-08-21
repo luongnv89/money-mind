@@ -454,7 +454,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               onClick={() => onNavigate('settings')}
               className="mt-3 border-red-200 hover:bg-red-100 text-red-700"
             >
-              Go to Settings to Reset
+              Add Your API Key in Settings
             </Button>
           </div>
           <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600">

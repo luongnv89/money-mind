@@ -106,7 +106,7 @@ export const chatWithFinancialAgent = async (
   // Usage Check
   if (!settings.checkUsageLimit('chat')) {
     throw new Error(
-      'Budget Exceeded: You have reached the limit of 10 messages. Please reset usage in Settings.'
+      'Budget Exceeded: You have reached the limit of 10 messages. Add your own API key in Settings for unlimited usage.'
     );
   }
 
@@ -207,7 +207,7 @@ export const categorizeWithAI = async (
   // Usage Check
   if (!settings.checkUsageLimit('analysis', transactions.length)) {
     throw new Error(
-      `Budget Exceeded: Analyzing ${transactions.length} transactions would exceed your limit of 150. Please reset usage in Settings.`
+      `Budget Exceeded: Analyzing ${transactions.length} transactions would exceed your limit of 150. Add your own API key in Settings for unlimited usage.`
     );
   }
 

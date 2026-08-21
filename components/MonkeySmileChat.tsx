@@ -178,7 +178,7 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: isBudgetError
-          ? `🙊 Uh oh! ${errorMessage}\n\nGo to Settings to reset your usage limits.`
+          ? `🙊 Uh oh! ${errorMessage}\n\nAdd your own API key in Settings to remove the limit.`
           : `Oops! Something went wrong: ${errorMessage}`,
         timestamp: Date.now(),
       };
