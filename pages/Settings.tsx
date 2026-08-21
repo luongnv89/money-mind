@@ -1,8 +1,5 @@
 import React, { useState, useRef } from 'react';
-import {
-  useSettingsStore,
-  getDeobfuscatedApiKey,
-} from '../stores/useSettingsStore';
+import { useSettingsStore, getDeobfuscatedApiKey } from '../stores/useSettingsStore';
 import { clearPatterns, getPatterns, importPatterns } from '../lib/localStorage';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input } from '../components/UI';
 import { ConfirmDialog } from '../components/ConfirmDialog';
