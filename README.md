@@ -44,17 +44,8 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
     npm install
     ```
 
-3.  **Configure Environment Variables:**
-    Create a `.env` file in the root directory (or copy from `.env.example`):
-    ```bash
-    cp .env.example .env
-    ```
-    Add your API keys to `.env`:
-    ```env
-    GEMINI_API_KEY=your_google_gemini_api_key
-    GROQ_API_KEY=your_groq_api_key
-    ```
-    *Note: You can also configure these keys directly within the application's **Settings** page.*
+3.  **Configure your AI keys in the app:**
+    MoneyMind does not read API keys from environment variables or `.env` files. Start the app (step 4), open the **Settings** page, and enter your Gemini or Groq key there. Keys are stored locally in your browser's LocalStorage (obfuscated, not encrypted).
 
 4.  **Start the development server:**
 
@@ -62,7 +53,7 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
     ```bash
     npm run dev
     ```
-    This starts the app at `http://localhost:3000`. The frontend will use the keys from `.env` or your in-app settings.
+    This starts the app at `http://localhost:3000`. Configure your AI keys on the in-app **Settings** page.
 
     **Option B: Full-Stack Dev (with Serverless Functions)**
     If you want to test the serverless endpoints in the `api/` folder:
@@ -90,7 +81,7 @@ Since MoneyMind is a pure Single Page Application (SPA) with no serverless funct
 1.  Push your code to a GitHub repository.
 2.  Connect the repository to **Vercel**.
 3.  Vercel will automatically detect the `vite.config.ts` and build the static SPA.
-4.  Add your `GEMINI_API_KEY` or other API keys as **Environment Variables** in the Vercel project settings — the app reads them from the browser environment at runtime.
+4.  Open the deployed app, go to the **Settings** page, and enter your Gemini or Groq API key. Keys are stored locally in each user's browser (obfuscated, not encrypted) — no server-side key configuration is needed.
 
 **Note:** There are no serverless functions (`api/` directory removed). The app calls AI provider APIs (Gemini, Groq, Ollama) directly from the browser. All API keys are stored locally in the browser's LocalStorage (obfuscated, not encrypted).
 
@@ -125,7 +116,7 @@ On every push or pull request:
 
 ## ⚠️ Security Note
 This application deals with financial data.
-1.  **Do not commit API Keys.** Use `.env` files or the in-app Settings page.
+1.  **Do not commit API Keys.** Enter them on the in-app Settings page; they are stored locally in your browser (obfuscated, not encrypted).
 2.  The app is designed to be client-side only. There is no database. Clearing your browser cache will delete your transaction history and learned patterns.
 
 ## 🤝 Contributing
