@@ -27,6 +27,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Legacy AI transcript dumps (removed in Task 5.1 / issue #32)
+migrated_prompt_history/
+
 # Editor folders
 .vscode/
 .idea/

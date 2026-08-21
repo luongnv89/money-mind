@@ -1,7 +1,6 @@
 import { Transaction, TransactionCategory } from '../types';
 
 interface Alert {
-  id: string;
   message: string;
   type: 'warning' | 'info';
 }
@@ -108,7 +107,6 @@ export const checkFinancialHealth = (transactions: Transaction[]): Alert[] => {
       const pct = Math.round(((current - average) / average) * 100);
 
       alerts.push({
-        id: `drift-${cat}-${currentMonthKey}`,
         type: 'warning',
         message: `${cat} is up ${pct}%! ${quip}`,
       });

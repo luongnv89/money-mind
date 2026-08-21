@@ -33,7 +33,7 @@ Gates run locally via `pre-commit` (installed with Homebrew); config is `.pre-co
 
 ## Hard rules
 
-- **YOU MUST update dependencies in two places:** `package.json` *and* the esm.sh `importmap` in `index.html`. They have already drifted. Changing only one breaks runtime resolution.
+- **Dependencies live only in `package.json`.** The old esm.sh `importmap` in `index.html` was deleted (issue #32); do not reintroduce it.
 - **Tailwind ships from a local PostCSS build.** `tailwind.config.js`, `postcss.config.js`, and `src/index.css` define it; `index.html` loads no CDN. Edit custom tokens (`accent`, `accent-light`, `secondary`) in `tailwind.config.js` — its `content` globs must cover every source file or utilities silently drop out.
 - **Lint runs with `--max-warnings 0`.** `@typescript-eslint/no-explicit-any` is warn-level, so a single `any` fails lint. Type it properly.
 - **Keep Vitest aligned with the installed Vite major** (currently Vitest 4 for Vite 8; Vitest 3 does not accept Vite 8 as a peer). Never pin Vitest to a major that rejects the installed Vite — mismatched peers break module resolution and make `tsc` fail on `vite.config.ts`.
