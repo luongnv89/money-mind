@@ -1,7 +1,15 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { Transaction, TransactionCategory } from '../types';
 import { learnPattern, applyPatterns } from '../lib/localStorage';
+import { createThrottledStorage } from '../lib/throttledStorage';
+
+// F-PERF-001: `persist` re-serialized the whole transaction array on every
+// `set()` — one synchronous localStorage write per analysis batch (~200 across
+// a 200-batch run at 5,000 rows). Throttle to one write per second; the
+// trailing edge coalesces bursts and `pagehide` flushes anything pending.
+const PERSIST_WRITE_INTERVAL_MS = 1000;
+export const transactionStorage = createThrottledStorage(PERSIST_WRITE_INTERVAL_MS);
 
 interface TransactionState {
   transactions: Transaction[];
@@ -164,6 +172,7 @@ export const useTransactionStore = create<TransactionState>()(
     }),
     {
       name: 'moneymind-transactions',
+      storage: createJSONStorage(() => transactionStorage),
       partialize: (state) => ({ transactions: state.transactions }),
     }
   )
