@@ -6,13 +6,7 @@ const tseslint = require('typescript-eslint');
 
 module.exports = tseslint.config(
   {
-    ignores: [
-      'dist',
-      'dist-bak',
-      'eslint.config.js',
-      '**/*.config.js',
-      '**/*.config.cjs',
-    ],
+    ignores: ['dist', 'dist-bak', 'eslint.config.js', '**/*.config.js', '**/*.config.cjs'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
