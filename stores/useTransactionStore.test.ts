@@ -29,9 +29,17 @@ describe('useTransactionStore persisted writes (F-PERF-001)', () => {
       totalToProcess: 0,
     });
     writes = [];
+    // Spy where setItem actually lives. On Node 26 the setup file installs a
+    // plain-object localStorage (own setItem), but on Node 24 (CI) jsdom
+    // supplies a Storage whose setItem is prototype-inherited and immune to
+    // instance-level spies — spying the holder that owns the method observes
+    // the write in both environments.
     const backing = globalThis.localStorage;
-    const realSetItem = backing.setItem.bind(backing);
-    vi.spyOn(backing, 'setItem').mockImplementation((key: string, value: string) => {
+    const prototype = Object.getPrototypeOf(backing) as Storage | null;
+    const holder: Pick<Storage, 'setItem'> =
+      prototype?.setItem === backing.setItem ? prototype : backing;
+    const realSetItem: (key: string, value: string) => void = holder.setItem.bind(backing);
+    vi.spyOn(holder, 'setItem').mockImplementation((key: string, value: string) => {
       if (key === PERSIST_KEY) writes.push(value);
       realSetItem(key, value);
     });

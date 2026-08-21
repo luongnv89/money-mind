@@ -489,7 +489,11 @@ describe('categorizeWithAI — rate-limit sleeps (F-PERF-002)', () => {
     await categorizeWithAI([tx()], 'cloud', onChunk);
 
     expect(onChunk).toHaveBeenCalledTimes(1);
-    expect(sleepSpy).not.toHaveBeenCalled();
+    // jsdom's Storage schedules storage-event dispatches via setTimeout(fn, 0)
+    // (Node 24 / CI), so count rate-limit sleeps only — never total setTimeout
+    // usage, which the environment also contributes to.
+    const geminiSleeps = sleepSpy.mock.calls.filter(([, delay]) => delay === 4000).length;
+    expect(geminiSleeps).toBe(0);
   }, 10000);
 });
 
