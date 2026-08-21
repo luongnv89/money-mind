@@ -90,6 +90,12 @@ export const processFileWith = (s: UploaderStateBundle, f: File, m: CsvMapping) 
 export const selectFileWith =
   (s: UploaderStateBundle, processFile: (f: File, m: CsvMapping) => void) =>
   async (selectedFile: File) => {
+    // The parser only reads CSV text; XLSX workbooks would fail opaquely downstream.
+    if (!selectedFile.name.toLowerCase().endsWith('.csv')) {
+      s.setError('Only .csv files are supported. Please export your statement as CSV.');
+      return;
+    }
+
     if (selectedFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
       s.setError(`File size exceeds ${MAX_FILE_SIZE_MB}MB`);
       return;

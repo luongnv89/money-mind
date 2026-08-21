@@ -51,7 +51,7 @@ export const DropzoneView: React.FC<DropzoneViewProps> = ({
       <input
         ref={inputRef}
         type="file"
-        accept=".csv,.xlsx"
+        accept=".csv"
         className="hidden"
         onChange={(e) => e.target.files?.[0] && onFileSelected(e.target.files[0])}
       />

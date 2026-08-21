@@ -13,7 +13,7 @@ import type { TimeRange, TabView } from './TimeFilterBar';
 const useDashboardSetup = () => {
   const { transactions, isCategorizing, addTransactions, applyLocalPatterns, setError } =
     useTransactionStore();
-  const { aiMode, isDemoMode, enableFunnyAlerts } = useSettingsStore();
+  const { aiMode, isDemoMode, enableFunnyAlerts, geminiConfig, groqConfig } = useSettingsStore();
   const { addToast } = useToastStore();
 
   // Run Alert Check on Mount or when transactions change significantly
@@ -36,12 +36,16 @@ const useDashboardSetup = () => {
     if (aiMode === 'local') return true; // Assume local is always "ready" to try
     const key = getDeobfuscatedApiKey(useSettingsStore.getState());
     return !!key && key.length > 0;
-  }, [aiMode, isDemoMode]);
+    // Track the (obfuscated) key fields so saving a key re-renders the Dashboard immediately.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiMode, isDemoMode, geminiConfig.apiKey, groqConfig.apiKey]);
 
   // Check if we have local patterns
   const hasPatterns = useMemo(() => {
     return getPatterns().length > 0;
-  }, []); // Re-check when transactions change (implies potential learning)
+    // Re-check when transactions change (implies potential learning)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactions]);
 
   return {
     transactions,
