@@ -266,14 +266,14 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   </label>
                   <Input
                     type="password"
-                    placeholder="Enter your Gemini API Key (or leave empty for demo)"
+                    placeholder="Enter your Gemini API Key"
                     value={getDeobfuscatedApiKey(useSettingsStore.getState())}
                     onChange={(e) => setGeminiConfig({ apiKey: e.target.value })}
                     className="font-mono"
                   />
                   <p className="text-xs text-gray-500">
-                    Your key is stored locally (obfuscated, not encrypted). Leave empty to use the
-                    shared demo key (chat only).
+                    Your key is stored locally (obfuscated, not encrypted). Without a key, usage is
+                    limited to 150 transaction analyses and 10 chat messages.
                   </p>
                 </div>
                 <div className="space-y-2">
