@@ -12,8 +12,8 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'primary', size = 'md', isLoading, children, ...props }, ref) => {
     const variants = {
-      primary: 'bg-accent hover:bg-accent-hover text-white shadow-sm',
-      secondary: 'bg-secondary text-white hover:bg-gray-800 shadow-sm',
+      primary: 'bg-accent hover:bg-accent-hover text-white shadow-xs',
+      secondary: 'bg-secondary text-white hover:bg-gray-800 shadow-xs',
       outline: 'border border-gray-300 bg-white hover:bg-gray-50 text-gray-700',
       ghost: 'hover:bg-gray-100 text-gray-700',
       danger: 'bg-red-600 hover:bg-red-700 text-white',
@@ -29,7 +29,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50',
+          'inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:pointer-events-none disabled:opacity-50',
           variants[variant],
           sizes[size],
           className
@@ -54,7 +54,7 @@ export const Card = ({
   children?: React.ReactNode;
 }) => (
   <div
-    className={cn('rounded-lg border border-gray-200 bg-white text-gray-950 shadow-sm', className)}
+    className={cn('rounded-lg border border-gray-200 bg-white text-gray-950 shadow-xs', className)}
   >
     {children}
   </div>
@@ -93,7 +93,7 @@ export const Input = React.forwardRef<
     <input
       type={type}
       className={cn(
-        'flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50',
         className
       )}
       ref={ref}
@@ -121,7 +121,7 @@ export const Badge = ({
   return (
     <div
       className={cn(
-        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-gray-950 focus:ring-offset-2',
+        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-hidden focus:ring-2 focus:ring-gray-950 focus:ring-offset-2',
         variants[variant],
         className
       )}

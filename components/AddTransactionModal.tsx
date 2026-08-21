@@ -81,7 +81,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
       <div className="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/50">
           <h3 className="text-lg font-semibold text-gray-900">Add Transaction</h3>
@@ -99,7 +99,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
               className={cn(
                 'flex-1 py-2 text-sm font-medium rounded-md transition-all',
                 type === 'expense'
-                  ? 'bg-white text-red-600 shadow-sm'
+                  ? 'bg-white text-red-600 shadow-xs'
                   : 'text-gray-500 hover:text-gray-700'
               )}
             >
@@ -111,7 +111,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
               className={cn(
                 'flex-1 py-2 text-sm font-medium rounded-md transition-all',
                 type === 'income'
-                  ? 'bg-white text-green-600 shadow-sm'
+                  ? 'bg-white text-green-600 shadow-xs'
                   : 'text-gray-500 hover:text-gray-700'
               )}
             >
@@ -190,7 +190,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
                 value={category}
                 onChange={(e) => setCategory(e.target.value as TransactionCategory)}
                 className={cn(
-                  'flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 pl-9 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50',
+                  'flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 pl-9 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50',
                   errors.category ? 'border-red-300 focus-visible:ring-red-200' : ''
                 )}
               >

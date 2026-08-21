@@ -57,7 +57,7 @@ export const FinancialScoreCard: React.FC<FinancialScoreCardProps> = ({ transact
   const strokeDashoffset = circumference - (displayScore / 100) * circumference;
 
   return (
-    <Card className="border-gray-200 overflow-hidden shadow-sm">
+    <Card className="border-gray-200 overflow-hidden shadow-xs">
       <CardHeader className="pb-0 pt-5 px-6 border-b-0">
         <div className="flex justify-between items-center">
           <CardTitle className="text-base font-semibold text-gray-800 flex items-center gap-2">
@@ -124,7 +124,7 @@ export const FinancialScoreCard: React.FC<FinancialScoreCardProps> = ({ transact
 
             <div
               className={cn(
-                'mt-2 px-4 py-1.5 rounded-full text-sm font-bold border flex items-center gap-1.5 shadow-sm',
+                'mt-2 px-4 py-1.5 rounded-full text-sm font-bold border flex items-center gap-1.5 shadow-xs',
                 getScoreColor(score)
               )}
             >
@@ -199,7 +199,7 @@ export const FinancialScoreCard: React.FC<FinancialScoreCardProps> = ({ transact
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="bg-white p-1.5 rounded-full shadow-sm">
+                  <div className="bg-white p-1.5 rounded-full shadow-xs">
                     <Lightbulb className="w-4 h-4 text-indigo-600 fill-indigo-100" />
                   </div>
                   <span className="text-xs font-bold text-indigo-800 uppercase tracking-wide">

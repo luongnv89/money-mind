@@ -281,7 +281,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     <Server className="w-4 h-4" /> Model Selection
                   </label>
                   <select
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
                     value={geminiConfig.model}
                     onChange={(e) => setGeminiConfig({ model: e.target.value })}
                   >
@@ -319,7 +319,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     <Server className="w-4 h-4" /> Model Selection
                   </label>
                   <select
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
                     value={groqConfig.model}
                     onChange={(e) => setGroqConfig({ model: e.target.value })}
                   >

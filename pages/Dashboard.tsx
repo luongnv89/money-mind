@@ -476,7 +476,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
       {/* Analysis Stats Summary */}
       {analysisStats && (
-        <div className="bg-white border border-green-200 rounded-xl p-4 shadow-sm relative animate-in fade-in slide-in-from-top-4">
+        <div className="bg-white border border-green-200 rounded-xl p-4 shadow-xs relative animate-in fade-in slide-in-from-top-4">
           <button
             onClick={() => setAnalysisStats(null)}
             className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
@@ -605,7 +605,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                 className={cn(
                   'px-4 py-1.5 text-xs font-medium rounded-md transition-all',
                   isActive
-                    ? 'bg-white text-gray-900 shadow-sm'
+                    ? 'bg-white text-gray-900 shadow-xs'
                     : 'text-gray-500 hover:text-gray-700'
                 )}
               >

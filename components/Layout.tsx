@@ -51,7 +51,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
             : 'Demo Mode Active — AI analysis is simulated without API keys.'}
         </div>
       )}
-      <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-sm">
+      <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-xs">
         <div className="container mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
           <div
             className="flex items-center gap-2 cursor-pointer"
@@ -73,7 +73,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
                   className={cn(
                     'px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2',
                     currentView === 'dashboard'
-                      ? 'bg-white shadow-sm text-gray-900'
+                      ? 'bg-white shadow-xs text-gray-900'
                       : 'text-gray-500 hover:text-gray-900'
                   )}
                 >
@@ -86,7 +86,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
                 className={cn(
                   'px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2',
                   currentView === 'upload'
-                    ? 'bg-white shadow-sm text-gray-900'
+                    ? 'bg-white shadow-xs text-gray-900'
                     : 'text-gray-500 hover:text-gray-900'
                 )}
               >

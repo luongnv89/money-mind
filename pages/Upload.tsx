@@ -66,7 +66,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadComplete }) => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 mt-12 w-full max-w-4xl text-left">
-        <div className="p-5 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div className="p-5 rounded-xl bg-white border border-gray-100 shadow-xs hover:shadow-md transition-shadow">
           <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center mb-3">
             <ShieldCheck className="w-5 h-5 text-accent" />
           </div>
@@ -76,14 +76,14 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onUploadComplete }) => {
             browser.
           </p>
         </div>
-        <div className="p-5 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div className="p-5 rounded-xl bg-white border border-gray-100 shadow-xs hover:shadow-md transition-shadow">
           <h3 className="font-semibold text-gray-900">Stored Locally</h3>
           <p className="text-sm text-gray-500 mt-1">
             Your API key stays in your browser's LocalStorage — obfuscated (base64), not encrypted.
             Use cloud AI or run completely local models.
           </p>
         </div>
-        <div className="p-5 rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+        <div className="p-5 rounded-xl bg-white border border-gray-100 shadow-xs hover:shadow-md transition-shadow">
           <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center mb-3">
             <EyeOff className="w-5 h-5 text-purple-600" />
           </div>
