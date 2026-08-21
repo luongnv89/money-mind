@@ -180,7 +180,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         // 2. Prepare updates
         const updates = results
           .map((res) => {
-            const original = transactions.find((t) => t.id === res.id);
+            const original = currentStore.find((t) => t.id === res.id);
             if (!original) return null;
             return {
               ...original,
