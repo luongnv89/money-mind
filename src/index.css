@@ -3,6 +3,7 @@
 @source '../index.html';
 @source '../index.tsx';
 @source '../App.tsx';
+@source '../constants.ts';
 @source './*.{ts,tsx}';
 @source '../components/**/*.{ts,tsx}';
 @source '../pages/**/*.{ts,tsx}';
