@@ -38,7 +38,7 @@ Gates run locally via `pre-commit`; config is `.pre-commit-config.yaml`.
 - **Update dependencies in two places:** `package.json` *and* the esm.sh `importmap` in `index.html`. They have already drifted; changing only one breaks runtime module resolution.
 - **Tailwind ships from a local PostCSS build.** `tailwind.config.js`, `postcss.config.js`, and `src/index.css` define it; `index.html` loads no CDN. Edit custom tokens (`accent`, `accent-light`, `secondary`) in `tailwind.config.js` — its `content` globs must cover every source file or utilities silently drop out.
 - **A single `any` fails lint** — `no-explicit-any` is warn-level and lint runs at zero warnings.
-- **Keep Vitest on 3.x.** Vitest 2 refuses Vite 6 as a peer and nests its own Vite 5, which makes `tsc` fail on `vite.config.ts`.
+- **Keep Vitest aligned with the installed Vite major** (currently Vitest 4 for Vite 8; Vitest 3 does not accept Vite 8 as a peer). Never pin Vitest to a major that rejects the installed Vite — mismatched peers break module resolution and make `tsc` fail on `vite.config.ts`.
 - **Do not delete `tests/setup.ts`.** Node 26 defines an inert global `localStorage` that shadows jsdom's; the setup file installs a working one.
 - Never commit `.env` or an API key.
 - Stored API keys use `btoa`/`atob` obfuscation, **not encryption.** Never call them encrypted in user-facing copy.
