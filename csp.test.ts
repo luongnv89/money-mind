@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
@@ -21,8 +20,6 @@ const directive = (name: string): string[] => {
   return match ? match[0].split(/\s+/).slice(1) : [];
 };
 
-const importmapContent = indexHtml.match(/<script type="importmap">([\s\S]*?)<\/script>/)?.[1];
-
 describe('content security policy', () => {
   it('is present in index.html', () => {
     expect(csp).toBeTruthy();
@@ -32,20 +29,12 @@ describe('content security policy', () => {
     expect(directive('default-src')).toEqual(["'self'"]);
   });
 
-  it('allows scripts only from self, esm.sh, and the importmap hash', () => {
+  it('allows scripts only from self and esm.sh, with no inline hashes', () => {
     const sources = directive('script-src');
     expect(sources).toContain("'self'");
     expect(sources).toContain('https://esm.sh');
-    expect(sources.some((s) => s.startsWith("'sha256-"))).toBe(true);
+    expect(sources.some((s) => s.startsWith("'sha256-"))).toBe(false);
     expect(sources).not.toContain("'unsafe-inline'");
-  });
-
-  it('pins the script-src hash to the exact importmap bytes', () => {
-    expect(importmapContent).toBeTruthy();
-    const hash = `'sha256-${createHash('sha256')
-      .update(importmapContent ?? '', 'utf8')
-      .digest('base64')}'`;
-    expect(directive('script-src')).toContain(hash);
   });
 
   it('limits connect-src to the three AI providers', () => {

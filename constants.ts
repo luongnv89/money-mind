@@ -169,4 +169,3 @@ export const SUPPORTED_BANKS: BankFormat[] = [
 ];
 
 export const MAX_FILE_SIZE_MB = 10;
-export const MAX_TRANSACTIONS = 5000;
