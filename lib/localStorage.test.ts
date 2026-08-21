@@ -6,6 +6,8 @@ import {
   getPatterns,
   importPatterns,
   learnPattern,
+  matchesKeyword,
+  MIN_KEYWORD_LENGTH,
 } from './localStorage';
 import { Transaction, TransactionCategory } from '../types';
 
@@ -96,6 +98,73 @@ describe('applyPatterns', () => {
 
     expect(result.appliedCount).toBe(0);
     expect(result.transactions[0].category).toBe(TransactionCategory.MustHave);
+  });
+
+  it('does not let UBER EATS collide with a learned UBER TRIP pattern (issue #37, F-BUG-015)', () => {
+    learnPattern(tx({ description: 'UBER TRIP 01/15' }), TransactionCategory.MustHave, 'Transport');
+
+    const eats = applyPatterns([
+      tx({
+        id: 'eats',
+        description: 'UBER EATS 02/20',
+        category: TransactionCategory.Uncategorized,
+      }),
+    ]);
+
+    expect(eats.appliedCount).toBe(0);
+    expect(eats.transactions[0].category).toBe(TransactionCategory.Uncategorized);
+
+    const trip = applyPatterns([
+      tx({
+        id: 'trip',
+        description: 'UBER TRIP 02/21',
+        category: TransactionCategory.Uncategorized,
+      }),
+    ]);
+
+    expect(trip.appliedCount).toBe(1);
+    expect(trip.transactions[0].category).toBe(TransactionCategory.MustHave);
+  });
+
+  it('prefers the longest matching keyword over a shorter prefix', () => {
+    localStorage.setItem(
+      'financePatterns',
+      JSON.stringify([
+        {
+          keyword: 'UBER',
+          category: TransactionCategory.Waste,
+          subCategory: undefined,
+          confidence: 0.9,
+          timesApplied: 5,
+          learnedFrom: 'UBER',
+          correctedAt: '2026-01-01T00:00:00.000Z',
+        },
+        {
+          keyword: 'UBER TRIP',
+          category: TransactionCategory.MustHave,
+          subCategory: 'Transport',
+          confidence: 0.9,
+          timesApplied: 3,
+          learnedFrom: 'UBER TRIP',
+          correctedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ])
+    );
+
+    const result = applyPatterns([tx({ description: 'UBER TRIP 03/04' })]);
+
+    expect(result.appliedCount).toBe(1);
+    expect(result.transactions[0].category).toBe(TransactionCategory.MustHave);
+  });
+
+  it('matches whole tokens inside the merchant string, but never a bare substring', () => {
+    expect(matchesKeyword('SQ COFFEE SHOP', 'COFFEE')).toBe(true);
+    expect(matchesKeyword('SUBWAY', 'BWAY')).toBe(false);
+    expect(matchesKeyword('NETFLIX', 'FLIX')).toBe(false);
+  });
+
+  it(`ignores keywords shorter than ${MIN_KEYWORD_LENGTH} characters`, () => {
+    expect(matchesKeyword('AMAZON MKT', 'AM')).toBe(false);
   });
 });
 

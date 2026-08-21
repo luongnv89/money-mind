@@ -118,6 +118,25 @@ export const learnPattern = (
   savePatterns(patterns);
 };
 
+/** Learned keywords shorter than this are too ambiguous to auto-apply. */
+export const MIN_KEYWORD_LENGTH = 3;
+
+/**
+ * A learned keyword matches only on exact, prefix, or whole-token boundaries —
+ * never a bare substring — so `UBER EATS` and `UBER TRIP` cannot collide.
+ */
+export const matchesKeyword = (merchant: string, keyword: string): boolean => {
+  if (keyword.length < MIN_KEYWORD_LENGTH) return false;
+  return merchant === keyword || merchant.startsWith(keyword) || merchant.includes(` ${keyword}`);
+};
+
+/** Prefer the longest matching keyword so the most specific pattern wins. */
+const findBestPattern = (merchant: string, patterns: LocalPattern[]): LocalPattern | undefined => {
+  const matches = patterns.filter((p) => matchesKeyword(merchant, p.keyword));
+  if (matches.length === 0) return undefined;
+  return matches.sort((a, b) => b.keyword.length - a.keyword.length)[0];
+};
+
 export const applyPatterns = (
   transactions: Transaction[]
 ): { transactions: Transaction[]; appliedCount: number } => {
@@ -130,9 +149,7 @@ export const applyPatterns = (
     if (tx.isApproved) return tx;
 
     const merchant = extractMerchantName(tx.description);
-    const match = patterns.find(
-      (p) => merchant.includes(p.keyword) || p.keyword.includes(merchant)
-    );
+    const match = findBestPattern(merchant, patterns);
 
     if (match && match.confidence > 0.6) {
       // Check if we are actually changing anything (category or upgrading confidence)

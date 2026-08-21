@@ -15,6 +15,7 @@ import {
 import { TransactionCategory, Transaction } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from './UI';
 import { formatCurrency, cn, safeNewDate } from '../lib/utils';
+import { computeBudgetMetrics } from '../lib/budgetMetrics';
 import { Zap, TrendingUp, PiggyBank, ShieldCheck, Target } from 'lucide-react';
 
 const COLORS = {
@@ -126,75 +127,14 @@ const BudgetMetricCard = ({
 };
 
 export const MonthlyPerformance: React.FC<InsightsDashboardProps> = ({
-  transactions: _transactions,
+  transactions,
   allTransactions,
 }) => {
   // 1. Calculate Core Budget Metrics (Current Month vs Historical Average)
-  const budgetMetrics = useMemo(() => {
-    if (allTransactions.length === 0) return null;
-
-    // A. Setup Dates
-    const validTxs = allTransactions.filter((t) => !!safeNewDate(t.date));
-    if (validTxs.length === 0) return null;
-
-    const sortedTx = [...validTxs].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    );
-    const latestDateStr = sortedTx[sortedTx.length - 1].date;
-
-    // If no transactions, fallback
-    const currentMonthKey = latestDateStr
-      ? latestDateStr.substring(0, 7)
-      : new Date().toISOString().substring(0, 7);
-
-    // B. Grouping Helper
-    const calculateTotals = (txs: Transaction[]) => {
-      return txs.reduce(
-        (acc, t) => {
-          const amt = Math.abs(t.amount);
-          if (t.category === TransactionCategory.MustHave) acc.mustHave += amt;
-          else if (t.category === TransactionCategory.NiceToHave) acc.niceToHave += amt;
-          else if (
-            t.category === TransactionCategory.Save ||
-            t.category === TransactionCategory.Invest
-          )
-            acc.savings += amt;
-          return acc;
-        },
-        { mustHave: 0, niceToHave: 0, savings: 0 }
-      );
-    };
-
-    // C. Current Month Totals
-    const currentMonthTx = allTransactions.filter((t) => t.date.startsWith(currentMonthKey));
-    const currentTotals = calculateTotals(currentMonthTx);
-
-    // D. Historical Averages
-    const historyTx = allTransactions.filter((t) => !t.date.startsWith(currentMonthKey));
-    const historyMonths = new Set(historyTx.map((t) => t.date.substring(0, 7))).size;
-
-    let averages = { mustHave: 0, niceToHave: 0, savings: 0 };
-
-    if (historyMonths > 0) {
-      const historyTotals = calculateTotals(historyTx);
-      averages.mustHave = historyTotals.mustHave / historyMonths;
-      averages.niceToHave = historyTotals.niceToHave / historyMonths;
-      averages.savings = historyTotals.savings / historyMonths;
-    } else {
-      averages = currentTotals;
-    }
-
-    return {
-      current: currentTotals,
-      average: averages,
-      monthLabel: (() => {
-        const d = safeNewDate(currentMonthKey + '-02');
-        return d
-          ? d.toLocaleString('default', { month: 'long', year: 'numeric' })
-          : currentMonthKey;
-      })(),
-    };
-  }, [allTransactions]);
+  const budgetMetrics = useMemo(
+    () => computeBudgetMetrics(transactions, allTransactions),
+    [transactions, allTransactions]
+  );
 
   if (!budgetMetrics) return null;
 
