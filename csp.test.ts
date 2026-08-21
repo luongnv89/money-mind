@@ -12,7 +12,7 @@ interface VercelConfig {
 const indexHtml = readFileSync('index.html', 'utf8');
 
 const cspMatch = indexHtml.match(
-  /<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*)"/i,
+  /<meta\s+http-equiv="Content-Security-Policy"\s+content="([^"]*)"/i
 );
 const csp = cspMatch?.[1] ?? '';
 
@@ -21,9 +21,7 @@ const directive = (name: string): string[] => {
   return match ? match[0].split(/\s+/).slice(1) : [];
 };
 
-const importmapContent = indexHtml.match(
-  /<script type="importmap">([\s\S]*?)<\/script>/,
-)?.[1];
+const importmapContent = indexHtml.match(/<script type="importmap">([\s\S]*?)<\/script>/)?.[1];
 
 describe('content security policy', () => {
   it('is present in index.html', () => {
@@ -66,13 +64,11 @@ describe('content security policy', () => {
 });
 
 describe('security headers (vercel.json)', () => {
-  const config = JSON.parse(
-    readFileSync('vercel.json', 'utf8'),
-  ) as VercelConfig;
+  const config = JSON.parse(readFileSync('vercel.json', 'utf8')) as VercelConfig;
   const headerMap = new Map(
     (config.headers ?? []).flatMap((rule) =>
-      (rule.headers ?? []).map((h) => [h.key ?? '', h.value ?? '']),
-    ),
+      (rule.headers ?? []).map((h) => [h.key ?? '', h.value ?? ''])
+    )
   );
 
   it('applies headers to every route', () => {
@@ -88,9 +84,7 @@ describe('security headers (vercel.json)', () => {
   it('sends anti-sniffing, framing, referrer, and permissions headers', () => {
     expect(headerMap.get('X-Content-Type-Options')).toBe('nosniff');
     expect(headerMap.get('X-Frame-Options')).toBe('DENY');
-    expect(headerMap.get('Referrer-Policy')).toBe(
-      'strict-origin-when-cross-origin',
-    );
+    expect(headerMap.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
     expect(headerMap.get('Permissions-Policy')).toContain('camera=()');
   });
 });

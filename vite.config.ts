@@ -19,7 +19,7 @@ const relaxCspForDev = {
   transformIndexHtml(html: string): string {
     return html.replace(
       /(<meta\s+http-equiv="Content-Security-Policy"\s+content=")[^"]*(")/i,
-      `$1${DEV_CSP}$2`,
+      `$1${DEV_CSP}$2`
     );
   },
 };
