@@ -131,3 +131,23 @@ describe('clearPatterns', () => {
     expect(getPatterns()).toEqual([]);
   });
 });
+
+describe('getPatterns with corrupt storage', () => {
+  it('returns an empty array instead of throwing on malformed JSON', () => {
+    localStorage.setItem('financePatterns', '{not valid json');
+    expect(() => getPatterns()).not.toThrow();
+    expect(getPatterns()).toEqual([]);
+  });
+
+  it('returns an empty array when stored value is not an array', () => {
+    localStorage.setItem('financePatterns', '{"keyword":"X"}');
+    expect(getPatterns()).toEqual([]);
+  });
+
+  it('recovers: patterns can be learned again after corruption', () => {
+    localStorage.setItem('financePatterns', '{broken');
+    expect(getPatterns()).toEqual([]);
+    learnPattern(tx(), TransactionCategory.NiceToHave, 'Dining Out');
+    expect(getPatterns()).toHaveLength(1);
+  });
+});
