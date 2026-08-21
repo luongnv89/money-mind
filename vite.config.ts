@@ -50,6 +50,10 @@ export default defineConfig({
       reporter: ['text', 'lcov'],
       include: ['lib/**', 'services/**'],
       exclude: ['**/*.test.{ts,tsx}'],
+      // M3 coverage gate (issue #38 / Task 5.7): the bound is
+      // max(60%, Task 0.7 baseline + 20pp). The Task 0.7 baseline was 28.61%
+      // lines (PR #45), so the binding floor is 60%.
+      thresholds: { lines: 60 },
     },
   },
 });
