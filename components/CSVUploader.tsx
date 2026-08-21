@@ -178,6 +178,8 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
   const [rejectedCount, setRejectedCount] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const stateRef = useRef<UploaderState>(state);
+  stateRef.current = state;
   const {
     addTransactions,
     transactions: existingTransactions,
@@ -200,12 +202,12 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
     setMappingPreview([]);
   }, [setError]);
 
-  // Reset when component mounts or unmounts
+  // Reset when component unmounts
   useEffect(() => {
     return () => {
-      if (state !== 'idle') reset();
+      if (stateRef.current !== 'idle') reset();
     };
-  }, [state, reset]);
+  }, [reset]);
 
   // Update preview when mapping changes
   useEffect(() => {
