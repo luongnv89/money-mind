@@ -1,4 +1,5 @@
 import { Transaction, LocalPattern, TransactionCategory } from '../types';
+import { logger } from './logger';
 
 const STORAGE_KEY = 'financePatterns';
 
@@ -8,13 +9,13 @@ export const getPatterns = (): LocalPattern[] => {
     if (!stored) return [];
     const parsed = JSON.parse(stored);
     if (!Array.isArray(parsed)) {
-      console.warn('Corrupt financePatterns storage, resetting to empty.');
+      logger.warn('Corrupt financePatterns storage, resetting to empty.');
       clearPatterns();
       return [];
     }
     return parsed as LocalPattern[];
   } catch {
-    console.warn('Corrupt financePatterns storage, resetting to empty.');
+    logger.warn('Corrupt financePatterns storage, resetting to empty.');
     clearPatterns();
     return [];
   }

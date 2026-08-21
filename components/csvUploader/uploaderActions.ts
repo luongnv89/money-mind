@@ -11,6 +11,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { partitionDuplicates, DuplicateTransaction } from './dedupe';
 import { ITEMS_PER_PAGE } from './PreviewView';
 import type { UploaderStateBundle } from './useCSVUploader';
+import { logger } from '../../lib/logger';
 
 /** Reset every uploader field back to the idle state. */
 export const resetWith = (s: UploaderStateBundle) => () => {
@@ -120,7 +121,7 @@ export const selectFileWith =
       s.setState('mapping');
     } catch (e: unknown) {
       s.setError('Failed to read CSV. Check file format.');
-      console.error(e);
+      logger.error(e);
       resetWith(s)();
     }
   };

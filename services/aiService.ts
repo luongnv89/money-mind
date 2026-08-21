@@ -2,6 +2,7 @@ import { Transaction, AIMode, TransactionCategory } from '../types';
 import { useSettingsStore, getDeobfuscatedApiKey } from '../stores/useSettingsStore';
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORY_HIERARCHY } from '../constants';
+import { logger } from '../lib/logger';
 
 interface CategorizationResult {
   id: string;
@@ -246,7 +247,7 @@ const categorizeWithGemini = async (
   const model = settings.geminiConfig.model;
 
   if (!apiKey) {
-    console.warn('No API key provided, using simulation.');
+    logger.warn('No API key provided, using simulation.');
     await simulateCategorization(transactions, onChunkProcessed);
     return;
   }
@@ -303,7 +304,7 @@ const categorizeWithGemini = async (
         if (onChunkProcessed) onChunkProcessed(results);
       }
     } catch (e: unknown) {
-      console.error('Gemini Batch Failed', e);
+      logger.error('Gemini Batch Failed', e);
       const errorMessage = e instanceof Error ? e.message : String(e);
       const status = (e as { status?: number }).status;
       if (status === 429 || errorMessage?.includes('429')) {
@@ -416,7 +417,7 @@ const categorizeWithGroq = async (
             }
           }
         } catch (_e) {
-          console.error('Failed to parse Groq JSON', content);
+          logger.error('Failed to parse Groq JSON', content);
         }
 
         if (Array.isArray(parsed)) {
@@ -440,7 +441,7 @@ const categorizeWithGroq = async (
         }
       }
     } catch (e: unknown) {
-      console.error('Groq Batch Failed', e);
+      logger.error('Groq Batch Failed', e);
       const errorMessage = e instanceof Error ? e.message : String(e);
       // Propagate rate limits or specific errors
       if (errorMessage.includes('Rate Limit') || errorMessage.includes('JSON')) {
@@ -508,7 +509,7 @@ const categorizeWithOllama = async (
         result = JSON.parse(data.response);
       } catch (_parseError) {
         // Fallback simple parsing if model chats instead of JSON
-        console.warn('Failed to parse JSON from Ollama', data.response);
+        logger.warn('Failed to parse JSON from Ollama', data.response);
         // Don't throw here, just treat as failed tx
         throw new Error('Invalid JSON response');
       }
