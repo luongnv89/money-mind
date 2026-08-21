@@ -3,6 +3,8 @@ import { Transaction, TransactionCategory } from '../types';
 interface Alert {
   message: string;
   type: 'warning' | 'info';
+  /** Percentage drift over the category's historical monthly average. */
+  drift: number;
 }
 
 const FUNNY_TEMPLATES: Record<string, string[]> = {
@@ -109,10 +111,11 @@ export const checkFinancialHealth = (transactions: Transaction[]): Alert[] => {
       alerts.push({
         type: 'warning',
         message: `${cat} is up ${pct}%! ${quip}`,
+        drift: pct,
       });
     }
   });
 
   // Return only top 2 priority alerts to avoid spamming
-  return alerts.sort((a, b) => b.message.length - a.message.length).slice(0, 2);
+  return alerts.sort((a, b) => b.drift - a.drift).slice(0, 2);
 };
