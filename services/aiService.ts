@@ -256,8 +256,16 @@ const categorizeWithGemini = async (
 
   // OPTIMIZATION: High batch size, low frequency.
   const BATCH_SIZE = 25;
+  const RATE_LIMIT_DELAY_MS = 4000;
 
   for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+    // F-PERF-002: the rate-limit buffer sits between requests — guarded on
+    // `i > 0` so it never fires before the first batch or after the last
+    // (a 3-batch run sleeps exactly twice, not three times).
+    if (i > 0) {
+      await new Promise((r) => setTimeout(r, RATE_LIMIT_DELAY_MS));
+    }
+
     const batch = transactions.slice(i, i + BATCH_SIZE);
 
     const prompt = `
@@ -320,8 +328,6 @@ const categorizeWithGemini = async (
       }));
       if (onChunkProcessed) onChunkProcessed(fallbackResults);
     }
-
-    await new Promise((r) => setTimeout(r, 4000));
   }
 };
 
@@ -336,8 +342,15 @@ const categorizeWithGroq = async (
 
   // Groq creates fast inference, but we still batch to reduce network round trips and stay within TPM/RPM.
   const BATCH_SIZE = 10;
+  const RATE_LIMIT_DELAY_MS = 2000;
 
   for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+    // F-PERF-002: rate-limit buffer between requests only — guarded on
+    // `i > 0` so it never fires before the first batch or after the last.
+    if (i > 0) {
+      await new Promise((r) => setTimeout(r, RATE_LIMIT_DELAY_MS));
+    }
+
     const batch = transactions.slice(i, i + BATCH_SIZE);
     const batchStr = JSON.stringify(
       batch.map((t) => ({
@@ -457,9 +470,6 @@ const categorizeWithGroq = async (
       }));
       if (onChunkProcessed) onChunkProcessed(fallbackResults);
     }
-
-    // Rate limit buffer
-    await new Promise((r) => setTimeout(r, 2000));
   }
 };
 
@@ -485,8 +495,13 @@ const categorizeWithOllama = async (
 
     Transaction: `;
 
-  // Process one by one or small batches for local AI
-  for (const tx of transactions) {
+  // F-PERF-003: this used to be one sequential round-trip per transaction
+  // (~7 min for 500 rows). A small worker pool keeps the local server busy
+  // without exceeding its default parallelism (OLLAMA_NUM_PARALLEL defaults
+  // to 4), cutting wall-clock roughly by the lane count.
+  const CONCURRENCY = 4;
+
+  const categorizeOne = async (tx: Transaction): Promise<void> => {
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -540,7 +555,16 @@ const categorizeWithOllama = async (
       };
       if (onChunkProcessed) onChunkProcessed([failedResult]);
     }
-  }
+  };
+
+  let nextIndex = 0;
+  const lanes = Array.from({ length: Math.min(CONCURRENCY, transactions.length) }, async () => {
+    while (nextIndex < transactions.length) {
+      const tx = transactions[nextIndex++];
+      await categorizeOne(tx);
+    }
+  });
+  await Promise.all(lanes);
 };
 
 // Simulation for preview environments without backend/key

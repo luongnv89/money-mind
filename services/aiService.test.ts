@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock @google/genai so no network calls ever happen from the test suite.
 const generateContentMock = vi.fn();
@@ -422,6 +422,117 @@ describe('categorizeWithAI — ollama', () => {
     await categorizeWithAI([tx()], 'local', onChunk);
     expect(onChunk.mock.calls[0][0][0].reason).toContain('Ollama connection failed');
   });
+});
+
+describe('categorizeWithAI — rate-limit sleeps (F-PERF-002)', () => {
+  const manyTx = (n: number): Transaction[] =>
+    Array.from({ length: n }, (_, i) => tx({ id: `t${i}`, description: `Tx ${i}` }));
+
+  afterEach(() => {
+    // Restore the spy first, then the real timers: the spy captured the FAKE
+    // setTimeout as its "original", so restoring it after useRealTimers would
+    // re-install the stale fake over the real global.
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('sleeps exactly twice for a 3-batch Gemini run (25 per batch)', async () => {
+    resetSettings({ geminiConfig: { apiKey: btoa('k'), model: 'm' } });
+    generateContentMock.mockImplementation(async () => ({
+      text: JSON.stringify([{ id: 'x', category: 'Waste', confidence: 0.9, reason: 'r' }]),
+    }));
+
+    vi.useFakeTimers();
+    const sleepSpy = vi.spyOn(globalThis, 'setTimeout');
+    const onChunk = vi.fn();
+    const run = categorizeWithAI(manyTx(75), 'cloud', onChunk);
+
+    await vi.advanceTimersByTimeAsync(3 * 4000);
+    await run;
+
+    const geminiSleeps = sleepSpy.mock.calls.filter(([, delay]) => delay === 4000).length;
+    expect(onChunk).toHaveBeenCalledTimes(3);
+    expect(geminiSleeps).toBe(2);
+  }, 10000);
+
+  it('sleeps exactly twice for a 3-batch Groq run (10 per batch)', async () => {
+    resetSettings({ aiMode: 'groq', groqConfig: { apiKey: btoa('k'), model: 'm' } });
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        choices: [
+          { message: { content: JSON.stringify({ results: [{ id: 'x', category: 'Waste' }] }) } },
+        ],
+      })
+    );
+
+    vi.useFakeTimers();
+    const sleepSpy = vi.spyOn(globalThis, 'setTimeout');
+    const onChunk = vi.fn();
+    const run = categorizeWithAI(manyTx(30), 'groq', onChunk);
+
+    await vi.advanceTimersByTimeAsync(3 * 2000);
+    await run;
+
+    const groqSleeps = sleepSpy.mock.calls.filter(([, delay]) => delay === 2000).length;
+    expect(onChunk).toHaveBeenCalledTimes(3);
+    expect(groqSleeps).toBe(2);
+  }, 10000);
+
+  it('never sleeps for a single-batch run', async () => {
+    resetSettings({ geminiConfig: { apiKey: btoa('k'), model: 'm' } });
+    generateContentMock.mockResolvedValue({
+      text: JSON.stringify([{ id: 't1', category: 'Waste', confidence: 0.9, reason: 'r' }]),
+    });
+
+    const sleepSpy = vi.spyOn(globalThis, 'setTimeout');
+    const onChunk = vi.fn();
+    await categorizeWithAI([tx()], 'cloud', onChunk);
+
+    expect(onChunk).toHaveBeenCalledTimes(1);
+    expect(sleepSpy).not.toHaveBeenCalled();
+  }, 10000);
+});
+
+describe('categorizeWithAI — ollama concurrency pool (F-PERF-003)', () => {
+  const local = {
+    aiMode: 'local',
+    ollamaConfig: { baseUrl: 'localhost', port: '11434', model: 'llama3.2' },
+  };
+  const LATENCY_MS = 25;
+  const POOL_SIZE = 4;
+
+  it('runs requests through a bounded pool and beats the sequential wall-clock', async () => {
+    resetSettings(local);
+    const txs = Array.from({ length: 8 }, (_, i) => tx({ id: `t${i}`, description: `Tx ${i}` }));
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    fetchMock.mockImplementation(async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, LATENCY_MS));
+      inFlight--;
+      return jsonResponse({
+        response: JSON.stringify({ category: 'Waste', subCategory: 'Fees', confidence: 0.9 }),
+      });
+    });
+
+    const onChunk = vi.fn();
+    const started = Date.now();
+    await categorizeWithAI(txs, 'local', onChunk);
+    const elapsed = Date.now() - started;
+
+    // Every transaction is categorized exactly once.
+    const ids = onChunk.mock.calls.map((call) => call[0][0].id).sort();
+    expect(ids).toEqual(txs.map((t) => t.id).sort());
+
+    // Requests genuinely overlap, but never exceed the pool bound.
+    expect(maxInFlight).toBeGreaterThan(1);
+    expect(maxInFlight).toBeLessThanOrEqual(POOL_SIZE);
+
+    // Sequential wall-clock was 8 x 25ms = 200ms; 4 lanes finish in ~2 waves.
+    expect(elapsed).toBeLessThan((txs.length * LATENCY_MS) / 2);
+  }, 10000);
 });
 
 describe('simulateCategorization heuristics (via demo mode)', () => {
