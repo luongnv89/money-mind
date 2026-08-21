@@ -11,7 +11,7 @@ export const ToastContainer = () => {
         <div
           key={toast.id}
           className={cn(
-            'pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-lg shadow-lg border animate-in slide-in-from-right-full duration-300 min-w-[320px] max-w-sm backdrop-blur-sm',
+            'pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-lg shadow-lg border animate-in slide-in-from-right-full duration-300 min-w-[320px] max-w-sm backdrop-blur-xs',
             toast.type === 'success' && 'bg-green-50/95 border-green-200 text-green-900',
             toast.type === 'error' && 'bg-red-50/95 border-red-200 text-red-900',
             toast.type === 'warning' && 'bg-amber-50/95 border-amber-200 text-amber-900',

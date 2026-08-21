@@ -49,7 +49,7 @@ export const PrivacyPolicy: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         </CardContent>
       </Card>
 
-      <div className="prose prose-gray max-w-none bg-white p-8 rounded-lg border border-gray-200 shadow-sm">
+      <div className="prose prose-gray max-w-none bg-white p-8 rounded-lg border border-gray-200 shadow-xs">
         <h3>1. Data Collection & Usage</h3>
         <p>
           We process the CSV files you upload directly in your browser using JavaScript. The data is

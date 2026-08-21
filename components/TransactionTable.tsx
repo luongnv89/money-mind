@@ -140,7 +140,7 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
             <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
             <input
               ref={inputRef}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent"
+              className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-md focus:outline-hidden focus:ring-2 focus:ring-accent/50 focus:border-accent"
               placeholder="Search category..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -160,7 +160,7 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                 <div key={cat} className="mb-1">
                   <div
                     className={cn(
-                      'px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 bg-gray-50/80 sticky top-0 backdrop-blur-sm',
+                      'px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 bg-gray-50/80 sticky top-0 backdrop-blur-xs',
                       catStyle.text
                     )}
                   >
@@ -398,7 +398,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
 
   if (transactions.length === 0) {
     return (
-      <div className="w-full bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center text-gray-500">
+      <div className="w-full bg-white rounded-xl shadow-xs border border-gray-200 p-8 text-center text-gray-500">
         No transactions found for this time period.
       </div>
     );
@@ -464,10 +464,10 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-xs border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto min-h-[400px]">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500 sticky top-0 z-10 shadow-sm">
+            <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500 sticky top-0 z-10 shadow-xs">
               <tr>
                 <SortHeader label="Date" sKey="date" currentSort={sortConfig} onSort={handleSort} />
                 <SortHeader
@@ -544,7 +544,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                           setActiveDropdown({ id: t.id, rect });
                         }}
                         className={cn(
-                          'flex flex-col items-start px-3 py-1.5 rounded-md border cursor-pointer hover:shadow-sm transition-all w-full max-w-[180px] group',
+                          'flex flex-col items-start px-3 py-1.5 rounded-md border cursor-pointer hover:shadow-xs transition-all w-full max-w-[180px] group',
                           categoryColors.bg,
                           categoryColors.border,
                           activeDropdown?.id === t.id ? 'ring-2 ring-accent/50' : ''
@@ -613,7 +613,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                         ) : (
                           <button
                             onClick={() => approveTransaction(t.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-gray-300 text-gray-500 hover:text-green-600 hover:border-green-500 hover:bg-green-50 transition-all shadow-sm"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-gray-300 text-gray-500 hover:text-green-600 hover:border-green-500 hover:bg-green-50 transition-all shadow-xs"
                             title="Click to Approve"
                           >
                             <span className="text-[10px] font-medium">Verify</span>

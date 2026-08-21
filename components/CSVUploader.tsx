@@ -62,7 +62,7 @@ const DuplicateResolutionModal: React.FC<DuplicateResolutionModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
       <Card className="w-full max-w-lg bg-white shadow-xl animate-in zoom-in-95 duration-200">
         <CardHeader className="border-b border-gray-100 pb-4">
           <div className="flex justify-between items-start">
@@ -471,7 +471,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
             </div>
             <div className="overflow-x-auto max-h-60">
               <table className="w-full text-sm text-left">
-                <thead className="bg-white text-gray-500 border-b border-gray-100 sticky top-0 shadow-sm z-10">
+                <thead className="bg-white text-gray-500 border-b border-gray-100 sticky top-0 shadow-xs z-10">
                   <tr>
                     <th className="px-4 py-2 font-medium bg-gray-50/50">Date</th>
                     <th className="px-4 py-2 font-medium bg-gray-50/50">Description</th>

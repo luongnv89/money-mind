@@ -213,7 +213,7 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
             {/* Header */}
             <div className="bg-gradient-to-r from-accent to-emerald-600 p-4 flex justify-between items-center text-white shrink-0">
               <div className="flex items-center gap-2">
-                <div className="bg-white/20 p-1.5 rounded-full backdrop-blur-sm">
+                <div className="bg-white/20 p-1.5 rounded-full backdrop-blur-xs">
                   <Smile className="w-5 h-5" />
                 </div>
                 <div>
@@ -241,7 +241,7 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
                 >
                   <div
                     className={cn(
-                      'max-w-[80%] rounded-2xl px-4 py-2.5 text-sm shadow-sm whitespace-pre-wrap',
+                      'max-w-[80%] rounded-2xl px-4 py-2.5 text-sm shadow-xs whitespace-pre-wrap',
                       msg.role === 'user'
                         ? 'bg-accent text-white rounded-br-none'
                         : 'bg-white text-gray-800 border border-gray-100 rounded-bl-none'
@@ -253,7 +253,7 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
               ))}
               {isLoading && (
                 <div className="flex justify-start w-full">
-                  <div className="bg-white border border-gray-100 px-4 py-3 rounded-2xl rounded-bl-none shadow-sm flex items-center gap-2">
+                  <div className="bg-white border border-gray-100 px-4 py-3 rounded-2xl rounded-bl-none shadow-xs flex items-center gap-2">
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
@@ -301,7 +301,7 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
                 <Button
                   type="submit"
                   size="sm"
-                  className="px-3 bg-accent hover:bg-accent-hover text-white shadow-sm"
+                  className="px-3 bg-accent hover:bg-accent-hover text-white shadow-xs"
                   disabled={!inputValue.trim() || isLoading}
                 >
                   <Send className="w-4 h-4" />
