@@ -267,11 +267,8 @@ export const selectAIReady = (state: SettingsState): boolean => {
   if (state.aiMode === 'local') return true;
   if (state.aiMode === 'groq') return !!deobfuscate(state.groqConfig.apiKey);
   if (state.aiMode === 'custom')
-    return (
-      !!state.customConfig.baseUrl.trim() &&
-      !!state.customConfig.model.trim() &&
-      !!deobfuscate(state.customConfig.apiKey)
-    );
+    // The API key is optional for custom endpoints — base URL + model suffice.
+    return !!state.customConfig.baseUrl.trim() && !!state.customConfig.model.trim();
   return !!deobfuscate(state.geminiConfig.apiKey);
 };
 

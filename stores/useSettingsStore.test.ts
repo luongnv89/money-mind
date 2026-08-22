@@ -252,19 +252,22 @@ describe('selectAIReady — custom endpoint gating (issue #82)', () => {
     expect(selectAIReady(useSettingsStore.getState())).toBe(false);
   });
 
-  it('requires base URL, key and model together', () => {
+  it('requires base URL and model together — the API key is optional (issue #82 review F1)', () => {
     useSettingsStore.getState().setAiMode('custom');
 
     configure({ model: '' });
-    expect(selectAIReady(useSettingsStore.getState())).toBe(false);
-
-    configure({ apiKey: '', model: 'm' });
     expect(selectAIReady(useSettingsStore.getState())).toBe(false);
 
     configure({ baseUrl: '   ' });
     expect(selectAIReady(useSettingsStore.getState())).toBe(false);
 
     configure();
+    expect(selectAIReady(useSettingsStore.getState())).toBe(true);
+  });
+
+  it('is ready without an API key when base URL and model are set', () => {
+    useSettingsStore.getState().setAiMode('custom');
+    configure({ apiKey: '' });
     expect(selectAIReady(useSettingsStore.getState())).toBe(true);
   });
 

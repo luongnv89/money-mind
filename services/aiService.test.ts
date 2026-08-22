@@ -617,9 +617,20 @@ describe('testAiConnection — custom OpenAI-compatible endpoint (issue #82)', (
     await expect(testAiConnection()).rejects.toThrow(/Missing Custom Endpoint configuration/);
     resetSettings({
       aiMode: 'custom',
-      customConfig: { baseUrl: 'https://api.example.com/v1', apiKey: '', model: 'm' },
+      customConfig: { baseUrl: '   ', apiKey: btoa('sk-k'), model: 'm' },
     });
     await expect(testAiConnection()).rejects.toThrow(/Missing Custom Endpoint configuration/);
+  });
+
+  it('connects without an API key and omits the Authorization header', async () => {
+    resetSettings({
+      aiMode: 'custom',
+      customConfig: { baseUrl: 'http://localhost:1234/v1', apiKey: '', model: 'm' },
+    });
+    fetchMock.mockResolvedValue(jsonResponse({}));
+    await expect(testAiConnection()).resolves.toBe(true);
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:1234/v1/chat/completions');
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
   });
 
   it('normalizes the trailing slash and posts the Groq-style chat-completions shape', async () => {
@@ -676,6 +687,18 @@ describe('chatWithFinancialAgent — custom endpoint (issue #82)', () => {
     );
   });
 
+  it('returns reply content without an API key (auth-free servers)', async () => {
+    resetSettings({
+      aiMode: 'custom',
+      customConfig: { baseUrl: 'http://localhost:1234/v1', apiKey: '', model: 'm' },
+    });
+    fetchMock.mockResolvedValue(
+      jsonResponse({ choices: [{ message: { content: 'keyless hi' } }] })
+    );
+    await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe('keyless hi');
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
+  });
+
   it('returns reply content and increments usage', async () => {
     resetSettings(customReady);
     fetchMock.mockResolvedValue(
@@ -704,6 +727,18 @@ describe('categorizeWithAI — custom endpoint (issue #82)', () => {
     customConfig: { baseUrl: 'http://localhost:1234/v1/', apiKey: btoa('sk-k'), model: 'm' },
   };
   const okBody = (content: unknown) => jsonResponse({ choices: [{ message: { content } }] });
+
+  it('categorizes without an API key and omits the Authorization header (auth-free servers)', async () => {
+    resetSettings({
+      aiMode: 'custom',
+      customConfig: { baseUrl: 'http://localhost:1234/v1/', apiKey: '', model: 'm' },
+    });
+    fetchMock.mockResolvedValue(okBody(JSON.stringify([{ id: 't1', category: 'Waste' }])));
+    const onChunk = vi.fn();
+    await categorizeWithAI([tx()], 'custom', onChunk);
+    expect(onChunk.mock.calls[0][0][0]).toMatchObject({ id: 't1', category: 'Waste' });
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
+  }, 10000);
 
   it('sends the strict JSON contract with response_format and temperature 0', async () => {
     resetSettings(customReady);

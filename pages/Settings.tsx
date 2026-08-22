@@ -30,6 +30,14 @@ import { FALLBACK_MODEL_CATALOG } from '../constants';
 import { ModelCatalog } from '../types';
 import { useToastStore } from '../stores/useToastStore';
 
+/** Provider switcher tabs — order defines arrow-key traversal. */
+const PROVIDER_TABS = [
+  { mode: 'cloud', label: 'Gemini (Google)', Icon: Cloud },
+  { mode: 'groq', label: 'Groq (Fast)', Icon: Zap },
+  { mode: 'local', label: 'Ollama (Local)', Icon: Cpu },
+  { mode: 'custom', label: 'Custom Endpoint', Icon: Globe },
+] as const;
+
 export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const {
     aiMode,
@@ -243,6 +251,18 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     }
   };
 
+  // Roving-tabindex arrow-key navigation for the provider tabs (WCAG 4.1.2).
+  const handleProviderTabKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    const delta = e.key === 'ArrowRight' ? 1 : -1;
+    const nextMode =
+      PROVIDER_TABS[(index + delta + PROVIDER_TABS.length) % PROVIDER_TABS.length].mode;
+    setAiMode(nextMode);
+    setTestResult(null);
+    document.getElementById(`settings-tab-${nextMode}`)?.focus();
+  };
+
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4">
       <div className="flex items-center justify-between mb-6">
@@ -335,52 +355,40 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         </CardHeader>
         <CardContent className="p-0">
           {/* Mode Selection Tabs */}
-          <div className="flex border-b border-gray-100 overflow-x-auto">
-            <button
-              className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === 'cloud' ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-              onClick={() => {
-                setAiMode('cloud');
-                setTestResult(null);
-              }}
-            >
-              <Cloud className="w-4 h-4" />
-              Gemini (Google)
-            </button>
-            <button
-              className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === 'groq' ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-              onClick={() => {
-                setAiMode('groq');
-                setTestResult(null);
-              }}
-            >
-              <Zap className="w-4 h-4" />
-              Groq (Fast)
-            </button>
-            <button
-              className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === 'local' ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-              onClick={() => {
-                setAiMode('local');
-                setTestResult(null);
-              }}
-            >
-              <Cpu className="w-4 h-4" />
-              Ollama (Local)
-            </button>
-            <button
-              className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === 'custom' ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-              onClick={() => {
-                setAiMode('custom');
-                setTestResult(null);
-              }}
-            >
-              <Globe className="w-4 h-4" />
-              Custom Endpoint
-            </button>
+          <div
+            role="tablist"
+            aria-label="AI provider"
+            className="flex border-b border-gray-100 overflow-x-auto"
+          >
+            {PROVIDER_TABS.map(({ mode, label, Icon }, index) => (
+              <button
+                key={mode}
+                id={`settings-tab-${mode}`}
+                role="tab"
+                aria-selected={aiMode === mode}
+                aria-controls={`settings-panel-${mode}`}
+                tabIndex={aiMode === mode ? 0 : -1}
+                onKeyDown={(e) => handleProviderTabKeyDown(e, index)}
+                onClick={() => {
+                  setAiMode(mode);
+                  setTestResult(null);
+                }}
+                className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === mode ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </button>
+            ))}
           </div>
 
           <div className="p-6 space-y-6">
             {aiMode === 'cloud' && (
-              <div className="space-y-4 animate-in fade-in duration-300">
+              <div
+                id="settings-panel-cloud"
+                role="tabpanel"
+                aria-labelledby="settings-tab-cloud"
+                className="space-y-4 animate-in fade-in duration-300"
+              >
                 {isUsingCustomKey && (
                   <div className="bg-green-50 border border-green-100 rounded-lg p-3 flex items-start gap-3">
                     <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
@@ -440,7 +448,12 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             )}
 
             {aiMode === 'groq' && (
-              <div className="space-y-6 animate-in fade-in duration-300">
+              <div
+                id="settings-panel-groq"
+                role="tabpanel"
+                aria-labelledby="settings-tab-groq"
+                className="space-y-6 animate-in fade-in duration-300"
+              >
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <Key className="w-4 h-4" /> API Key
@@ -511,7 +524,12 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             )}
 
             {aiMode === 'local' && (
-              <div className="space-y-6 animate-in fade-in duration-300">
+              <div
+                id="settings-panel-local"
+                role="tabpanel"
+                aria-labelledby="settings-tab-local"
+                className="space-y-6 animate-in fade-in duration-300"
+              >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Base URL</label>
@@ -577,7 +595,12 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             )}
 
             {aiMode === 'custom' && (
-              <div className="space-y-6 animate-in fade-in duration-300">
+              <div
+                id="settings-panel-custom"
+                role="tabpanel"
+                aria-labelledby="settings-tab-custom"
+                className="space-y-6 animate-in fade-in duration-300"
+              >
                 <div className="space-y-2">
                   <label
                     htmlFor="custom-base-url"

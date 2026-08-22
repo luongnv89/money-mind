@@ -109,6 +109,39 @@ describe('Settings — custom OpenAI-compatible endpoint tab (issue #82)', () =>
     vi.clearAllMocks();
   });
 
+  it('exposes the provider switcher with tablist/tab semantics (issue #82 review F2)', async () => {
+    await render();
+
+    const tabs = Array.from(container.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+    expect(container.querySelector('[role="tablist"]')).not.toBeNull();
+    expect(tabs.map((t) => t.id)).toEqual([
+      'settings-tab-cloud',
+      'settings-tab-groq',
+      'settings-tab-local',
+      'settings-tab-custom',
+    ]);
+
+    // Exactly one selected tab, wired to its panel via aria-controls.
+    expect(tabs.filter((t) => t.getAttribute('aria-selected') === 'true')).toHaveLength(1);
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true');
+    const panel = document.getElementById(tabs[0].getAttribute('aria-controls')!);
+    expect(panel?.getAttribute('role')).toBe('tabpanel');
+    expect(panel?.getAttribute('aria-labelledby')).toBe(tabs[0].id);
+
+    // Roving tabindex follows selection.
+    expect(tabs.map((t) => t.tabIndex)).toEqual([0, -1, -1, -1]);
+
+    // Arrow keys move both selection and focus.
+    await React.act(async () => {
+      tabs[0].dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
+      );
+    });
+    await React.act(async () => {});
+    expect(useSettingsStore.getState().aiMode).toBe('groq');
+    expect(document.activeElement?.id).toBe('settings-tab-groq');
+  });
+
   it('switches to the custom tab and renders Base URL, API key and model inputs', async () => {
     await render();
 

@@ -52,12 +52,13 @@ const fetchCustomChatCompletion = async (
   body: Record<string, unknown>
 ): Promise<Response> => {
   const apiKey = getDeobfuscatedProviderKey(settings, 'custom');
+  // Keyless servers (no-auth LM Studio / vLLM) get no Authorization header,
+  // mirroring fetchCustomModels in modelCatalog.ts (issue #82).
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
   return fetch(customChatUrl(settings.customConfig.baseUrl), {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(body),
   });
 };
@@ -124,9 +125,10 @@ export const testAiConnection = async (): Promise<boolean> => {
     }
   } else if (mode === 'custom') {
     const { baseUrl, model } = settings.customConfig;
-    if (!baseUrl.trim() || !model.trim() || !getDeobfuscatedProviderKey(settings, 'custom')) {
+    // The API key is optional for custom endpoints — servers without auth work keyless.
+    if (!baseUrl.trim() || !model.trim()) {
       throw new Error(
-        'Missing Custom Endpoint configuration. Set the Base URL, API key and model in Settings.'
+        'Missing Custom Endpoint configuration. Set the Base URL and model in Settings.'
       );
     }
 
@@ -270,8 +272,7 @@ export const chatWithFinancialAgent = async (
     resultText = data.choices?.[0]?.message?.content || 'Groq is silent 🐵';
   } else if (settings.aiMode === 'custom') {
     const { baseUrl, model } = settings.customConfig;
-    if (!baseUrl.trim() || !model.trim() || !apiKey)
-      throw new Error('Missing Custom Endpoint configuration');
+    if (!baseUrl.trim() || !model.trim()) throw new Error('Missing Custom Endpoint configuration');
 
     const response = await fetchCustomChatCompletion(settings, {
       model,
@@ -609,11 +610,11 @@ const categorizeWithCustom = async (
   transactions: Transaction[],
   onChunkProcessed?: (results: CategorizationResult[]) => void
 ): Promise<void> => {
-  const settings = useSettingsStore.getState();
+   const settings = useSettingsStore.getState();
   const { baseUrl, model } = settings.customConfig;
-  if (!baseUrl.trim() || !model.trim() || !getDeobfuscatedProviderKey(settings, 'custom')) {
+  if (!baseUrl.trim() || !model.trim()) {
     throw new Error(
-      'Missing Custom Endpoint configuration. Set the Base URL, API key and model in Settings.'
+      'Missing Custom Endpoint configuration. Set the Base URL and model in Settings.'
     );
   }
 
