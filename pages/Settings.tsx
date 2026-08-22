@@ -1,6 +1,11 @@
-import React, { useState, useRef } from 'react';
-import { useSettingsStore, getDeobfuscatedApiKey } from '../stores/useSettingsStore';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  useSettingsStore,
+  getDeobfuscatedApiKey,
+  validatePersistedModel,
+} from '../stores/useSettingsStore';
 import { clearPatterns, getPatterns, importPatterns } from '../lib/localStorage';
+import { useDebouncedValue } from '../lib/useDebounce';
 import { Card, CardContent, CardHeader, CardTitle, Button, Input } from '../components/UI';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import {
@@ -19,6 +24,9 @@ import {
   BarChart2,
 } from 'lucide-react';
 import { testAiConnection } from '../services/aiService';
+import { loadModelCatalog } from '../services/modelCatalog';
+import { FALLBACK_MODEL_CATALOG } from '../constants';
+import { ModelCatalog } from '../types';
 import { useToastStore } from '../stores/useToastStore';
 
 export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
@@ -40,7 +48,84 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [testMessage, setTestMessage] = useState('');
   const [patternCount, setPatternCount] = useState(getPatterns().length);
+  const [catalog, setCatalog] = useState<ModelCatalog | null>(null);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Issue #79: the model lists are loaded live from each provider. Debounce
+  // the inputs they depend on so typing a key or host doesn't fire a request
+  // per keystroke.
+  const currentApiKey =
+    aiMode === 'cloud' ? geminiConfig.apiKey : aiMode === 'groq' ? groqConfig.apiKey : '';
+  const debouncedApiKey = useDebouncedValue(currentApiKey, 500);
+  const debouncedOllamaBaseUrl = useDebouncedValue(ollamaConfig.baseUrl, 500);
+  const debouncedOllamaPort = useDebouncedValue(ollamaConfig.port, 500);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCatalog(null);
+    setIsLoadingCatalog(true);
+
+    loadModelCatalog(aiMode).then((result) => {
+      if (cancelled) return;
+      setCatalog(result);
+      setIsLoadingCatalog(false);
+
+      // Stale-selection check (issue #79): only a live/cached catalog is
+      // authoritative enough to reset a saved model — a degraded fallback
+      // list never clobbers the user's choice.
+      if (
+        (aiMode === 'cloud' || aiMode === 'groq') &&
+        (result.status === 'live' || result.status === 'cached')
+      ) {
+        const outcome = validatePersistedModel(
+          aiMode,
+          result.models.map((m) => m.id)
+        );
+        if (outcome.reset) {
+          addToast(
+            `Saved model "${outcome.from}" is no longer available — switched to "${outcome.to}".`,
+            'warning',
+            6000
+          );
+        }
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [aiMode, debouncedApiKey, debouncedOllamaBaseUrl, debouncedOllamaPort, addToast]);
+
+  const providerName = aiMode === 'cloud' ? 'Gemini' : aiMode === 'groq' ? 'Groq' : 'Ollama';
+  const catalogModels = catalog?.models ?? FALLBACK_MODEL_CATALOG[aiMode];
+  const selectedModel =
+    aiMode === 'cloud'
+      ? geminiConfig.model
+      : aiMode === 'groq'
+        ? groqConfig.model
+        : ollamaConfig.model;
+  // Keep a saved-but-missing model selectable (labeled) so the control never
+  // shows a blank value — e.g. when the list is degraded (issue #79, AC5).
+  const selectedModelMissing =
+    catalog !== null &&
+    catalog.models.length > 0 &&
+    selectedModel !== '' &&
+    !catalog.models.some((m) => m.id === selectedModel);
+
+  const catalogStatus = isLoadingCatalog ? (
+    <p className="text-xs text-gray-500">Loading available models…</p>
+  ) : catalog?.status === 'fallback' ? (
+    <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg p-3">
+      <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+      <p className="text-xs text-amber-700">{catalog.notice}</p>
+    </div>
+  ) : (
+    <p className="text-xs text-gray-500">
+      Showing {catalogModels.length} models from {providerName}
+      {catalog?.status === 'cached' ? ' (cached list)' : ''}.
+    </p>
+  );
 
   // Logic to detect key usage state
   const currentStoredKey = (() => {
@@ -285,16 +370,18 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     value={geminiConfig.model}
                     onChange={(e) => setGeminiConfig({ model: e.target.value })}
                   >
-                    <option value="models/gemini-flash-latest">
-                      gemini-flash-latest (Recommended)
-                    </option>
-                    <option value="models/gemini-flash-lite-latest">
-                      gemini-flash-lite-latest (Fastest)
-                    </option>
-                    <option value="models/gemini-3-pro-preview">
-                      gemini-3-pro-preview (Most Capable)
-                    </option>
+                    {selectedModelMissing && (
+                      <option value={selectedModel}>
+                        {selectedModel} (saved — not in the current model list)
+                      </option>
+                    )}
+                    {catalogModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
                   </select>
+                  {catalogStatus}
                 </div>
               </div>
             )}
@@ -323,9 +410,18 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     value={groqConfig.model}
                     onChange={(e) => setGroqConfig({ model: e.target.value })}
                   >
-                    <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
-                    <option value="openai/gpt-oss-20b">openai/gpt-oss-20b</option>
+                    {selectedModelMissing && (
+                      <option value={selectedModel}>
+                        {selectedModel} (saved — not in the current model list)
+                      </option>
+                    )}
+                    {catalogModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
                   </select>
+                  {catalogStatus}
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
@@ -383,7 +479,18 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     placeholder="llama3.2"
                     value={ollamaConfig.model}
                     onChange={(e) => setOllamaConfig({ model: e.target.value })}
+                    list="ollama-models"
                   />
+                  <datalist id="ollama-models">
+                    {catalogModels.map((m) => (
+                      <option key={m.id} value={m.id} />
+                    ))}
+                  </datalist>
+                  <p className="text-xs text-gray-500">
+                    Free text — models you have pulled locally appear as suggestions, but any model
+                    name works.
+                  </p>
+                  {catalogStatus}
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
