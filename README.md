@@ -3,6 +3,8 @@
 
 MoneyMind is a privacy-first, serverless financial analyzer built with React. It uses local AI (Ollama) or Cloud AI (Gemini/Groq) to categorize transactions, detect spending patterns, and provide "sassy" financial advice—all without storing your data on a backend server.
 
+> **Current release: v1.0.0** (2026-08-22) — see [CHANGELOG.md](CHANGELOG.md) for release history.
+
 ## 🚀 Features
 
 -   **Zero-Knowledge Privacy:** CSV processing happens 100% in the browser. API keys are obfuscated and stored locally in your browser's LocalStorage (not encrypted) (`stores/useSettingsStore.ts:22-35`).
