@@ -133,9 +133,7 @@ describe('Settings — custom OpenAI-compatible endpoint tab (issue #82)', () =>
 
     // Arrow keys move both selection and focus.
     await React.act(async () => {
-      tabs[0].dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
-      );
+      tabs[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     });
     await React.act(async () => {});
     expect(useSettingsStore.getState().aiMode).toBe('groq');

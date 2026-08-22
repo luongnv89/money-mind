@@ -610,7 +610,7 @@ const categorizeWithCustom = async (
   transactions: Transaction[],
   onChunkProcessed?: (results: CategorizationResult[]) => void
 ): Promise<void> => {
-   const settings = useSettingsStore.getState();
+  const settings = useSettingsStore.getState();
   const { baseUrl, model } = settings.customConfig;
   if (!baseUrl.trim() || !model.trim()) {
     throw new Error(
