@@ -35,6 +35,7 @@ const resetSettings = (overrides: Record<string, unknown> = {}) => {
     geminiConfig: { apiKey: '', model: 'models/gemini-flash-latest' },
     groqConfig: { apiKey: '', model: 'llama-3.1-8b-instant' },
     ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: 'llama3.2' },
+    customConfig: { baseUrl: '', apiKey: '', model: 'gpt-3.5-turbo' },
     usage: { txAnalyzed: 0, chatMessages: 0, lastReset: '2024-01-01T00:00:00.000Z' },
     ...overrides,
   });
@@ -603,6 +604,159 @@ describe('model availability errors (issue #79)', () => {
     await categorizeWithAI([tx()], 'local', onChunk);
     expect(onChunk.mock.calls[0][0][0].reason).toContain('ollama pull mistral');
   });
+});
+
+describe('testAiConnection — custom OpenAI-compatible endpoint (issue #82)', () => {
+  const customReady = {
+    aiMode: 'custom',
+    customConfig: { baseUrl: 'https://api.example.com/v1/', apiKey: btoa('sk-k'), model: 'm' },
+  };
+
+  it('throws when the endpoint configuration is incomplete', async () => {
+    resetSettings({ aiMode: 'custom' });
+    await expect(testAiConnection()).rejects.toThrow(/Missing Custom Endpoint configuration/);
+    resetSettings({
+      aiMode: 'custom',
+      customConfig: { baseUrl: 'https://api.example.com/v1', apiKey: '', model: 'm' },
+    });
+    await expect(testAiConnection()).rejects.toThrow(/Missing Custom Endpoint configuration/);
+  });
+
+  it('normalizes the trailing slash and posts the Groq-style chat-completions shape', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(jsonResponse({}));
+    await expect(testAiConnection()).resolves.toBe(true);
+
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.example.com/v1/chat/completions');
+    const request = fetchMock.mock.calls[0][1];
+    expect(request.headers.Authorization).toBe('Bearer sk-k');
+    expect(request.headers['Content-Type']).toBe('application/json');
+    expect(request.body).toEqual(
+      JSON.stringify({
+        model: 'm',
+        messages: [{ role: 'user', content: 'Reply with JSON: { "status": "OK" }' }],
+        response_format: { type: 'json_object' },
+      })
+    );
+  });
+
+  it('surfaces the endpoint error detail on a failed response', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(jsonResponse({ error: { message: 'invalid key' } }, false));
+    await expect(testAiConnection()).rejects.toThrow('Custom Endpoint Error: invalid key');
+  });
+
+  it('explains a retired model id on the custom endpoint', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: { message: 'The model `m` does not exist' } }, false, 404)
+    );
+    await expect(testAiConnection()).rejects.toThrow(/not available on the custom endpoint/);
+  });
+
+  it('gives CORS guidance for TypeError network failures', async () => {
+    resetSettings(customReady);
+    const err = new Error('Failed to fetch');
+    err.name = 'TypeError';
+    fetchMock.mockRejectedValue(err);
+    await expect(testAiConnection()).rejects.toThrow(/CORS/);
+  });
+});
+
+describe('chatWithFinancialAgent — custom endpoint (issue #82)', () => {
+  const customReady = {
+    aiMode: 'custom',
+    customConfig: { baseUrl: 'http://localhost:1234/v1', apiKey: btoa('sk-k'), model: 'm' },
+  };
+
+  it('throws when the endpoint configuration is incomplete', async () => {
+    resetSettings({ aiMode: 'custom' });
+    await expect(chatWithFinancialAgent('hi', 'ctx')).rejects.toThrow(
+      /Missing Custom Endpoint configuration/
+    );
+  });
+
+  it('returns reply content and increments usage', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(
+      jsonResponse({ choices: [{ message: { content: 'endpoint says hi' } }] })
+    );
+    await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe('endpoint says hi');
+    expect(useSettingsStore.getState().usage.chatMessages).toBe(1);
+  });
+
+  it('falls back to a silent line on empty content', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(jsonResponse({ choices: [{ message: { content: '' } }] }));
+    await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe('Your endpoint is silent 🐵');
+  });
+
+  it('surfaces API errors from the endpoint', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(jsonResponse({ error: { message: 'quota blown' } }, false));
+    await expect(chatWithFinancialAgent('hi', 'ctx')).rejects.toThrow('quota blown');
+  });
+});
+
+describe('categorizeWithAI — custom endpoint (issue #82)', () => {
+  const customReady = {
+    aiMode: 'custom',
+    customConfig: { baseUrl: 'http://localhost:1234/v1/', apiKey: btoa('sk-k'), model: 'm' },
+  };
+  const okBody = (content: unknown) => jsonResponse({ choices: [{ message: { content } }] });
+
+  it('sends the strict JSON contract with response_format and temperature 0', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(
+      okBody(JSON.stringify({ results: [{ id: 't1', category: 'Waste', confidence: 0.7 }] }))
+    );
+    await categorizeWithAI([tx()], 'custom');
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.model).toBe('m');
+    expect(body.messages[0].role).toBe('system');
+    expect(body.response_format).toEqual({ type: 'json_object' });
+    expect(body.temperature).toBe(0);
+    // Trailing slash in the saved base URL must not double up
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:1234/v1/chat/completions');
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer sk-k');
+  }, 10000);
+
+  it('normalizes wrapped and bare payloads with field defaults', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(okBody(JSON.stringify([{ id: 't1' }])));
+    const onChunk = vi.fn();
+    await categorizeWithAI([tx()], 'custom', onChunk);
+    expect(onChunk.mock.calls[0][0][0]).toMatchObject({
+      id: 't1',
+      category: TransactionCategory.Uncategorized,
+      confidence: 0.8,
+      reason: 'Custom endpoint AI',
+    });
+  }, 10000);
+
+  it('propagates rate limits as a hard error', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(jsonResponse({}, false, 429));
+    await expect(categorizeWithAI([tx()], 'custom')).rejects.toThrow(/Custom endpoint Rate Limit/);
+  }, 10000);
+
+  it('emits Uncategorized fallback results for generic failures', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(jsonResponse({ error: { message: 'server hiccup' } }, false));
+    const onChunk = vi.fn();
+    await categorizeWithAI([tx()], 'custom', onChunk);
+    expect(onChunk.mock.calls[0][0][0]).toMatchObject({
+      category: TransactionCategory.Uncategorized,
+      reason: expect.stringContaining('AI Request Failed'),
+    });
+  }, 10000);
+
+  it('throws CORS guidance when the fetch fails outright', async () => {
+    resetSettings(customReady);
+    fetchMock.mockRejectedValue(new Error('Failed to fetch'));
+    await expect(categorizeWithAI([tx()], 'custom')).rejects.toThrow(/CORS/);
+  }, 10000);
 });
 
 describe('simulateCategorization heuristics (via demo mode)', () => {

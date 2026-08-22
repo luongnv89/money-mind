@@ -77,3 +77,100 @@ describe('Settings stale-model reset announcements (issue #79, review ui-1)', ()
     expect(liveRegion?.textContent).not.toContain('no longer available');
   });
 });
+
+describe('Settings — custom OpenAI-compatible endpoint tab (issue #82)', () => {
+  let container: HTMLDivElement;
+  let root: ReturnType<typeof createRoot>;
+
+  const render = async () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await React.act(async () => {
+      root.render(<SettingsPage onBack={() => {}} />);
+    });
+    await React.act(async () => {});
+  };
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    useSettingsStore.getState().resetSettings();
+    vi.mocked(loadModelCatalog).mockReset();
+    vi.mocked(loadModelCatalog).mockResolvedValue({
+      provider: 'custom',
+      status: 'fallback',
+      models: [{ id: 'gpt-3.5-turbo', label: 'gpt-3.5-turbo (Common alias)' }],
+    });
+  });
+
+  afterEach(() => {
+    React.act(() => root?.unmount());
+    container?.remove();
+    vi.clearAllMocks();
+  });
+
+  it('switches to the custom tab and renders Base URL, API key and model inputs', async () => {
+    await render();
+
+    const tab = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Custom Endpoint')
+    );
+    expect(tab).toBeDefined();
+    await React.act(async () => {
+      tab!.click();
+    });
+    await React.act(async () => {});
+
+    expect(useSettingsStore.getState().aiMode).toBe('custom');
+    expect(container.querySelector('#custom-model')).not.toBeNull();
+    expect(container.querySelector('input[type="password"]')).not.toBeNull();
+    // Test Connection button is available in the shared footer
+    expect(
+      Array.from(container.querySelectorAll('button')).some((b) =>
+        b.textContent?.includes('Test Connection')
+      )
+    ).toBe(true);
+  });
+
+  it('wires the Base URL input into the persisted store', async () => {
+    useSettingsStore.setState({
+      aiMode: 'custom',
+      customConfig: { baseUrl: '', apiKey: btoa('sk-k'), model: 'm' },
+    });
+    await render();
+
+    const baseUrlInput = Array.from(container.querySelectorAll('input')).find(
+      (i) => i.placeholder === 'https://api.example.com/v1'
+    );
+    expect(baseUrlInput).toBeDefined();
+
+    const setNative = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
+      ?.set as (v: string) => void;
+    await React.act(async () => {
+      setNative.call(baseUrlInput!, 'http://localhost:1234/v1');
+      baseUrlInput!.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    expect(useSettingsStore.getState().customConfig.baseUrl).toBe('http://localhost:1234/v1');
+  });
+
+  it('wires free-text model entry into the persisted store', async () => {
+    useSettingsStore.setState({
+      aiMode: 'custom',
+      customConfig: { baseUrl: 'http://localhost:1234/v1', apiKey: btoa('sk-k'), model: '' },
+    });
+    await render();
+
+    const modelInput = container.querySelector<HTMLInputElement>('#custom-model');
+    expect(modelInput).not.toBeNull();
+
+    const setNative = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
+      ?.set as (v: string) => void;
+    await React.act(async () => {
+      setNative.call(modelInput!, 'my-finetune');
+      modelInput!.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    expect(useSettingsStore.getState().customConfig.model).toBe('my-finetune');
+  });
+});
