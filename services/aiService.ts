@@ -12,6 +12,23 @@ interface CategorizationResult {
   reason: string;
 }
 
+// --- Model availability errors (issue #79) ---
+
+/** Provider error shapes that mean "this model id no longer exists". */
+const MODEL_UNAVAILABLE_PATTERN =
+  /not found|not_found|does not exist|decommissioned|no longer available|unsupported/i;
+
+const isModelUnavailable = (status: number | undefined, message: string): boolean =>
+  status === 404 || MODEL_UNAVAILABLE_PATTERN.test(message);
+
+const modelUnavailableMessage = (provider: string, model: string, detail: string): string =>
+  `Model "${model}" is not available on ${provider} (${detail}). ` +
+  'It may have been renamed or retired — pick a current model in Settings.';
+
+const ollamaModelMissingMessage = (model: string): string =>
+  `Model "${model}" was not found on the Ollama server. Run \`ollama pull ${model}\` ` +
+  'or pick another model in Settings.';
+
 // --- Connection Testing ---
 
 export const testAiConnection = async (): Promise<boolean> => {
@@ -33,7 +50,14 @@ export const testAiConnection = async (): Promise<boolean> => {
       });
       return !!response.text;
     } catch (e: unknown) {
-      throw new Error(`Gemini Error: ${e instanceof Error ? e.message : String(e)}`);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      const status = (e as { status?: number }).status;
+      if (isModelUnavailable(status, errorMessage)) {
+        throw new Error(
+          modelUnavailableMessage('Gemini', settings.geminiConfig.model, errorMessage)
+        );
+      }
+      throw new Error(`Gemini Error: ${errorMessage}`);
     }
   } else if (mode === 'groq') {
     const apiKey = getDeobfuscatedApiKey(settings);
@@ -55,7 +79,11 @@ export const testAiConnection = async (): Promise<boolean> => {
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error?.message || 'Groq connection failed');
+        const detail = err.error?.message || 'Groq connection failed';
+        if (isModelUnavailable(response.status, detail)) {
+          throw new Error(modelUnavailableMessage('Groq', settings.groqConfig.model, detail));
+        }
+        throw new Error(detail);
       }
       return true;
     } catch (e: unknown) {
@@ -77,7 +105,10 @@ export const testAiConnection = async (): Promise<boolean> => {
           stream: false,
         }),
       });
-      if (!response.ok) throw new Error('Ollama connection refused');
+      if (!response.ok) {
+        if (response.status === 404) throw new Error(ollamaModelMissingMessage(model));
+        throw new Error('Ollama connection refused');
+      }
       return true;
     } catch (e: unknown) {
       // Specific handling for CORS/Network errors typical with local LLMs in browser
@@ -318,6 +349,9 @@ const categorizeWithGemini = async (
       if (status === 429 || errorMessage?.includes('429')) {
         throw new Error('Gemini Rate Limit Exceeded (429). Please try again in 1 minute.');
       }
+      if (isModelUnavailable(status, errorMessage)) {
+        throw new Error(modelUnavailableMessage('Gemini', model, errorMessage));
+      }
 
       // Fallback for failed batch so the UI knows they failed
       const fallbackResults = batch.map((t) => ({
@@ -407,7 +441,11 @@ const categorizeWithGroq = async (
           throw new Error('Groq Rate Limit Exceeded. Please check your plan.');
         }
         const err = await response.json();
-        throw new Error(err.error?.message || 'Groq API Error');
+        const detail = err.error?.message || 'Groq API Error';
+        if (isModelUnavailable(response.status, detail)) {
+          throw new Error(modelUnavailableMessage('Groq', model, detail));
+        }
+        throw new Error(detail);
       }
 
       const data = await response.json();
@@ -456,8 +494,12 @@ const categorizeWithGroq = async (
     } catch (e: unknown) {
       logger.error('Groq Batch Failed', e);
       const errorMessage = e instanceof Error ? e.message : String(e);
-      // Propagate rate limits or specific errors
-      if (errorMessage.includes('Rate Limit') || errorMessage.includes('JSON')) {
+      // Propagate rate limits, JSON-contract breaks, and retired-model errors
+      if (
+        errorMessage.includes('Rate Limit') ||
+        errorMessage.includes('JSON') ||
+        MODEL_UNAVAILABLE_PATTERN.test(errorMessage)
+      ) {
         throw e;
       }
 
@@ -514,7 +556,10 @@ const categorizeWithOllama = async (
         }),
       });
 
-      if (!response.ok) throw new Error('Ollama connection failed');
+      if (!response.ok) {
+        if (response.status === 404) throw new Error(ollamaModelMissingMessage(model));
+        throw new Error('Ollama connection failed');
+      }
 
       const data = await response.json();
       let result;

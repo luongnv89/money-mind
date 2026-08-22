@@ -5,11 +5,11 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
 
 ## 🚀 Features
 
--   **Zero-Knowledge Privacy:** CSV processing happens 100% in the browser. API keys are obfuscated and stored locally in your browser's LocalStorage (not encrypted) (`stores/useSettingsStore.ts:23-30`).
+-   **Zero-Knowledge Privacy:** CSV processing happens 100% in the browser. API keys are obfuscated and stored locally in your browser's LocalStorage (not encrypted) (`stores/useSettingsStore.ts:22-35`).
 -   **AI Categorization:** Automatically categorizes messy bank transactions using LLMs.
--   **Multi-Model Support:**
-    -   ☁️ **Cloud:** Google Gemini (Default, `stores/useSettingsStore.ts:165`), Groq (Fastest).
-    -   🏠 **Local:** Ollama (Private, no cost; defaults to model `llama3.2`, `stores/useSettingsStore.ts:58-62`).
+-   **Multi-Model Support:** Model lists load live from each provider (1h cache, curated fallback when unreachable — `services/modelCatalog.ts`).
+    -   ☁️ **Cloud:** Google Gemini (Default, `stores/useSettingsStore.ts:44`), Groq (Fastest).
+    -   🏠 **Local:** Ollama (Private, no cost; defaults to model `llama3.2`, `constants.ts:182`).
 -   **Smart Learning:** "Verify" transactions to teach the app your specific preferences (stored locally).
 -   **Sassy Financial Assistant:** Chat with "MonkeySmile," a persona that roasts or toasts your spending habits.
 -   **Visual Insights:** Interactive charts for monthly performance, spending mix, and financial health scoring.
@@ -19,7 +19,7 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
 -   **Frontend:** React 19, TypeScript, Vite (`package.json:26,54-55`)
 -   **State Management:** Zustand (with LocalStorage persistence) (`package.json:31`, `stores/useTransactionStore.ts:44`)
 -   **Styling:** Tailwind CSS v4 via a local PostCSS build (`@tailwindcss/postcss`, no CDN) (`postcss.config.js:1-4`, `src/index.css:1`), Lucide React (Icons)
--   **AI Integration:** Google GenAI SDK, Custom REST connectors for Groq/Ollama (`package.json:22`, `services/aiService.ts:30-90`)
+-   **AI Integration:** Google GenAI SDK, Custom REST connectors for Groq/Ollama (`package.json:22`, `services/aiService.ts:368`, `services/aiService.ts:518`)
 -   **Parsing:** PapaParse (CSV) (`package.json:25`, `lib/csvParser.ts`)
 -   **Visualization:** Recharts (`package.json:28`)
 
@@ -81,11 +81,11 @@ Since MoneyMind is a pure Single Page Application (SPA) with no serverless funct
 
 ## 🤖 AI Configuration
 
-MoneyMind supports three AI modes, configurable in the **Settings** page (`services/aiService.ts:30-90` dispatches to each):
+MoneyMind supports three AI modes, configurable in the **Settings** page (`services/aiService.ts:232` dispatches to each). The model pickers load each provider's current model list dynamically (`services/modelCatalog.ts`), falling back to a curated list when the provider is unreachable:
 
-1.  **Cloud (Gemini):** Uses Google's Gemini models (default `models/gemini-flash-latest`, `stores/useSettingsStore.ts:50`). Requires a free API key from [Google AI Studio](https://aistudio.google.com/).
-2.  **Cloud (Groq):** Uses Groq's ultra-fast inference (default `llama-3.1-8b-instant`, `stores/useSettingsStore.ts:55`). Requires an API key from [Groq Console](https://console.groq.com/).
-3.  **Local (Ollama):** 100% private. Requires Ollama running locally (`ollama serve`) and the `llama3.2` (or similar) model pulled (`ollama pull llama3.2` — this is the configured default, `stores/useSettingsStore.ts:61`).
+1.  **Cloud (Gemini):** Uses Google's Gemini models (default `models/gemini-flash-latest`, `constants.ts:180`). Requires a free API key from [Google AI Studio](https://aistudio.google.com/).
+2.  **Cloud (Groq):** Uses Groq's ultra-fast inference (default `llama-3.1-8b-instant`, `constants.ts:181`). Requires an API key from [Groq Console](https://console.groq.com/).
+3.  **Local (Ollama):** 100% private. Requires Ollama running locally (`ollama serve`) and the `llama3.2` (or similar) model pulled (`ollama pull llama3.2` — this is the configured default, `constants.ts:182`).
 
 ## 🧪 Quality Assurance
 
@@ -111,7 +111,7 @@ On every push or pull request (`.github/workflows/ci.yml:11,44`; behaviors addit
 
 ## ⚠️ Security Note
 This application deals with financial data.
-1.  **Do not commit API Keys.** Enter them on the in-app Settings page; they are stored locally in your browser (obfuscated, not encrypted — `stores/useSettingsStore.ts:23-30`).
+1.  **Do not commit API Keys.** Enter them on the in-app Settings page; they are stored locally in your browser (obfuscated, not encrypted — `stores/useSettingsStore.ts:22-35`).
 2.  The app is designed to be client-side only. There is no database. Clearing your browser cache will delete your transaction history and learned patterns (all state persists via `localStorage` — `stores/useTransactionStore.ts:44`).
 
 ## 🤝 Contributing

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { AppSettings, AIMode, GeminiConfig, OllamaConfig, GroqConfig } from '../types';
+import { DEFAULT_MODELS } from '../constants';
 
 interface SettingsState extends AppSettings {
   setAiMode: (mode: AIMode) => void;
@@ -47,18 +48,18 @@ export const useSettingsStore = create<SettingsState>()(
 
       geminiConfig: {
         apiKey: '',
-        model: 'models/gemini-flash-latest',
+        model: DEFAULT_MODELS.cloud,
       },
 
       groqConfig: {
         apiKey: '',
-        model: 'llama-3.1-8b-instant',
+        model: DEFAULT_MODELS.groq,
       },
 
       ollamaConfig: {
         baseUrl: 'http://localhost',
         port: '11434',
-        model: 'llama3.2',
+        model: DEFAULT_MODELS.local,
       },
 
       usage: {
@@ -103,10 +104,10 @@ export const useSettingsStore = create<SettingsState>()(
           enableFunnyAlerts: true,
           geminiConfig: {
             apiKey: '',
-            model: 'models/gemini-flash-latest',
+            model: DEFAULT_MODELS.cloud,
           },
-          groqConfig: { apiKey: '', model: 'llama-3.1-8b-instant' },
-          ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: 'llama3.2' },
+          groqConfig: { apiKey: '', model: DEFAULT_MODELS.groq },
+          ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: DEFAULT_MODELS.local },
           usage: { txAnalyzed: 0, chatMessages: 0, lastReset: new Date().toISOString() },
         }),
 
@@ -157,13 +158,64 @@ export const useSettingsStore = create<SettingsState>()(
   )
 );
 
+/**
+ * The provider-specific counterpart of `getDeobfuscatedApiKey`: reads the key
+ * for an explicit provider instead of the active mode (issue #79 — the model
+ * catalog loads for the tab being viewed, not necessarily the active mode).
+ */
+export const getDeobfuscatedProviderKey = (
+  storeState: SettingsState,
+  provider: 'cloud' | 'groq'
+): string =>
+  deobfuscate(provider === 'groq' ? storeState.groqConfig.apiKey : storeState.geminiConfig.apiKey);
+
 // Helper to get usable key based on active mode
 export const getDeobfuscatedApiKey = (storeState: SettingsState) => {
   if (storeState.aiMode === 'groq') {
-    return deobfuscate(storeState.groqConfig.apiKey);
+    return getDeobfuscatedProviderKey(storeState, 'groq');
   }
   // Default to gemini for cloud mode
-  return deobfuscate(storeState.geminiConfig.apiKey);
+  return getDeobfuscatedProviderKey(storeState, 'cloud');
+};
+
+/** Outcome of validating a persisted model against a provider catalog (#79). */
+export interface ModelValidationOutcome {
+  reset: boolean;
+  from: string;
+  to: string;
+}
+
+/**
+ * Issue #79 (AC5): a persisted model can outlive its provider (renamed or
+ * retired). When the *live* catalog says the saved model no longer exists,
+ * switch to the provider default — or the first available model if even the
+ * default is gone — so categorization keeps working. Ollama stays free-text
+ * and is deliberately never validated or clobbered here.
+ */
+export const validatePersistedModel = (
+  provider: 'cloud' | 'groq',
+  availableModelIds: string[]
+): ModelValidationOutcome => {
+  const state = useSettingsStore.getState();
+  const current = provider === 'cloud' ? state.geminiConfig.model : state.groqConfig.model;
+
+  if (current === '' || availableModelIds.includes(current)) {
+    return { reset: false, from: current, to: current };
+  }
+
+  const target = availableModelIds.includes(DEFAULT_MODELS[provider])
+    ? DEFAULT_MODELS[provider]
+    : availableModelIds[0];
+  if (!target || target === current) {
+    return { reset: false, from: current, to: current };
+  }
+
+  if (provider === 'cloud') {
+    state.setGeminiConfig({ model: target });
+  } else {
+    state.setGroqConfig({ model: target });
+  }
+  return { reset: true, from: current, to: target };
 };
 
 /**

@@ -539,6 +539,72 @@ describe('categorizeWithAI — ollama concurrency pool (F-PERF-003)', () => {
   }, 10000);
 });
 
+describe('model availability errors (issue #79)', () => {
+  it('testAiConnection explains a 404 from Gemini instead of a generic failure', async () => {
+    resetSettings({ geminiConfig: { apiKey: btoa('k'), model: 'models/retired' } });
+    generateContentMock.mockRejectedValue(
+      Object.assign(new Error('models/retired is not found for API version v1beta'), {
+        status: 404,
+      })
+    );
+    await expect(testAiConnection()).rejects.toThrow(
+      /Model "models\/retired" is not available on Gemini[\s\S]*pick a current model in Settings/
+    );
+  });
+
+  it('testAiConnection explains a decommissioned Groq model', async () => {
+    resetSettings({ aiMode: 'groq', groqConfig: { apiKey: btoa('k'), model: 'retired-groq' } });
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        { error: { message: 'The model `retired-groq` has been decommissioned' } },
+        false,
+        404
+      )
+    );
+    await expect(testAiConnection()).rejects.toThrow(/not available on Groq/);
+  });
+
+  it('testAiConnection suggests ollama pull when the local model is missing', async () => {
+    resetSettings({
+      aiMode: 'local',
+      ollamaConfig: { baseUrl: 'localhost', port: '11434', model: 'mistral' },
+    });
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'model not found' }, false, 404));
+    await expect(testAiConnection()).rejects.toThrow(/ollama pull mistral/);
+  });
+
+  it('categorizeWithAI hard-fails with an actionable message for a retired Gemini model', async () => {
+    resetSettings({ geminiConfig: { apiKey: btoa('k'), model: 'models/retired' } });
+    generateContentMock.mockRejectedValue(
+      Object.assign(new Error('models/retired not found'), { status: 404 })
+    );
+    const onChunk = vi.fn();
+    await expect(categorizeWithAI([tx()], 'cloud', onChunk)).rejects.toThrow(
+      /not available on Gemini/
+    );
+    expect(onChunk).not.toHaveBeenCalled();
+  }, 10000);
+
+  it('categorizeWithAI hard-fails for a retired Groq model', async () => {
+    resetSettings({ aiMode: 'groq', groqConfig: { apiKey: btoa('k'), model: 'retired-groq' } });
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: { message: 'The model `retired-groq` does not exist' } }, false, 404)
+    );
+    await expect(categorizeWithAI([tx()], 'groq')).rejects.toThrow(/not available on Groq/);
+  }, 10000);
+
+  it('marks local rows with pull guidance when Ollama returns 404', async () => {
+    resetSettings({
+      aiMode: 'local',
+      ollamaConfig: { baseUrl: 'localhost', port: '11434', model: 'mistral' },
+    });
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'model not found' }, false, 404));
+    const onChunk = vi.fn();
+    await categorizeWithAI([tx()], 'local', onChunk);
+    expect(onChunk.mock.calls[0][0][0].reason).toContain('ollama pull mistral');
+  });
+});
+
 describe('simulateCategorization heuristics (via demo mode)', () => {
   const simulate = async (t: Transaction) => {
     resetSettings({ isDemoMode: true });

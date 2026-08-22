@@ -1,4 +1,4 @@
-import { TransactionCategory, BankFormat } from './types';
+import { TransactionCategory, BankFormat, AIMode, ModelInfo } from './types';
 
 export const CATEGORY_COLORS = {
   [TransactionCategory.Income]: {
@@ -169,3 +169,33 @@ export const SUPPORTED_BANKS: BankFormat[] = [
 ];
 
 export const MAX_FILE_SIZE_MB = 10;
+
+// --- AI model catalog (issue #79) ---
+
+/**
+ * Default model per provider — the single source of truth for the settings
+ * store's initial and reset state (issue #79).
+ */
+export const DEFAULT_MODELS: Record<AIMode, string> = {
+  cloud: 'models/gemini-flash-latest',
+  groq: 'llama-3.1-8b-instant',
+  local: 'llama3.2',
+};
+
+/**
+ * Curated fallback shown when a provider's live model list cannot be fetched
+ * (missing key, network failure, API change). These are the last models known
+ * to work at release time; live lists replace them once loaded (issue #79).
+ */
+export const FALLBACK_MODEL_CATALOG: Record<AIMode, ModelInfo[]> = {
+  cloud: [
+    { id: 'models/gemini-flash-latest', label: 'gemini-flash-latest (Recommended)' },
+    { id: 'models/gemini-flash-lite-latest', label: 'gemini-flash-lite-latest (Fastest)' },
+    { id: 'models/gemini-3-pro-preview', label: 'gemini-3-pro-preview (Most Capable)' },
+  ],
+  groq: [
+    { id: 'llama-3.1-8b-instant', label: 'llama-3.1-8b-instant (Recommended)' },
+    { id: 'openai/gpt-oss-20b', label: 'openai/gpt-oss-20b (Most Capable)' },
+  ],
+  local: [{ id: 'llama3.2', label: 'llama3.2' }],
+};
