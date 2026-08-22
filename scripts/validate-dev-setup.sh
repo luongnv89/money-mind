@@ -50,7 +50,7 @@ fi
 
 # --- README "Manual Commands": every documented script exists (pinned by repo-config.test.ts:13) ---
 for s in dev build preview lint typecheck format format:check test test:watch coverage; do
-  node -e "require('./package.json').scripts['$s']" >/dev/null 2>&1 \
+  node -e "process.exit(require('./package.json').scripts['$s'] ? 0 : 1)" >/dev/null 2>&1 \
     && ok "script '$s' declared" \
     || bad "script '$s' declared" "missing from package.json scripts"
 done
