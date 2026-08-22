@@ -5,28 +5,28 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
 
 ## 🚀 Features
 
--   **Zero-Knowledge Privacy:** CSV processing happens 100% in the browser. API keys are obfuscated and stored locally in your browser's LocalStorage (not encrypted).
+-   **Zero-Knowledge Privacy:** CSV processing happens 100% in the browser. API keys are obfuscated and stored locally in your browser's LocalStorage (not encrypted) (`stores/useSettingsStore.ts:23-30`).
 -   **AI Categorization:** Automatically categorizes messy bank transactions using LLMs.
 -   **Multi-Model Support:**
-    -   ☁️ **Cloud:** Google Gemini (Default), Groq (Fastest).
-    -   🏠 **Local:** Ollama (Private, no cost).
+    -   ☁️ **Cloud:** Google Gemini (Default, `stores/useSettingsStore.ts:165`), Groq (Fastest).
+    -   🏠 **Local:** Ollama (Private, no cost; defaults to model `llama3.2`, `stores/useSettingsStore.ts:58-62`).
 -   **Smart Learning:** "Verify" transactions to teach the app your specific preferences (stored locally).
 -   **Sassy Financial Assistant:** Chat with "MonkeySmile," a persona that roasts or toasts your spending habits.
 -   **Visual Insights:** Interactive charts for monthly performance, spending mix, and financial health scoring.
 
 ## 🛠 Tech Stack
 
--   **Frontend:** React 19, TypeScript, Vite
--   **State Management:** Zustand (with LocalStorage persistence)
--   **Styling:** Tailwind CSS v4 via a local PostCSS build (`@tailwindcss/postcss`, no CDN), Lucide React (Icons)
--   **AI Integration:** Google GenAI SDK, Custom REST connectors for Groq/Ollama
--   **Parsing:** PapaParse (CSV)
--   **Visualization:** Recharts
+-   **Frontend:** React 19, TypeScript, Vite (`package.json:26,54-55`)
+-   **State Management:** Zustand (with LocalStorage persistence) (`package.json:31`, `stores/useTransactionStore.ts:44`)
+-   **Styling:** Tailwind CSS v4 via a local PostCSS build (`@tailwindcss/postcss`, no CDN) (`postcss.config.js:1-4`, `src/index.css:1`), Lucide React (Icons)
+-   **AI Integration:** Google GenAI SDK, Custom REST connectors for Groq/Ollama (`package.json:22`, `services/aiService.ts:30-90`)
+-   **Parsing:** PapaParse (CSV) (`package.json:25`, `lib/csvParser.ts`)
+-   **Visualization:** Recharts (`package.json:28`)
 
 ## ⚙️ Setup & Installation
 
 ### Prerequisites
--   **Node.js 24+ (LTS)**
+-   **Node.js 24+ (LTS)** (`.nvmrc:1`, `package.json:5-7`)
 -   **NPM** (or Yarn/PNPM)
 -   (Optional) **Ollama** for local AI: [ollama.com](https://ollama.com)
 
@@ -50,21 +50,23 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
     ```bash
     npm run dev
     ```
-    This starts the app at `http://localhost:3000`. Configure your AI keys on the in-app **Settings** page.
+    This starts the app at `http://localhost:3000` (`vite.config.ts:37`). Configure your AI keys on the in-app **Settings** page.
 
-    **Note:** There are no serverless functions — the `api/` directory has been removed. No `vercel dev` step is needed for local development; the Vite dev server is all you need.
+    **Note:** There are no serverless functions — the `api/` directory has been removed; `vercel.json` ships security headers only. No `vercel dev` step is needed for local development; the Vite dev server is all you need.
 
 ### Deployment
 
+> Validate this runbook: `./scripts/validate-dev-setup.sh --check`
+
 #### 1. Static Site Deployment (SPA)
-MoneyMind is primarily a Single Page Application (SPA). You can deploy it to any static hosting provider (GitHub Pages, Netlify, Vercel, etc.):
+MoneyMind is a Single Page Application (SPA) with no client-side router — navigation is in-app state (`App.tsx:15`), so there are no deep links and no rewrite rules are needed. You can deploy it to any static hosting provider (GitHub Pages, Netlify, Vercel, etc.):
 
 1.  **Build the project:**
     ```bash
     npm run build
     ```
 2.  **Deploy the `dist/` folder.**
-    Ensure your hosting provider is configured to redirect all requests to `index.html` (standard SPA routing).
+    Any host that serves `dist/index.html` at the root works; no SPA fallback rewrite is required (`vercel.json` declares none).
 
 #### 2. Vercel Deployment (Static)
 
@@ -79,17 +81,18 @@ Since MoneyMind is a pure Single Page Application (SPA) with no serverless funct
 
 ## 🤖 AI Configuration
 
-MoneyMind supports three AI modes, configurable in the **Settings** page:
+MoneyMind supports three AI modes, configurable in the **Settings** page (`services/aiService.ts:30-90` dispatches to each):
 
-1.  **Cloud (Gemini):** Uses Google's Gemini models. Requires a free API key from [Google AI Studio](https://aistudio.google.com/).
-2.  **Cloud (Groq):** Uses Groq's ultra-fast inference. Requires an API key from [Groq Console](https://console.groq.com/).
-3.  **Local (Ollama):** 100% private. Requires Ollama running locally (`ollama serve`) and the `llama3.2` (or similar) model pulled (`ollama pull llama3.2`).
+1.  **Cloud (Gemini):** Uses Google's Gemini models (default `models/gemini-flash-latest`, `stores/useSettingsStore.ts:50`). Requires a free API key from [Google AI Studio](https://aistudio.google.com/).
+2.  **Cloud (Groq):** Uses Groq's ultra-fast inference (default `llama-3.1-8b-instant`, `stores/useSettingsStore.ts:55`). Requires an API key from [Groq Console](https://console.groq.com/).
+3.  **Local (Ollama):** 100% private. Requires Ollama running locally (`ollama serve`) and the `llama3.2` (or similar) model pulled (`ollama pull llama3.2` — this is the configured default, `stores/useSettingsStore.ts:61`).
 
 ## 🧪 Quality Assurance
 
 We enforce a strict "Shift-Left" quality strategy.
 
 ### Manual Commands
+All commands map to scripts in `package.json:8-19`:
 -   `npm run dev`: Start the Vite dev server.
 -   `npm run build`: Type-check and build the production bundle.
 -   `npm run preview`: Preview the production build.
@@ -99,17 +102,17 @@ We enforce a strict "Shift-Left" quality strategy.
 -   `npm run format:check`: Verify formatting without modifying files.
 -   `npm test` / `npm run test:run`: Run the Vitest suite once.
 -   `npm run test:watch`: Run Vitest in watch mode.
--   `npm run coverage`: Run the Vitest suite with a line/branch coverage report (`lib/` and `services/`).
+-   `npm run coverage`: Run the Vitest suite with a line/branch coverage report (`lib/` and `services/`, gated at ≥60% lines — `vite.config.ts:56-65`).
 
 ### CI/CD (GitHub Actions)
-On every push or pull request:
+On every push or pull request (`.github/workflows/ci.yml:11,44`; behaviors additionally pinned by `ci-workflow.test.ts:6-28`):
 1.  **Quality Job:** Runs Lint, Format Check, Type Check, the full test suite (`npm test`), and a production build.
 2.  **Security Job:** Runs **Gitleaks** (secret detection), **`npm audit --audit-level=high`** (dependency advisories), and **Trivy** (vulnerability scanning, pinned to a release tag).
 
 ## ⚠️ Security Note
 This application deals with financial data.
-1.  **Do not commit API Keys.** Enter them on the in-app Settings page; they are stored locally in your browser (obfuscated, not encrypted).
-2.  The app is designed to be client-side only. There is no database. Clearing your browser cache will delete your transaction history and learned patterns.
+1.  **Do not commit API Keys.** Enter them on the in-app Settings page; they are stored locally in your browser (obfuscated, not encrypted — `stores/useSettingsStore.ts:23-30`).
+2.  The app is designed to be client-side only. There is no database. Clearing your browser cache will delete your transaction history and learned patterns (all state persists via `localStorage` — `stores/useTransactionStore.ts:44`).
 
 ## 🤝 Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development workflow (setup, quality gates, and commit/PR conventions). In short:

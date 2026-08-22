@@ -13,7 +13,6 @@ MoneyMind is a client-side React 19 + TypeScript + Vite app that categorizes ban
 - `npm test` — Vitest single run (`npm run test:watch` to iterate)
 - `npm run format` / `npm run format:check` — Prettier
 - `npm run build` — `tsc && vite build`
-- `vercel dev` — only when exercising the `api/` serverless functions
 
 ## Quality gates
 
@@ -29,14 +28,14 @@ Gates run locally via `pre-commit`; config is `.pre-commit-config.yaml`.
 - `App.tsx` — **no router.** Navigation is a `View` string union + `useState`. A new page means editing `App.tsx` *and* `components/Layout.tsx`.
 - `stores/` — Zustand with `persist` middleware · `services/` — AI dispatch, scoring, alerts
 - `lib/` — CSV parsing, learned-pattern localStorage, `cn` helper · `pages/`, `components/`
-- `api/` — Vercel serverless functions; server key is `process.env.API_KEY`
-- `constants.ts` — imported by **both** the frontend and `api/categorize.ts` as `../constants`. Keep it at repo root or the Vercel build breaks.
-- Tests are `*.test.ts` beside their source; `tests/setup.ts` is the Vitest setup file.
+- There is no `api/` directory — the app is a static SPA; `vercel.json` sets security headers only. Do not reintroduce serverless functions.
+- `constants.ts` — shared app constants imported by the frontend as `../constants` (`components/`, `lib/csvParser.ts`, `services/aiService.ts`). Keep it at repo root.
+- Tests are `*.test.{ts,tsx}` beside their source (a few live in `tests/`); `tests/setup.ts` is the Vitest setup file.
 
 ## Hard rules
 
 - **Dependencies live only in `package.json`.** The old esm.sh `importmap` in `index.html` was deleted (issue #32); do not reintroduce it.
-- **Tailwind ships from a local PostCSS build.** `tailwind.config.js`, `postcss.config.js`, and `src/index.css` define it; `index.html` loads no CDN. Edit custom tokens (`accent`, `accent-light`, `secondary`) in `tailwind.config.js` — its `content` globs must cover every source file or utilities silently drop out.
+- **Tailwind v4 ships from a local PostCSS build.** `postcss.config.js` wires `@tailwindcss/postcss`; the config is CSS-first in `src/index.css` (`@import 'tailwindcss'`, `@theme` tokens, `@source` globs); `index.html` loads no CDN — there is no `tailwind.config.js`. Edit custom tokens (`accent`, `accent-light`, `secondary`) in the `@theme` block of `src/index.css` — its `@source` globs must cover every source file or utilities silently drop out.
 - **A single `any` fails lint** — `no-explicit-any` is warn-level and lint runs at zero warnings.
 - **Keep Vitest aligned with the installed Vite major** (currently Vitest 4 for Vite 8; Vitest 3 does not accept Vite 8 as a peer). Never pin Vitest to a major that rejects the installed Vite — mismatched peers break module resolution and make `tsc` fail on `vite.config.ts`.
 - **Do not delete `tests/setup.ts`.** Node 26 defines an inert global `localStorage` that shadows jsdom's; the setup file installs a working one.
