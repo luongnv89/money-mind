@@ -53,6 +53,27 @@ export interface OllamaConfig {
   model: string;
 }
 
+/**
+ * How a provider's model list was resolved (issue #79): straight from the
+ * provider's API, from the local TTL cache, or the curated fallback list.
+ */
+export type ModelCatalogStatus = 'live' | 'cached' | 'fallback';
+
+/** One selectable AI model; `id` is the exact string sent to the provider. */
+export interface ModelInfo {
+  id: string;
+  label: string;
+}
+
+/** Resolved model catalog for a single provider (issue #79). */
+export interface ModelCatalog {
+  provider: AIMode;
+  status: ModelCatalogStatus;
+  models: ModelInfo[];
+  /** Shown in Settings when the live list could not be loaded (degraded mode). */
+  notice?: string;
+}
+
 export interface UsageStats {
   txAnalyzed: number;
   chatMessages: number;
