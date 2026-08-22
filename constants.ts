@@ -180,6 +180,7 @@ export const DEFAULT_MODELS: Record<AIMode, string> = {
   cloud: 'models/gemini-flash-latest',
   groq: 'llama-3.1-8b-instant',
   local: 'llama3.2',
+  custom: 'gpt-3.5-turbo',
 };
 
 /**
@@ -198,4 +199,10 @@ export const FALLBACK_MODEL_CATALOG: Record<AIMode, ModelInfo[]> = {
     { id: 'openai/gpt-oss-20b', label: 'openai/gpt-oss-20b (Most Capable)' },
   ],
   local: [{ id: 'llama3.2', label: 'llama3.2' }],
+  // Common OpenAI-compatible aliases — arbitrary servers accept their own ids
+  // via free-text entry, so this list is only a starting point (issue #82).
+  custom: [
+    { id: 'gpt-3.5-turbo', label: 'gpt-3.5-turbo (Common alias)' },
+    { id: 'gpt-4o-mini', label: 'gpt-4o-mini (Common alias)' },
+  ],
 };

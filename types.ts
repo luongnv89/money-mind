@@ -35,7 +35,7 @@ export interface LocalPattern {
   timesApplied: number;
 }
 
-export type AIMode = 'cloud' | 'local' | 'groq';
+export type AIMode = 'cloud' | 'local' | 'groq' | 'custom';
 
 export interface GeminiConfig {
   apiKey: string; // Stored obfuscated
@@ -43,6 +43,13 @@ export interface GeminiConfig {
 }
 
 export interface GroqConfig {
+  apiKey: string; // Stored obfuscated
+  model: string;
+}
+
+/** Any OpenAI-compatible server (issue #82): base URL up to `/v1`, key, model id. */
+export interface CustomOpenAIConfig {
+  baseUrl: string;
   apiKey: string; // Stored obfuscated
   model: string;
 }
@@ -88,6 +95,7 @@ export interface AppSettings {
   geminiConfig: GeminiConfig;
   groqConfig: GroqConfig;
   ollamaConfig: OllamaConfig;
+  customConfig: CustomOpenAIConfig;
   usage: UsageStats; // Budget control
 }
 

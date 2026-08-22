@@ -1,5 +1,9 @@
 import { Transaction, AIMode, TransactionCategory } from '../types';
-import { useSettingsStore, getDeobfuscatedApiKey } from '../stores/useSettingsStore';
+import {
+  useSettingsStore,
+  getDeobfuscatedApiKey,
+  getDeobfuscatedProviderKey,
+} from '../stores/useSettingsStore';
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORY_HIERARCHY } from '../constants';
 import { logger } from '../lib/logger';
@@ -28,6 +32,35 @@ const modelUnavailableMessage = (provider: string, model: string, detail: string
 const ollamaModelMissingMessage = (model: string): string =>
   `Model "${model}" was not found on the Ollama server. Run \`ollama pull ${model}\` ` +
   'or pick another model in Settings.';
+
+// --- Custom OpenAI-compatible endpoint (issue #82) ---
+
+const normalizeCustomBaseUrl = (baseUrl: string): string => {
+  const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;
+  return safeBaseUrl.replace(/\/+$/, '');
+};
+
+const customChatUrl = (baseUrl: string): string =>
+  `${normalizeCustomBaseUrl(baseUrl)}/chat/completions`;
+
+/**
+ * Shared OpenAI chat-completions round-trip for the custom endpoint: same wire
+ * shape as the Groq branch, pointed at the user's own server.
+ */
+const fetchCustomChatCompletion = async (
+  settings: ReturnType<typeof useSettingsStore.getState>,
+  body: Record<string, unknown>
+): Promise<Response> => {
+  const apiKey = getDeobfuscatedProviderKey(settings, 'custom');
+  return fetch(customChatUrl(settings.customConfig.baseUrl), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+};
 
 // --- Connection Testing ---
 
@@ -88,6 +121,41 @@ export const testAiConnection = async (): Promise<boolean> => {
       return true;
     } catch (e: unknown) {
       throw new Error(`Groq Error: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  } else if (mode === 'custom') {
+    const { baseUrl, model } = settings.customConfig;
+    if (!baseUrl.trim() || !model.trim() || !getDeobfuscatedProviderKey(settings, 'custom')) {
+      throw new Error(
+        'Missing Custom Endpoint configuration. Set the Base URL, API key and model in Settings.'
+      );
+    }
+
+    try {
+      const response = await fetchCustomChatCompletion(settings, {
+        model,
+        messages: [{ role: 'user', content: 'Reply with JSON: { "status": "OK" }' }],
+        response_format: { type: 'json_object' },
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        const detail = err.error?.message || 'Custom endpoint connection failed';
+        if (isModelUnavailable(response.status, detail)) {
+          throw new Error(modelUnavailableMessage('the custom endpoint', model, detail));
+        }
+        throw new Error(detail);
+      }
+      return true;
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      if (errorMessage === 'Failed to fetch' || (e instanceof Error && e.name === 'TypeError')) {
+        throw new Error(
+          'Connection Failed. Check that:\n\n' +
+            '1. The Base URL is correct and reachable from your browser.\n' +
+            '2. The server allows cross-origin requests (CORS) from this app.'
+        );
+      }
+      throw new Error(`Custom Endpoint Error: ${errorMessage}`);
     }
   } else {
     const { baseUrl, port, model } = settings.ollamaConfig;
@@ -200,6 +268,26 @@ export const chatWithFinancialAgent = async (
 
     const data = await response.json();
     resultText = data.choices?.[0]?.message?.content || 'Groq is silent 🐵';
+  } else if (settings.aiMode === 'custom') {
+    const { baseUrl, model } = settings.customConfig;
+    if (!baseUrl.trim() || !model.trim() || !apiKey)
+      throw new Error('Missing Custom Endpoint configuration');
+
+    const response = await fetchCustomChatCompletion(settings, {
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userQuery },
+      ],
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error?.message || 'Custom endpoint API Error');
+    }
+
+    const data = await response.json();
+    resultText = data.choices?.[0]?.message?.content || 'Your endpoint is silent 🐵';
   } else {
     // Ollama
     const { baseUrl, port, model } = settings.ollamaConfig;
@@ -260,6 +348,8 @@ export const categorizeWithAI = async (
     await categorizeWithGemini(toProcess, onChunkProcessed);
   } else if (mode === 'groq') {
     await categorizeWithGroq(toProcess, onChunkProcessed);
+  } else if (mode === 'custom') {
+    await categorizeWithCustom(toProcess, onChunkProcessed);
   } else {
     await categorizeWithOllama(toProcess, onChunkProcessed);
   }
@@ -494,6 +584,159 @@ const categorizeWithGroq = async (
     } catch (e: unknown) {
       logger.error('Groq Batch Failed', e);
       const errorMessage = e instanceof Error ? e.message : String(e);
+      // Propagate rate limits, JSON-contract breaks, and retired-model errors
+      if (
+        errorMessage.includes('Rate Limit') ||
+        errorMessage.includes('JSON') ||
+        MODEL_UNAVAILABLE_PATTERN.test(errorMessage)
+      ) {
+        throw e;
+      }
+
+      // Fallback for failed batch
+      const fallbackResults = batch.map((t) => ({
+        id: t.id,
+        category: TransactionCategory.Uncategorized,
+        confidence: 0,
+        reason: 'AI Request Failed: ' + errorMessage,
+      }));
+      if (onChunkProcessed) onChunkProcessed(fallbackResults);
+    }
+  }
+};
+
+const categorizeWithCustom = async (
+  transactions: Transaction[],
+  onChunkProcessed?: (results: CategorizationResult[]) => void
+): Promise<void> => {
+  const settings = useSettingsStore.getState();
+  const { baseUrl, model } = settings.customConfig;
+  if (!baseUrl.trim() || !model.trim() || !getDeobfuscatedProviderKey(settings, 'custom')) {
+    throw new Error(
+      'Missing Custom Endpoint configuration. Set the Base URL, API key and model in Settings.'
+    );
+  }
+
+  const hierarchyStr = JSON.stringify(CATEGORY_HIERARCHY);
+
+  // Batch like the Groq branch to reduce round trips against slower servers.
+  const BATCH_SIZE = 10;
+  const RATE_LIMIT_DELAY_MS = 2000;
+
+  for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
+    // Rate-limit buffer between requests only — never before the first batch
+    // or after the last (F-PERF-002).
+    if (i > 0) {
+      await new Promise((r) => setTimeout(r, RATE_LIMIT_DELAY_MS));
+    }
+
+    const batch = transactions.slice(i, i + BATCH_SIZE);
+    const batchStr = JSON.stringify(
+      batch.map((t) => ({
+        id: t.id,
+        desc: t.description,
+        amt: t.amount,
+        original: t.originalCategory,
+      }))
+    );
+
+    const systemPrompt = `
+        You are a strict JSON API for financial categorization.
+
+        Hierarchy: ${hierarchyStr}
+
+        Output **only** valid JSON.
+        The JSON must be an object with a single key "results" containing an array.
+        Each item in the array must match this schema:
+        {
+            "id": "string (original id)",
+            "category": "string (from hierarchy keys)",
+            "subCategory": "string (from hierarchy values)",
+            "confidence": number (0.0 to 1.0),
+            "reason": "string (short explanation)"
+        }
+
+        Do not add any markdown formatting (like \`\`\`json). Do not add explanations outside the JSON.
+        `;
+
+    try {
+      const response = await fetchCustomChatCompletion(settings, {
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: `Categorize these transactions. Return valid JSON only. Transactions: ${batchStr}`,
+          },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0, // Deterministic output helps with strict JSON
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error('Custom endpoint Rate Limit Exceeded. Please check your plan.');
+        }
+        const err = await response.json();
+        const detail = err.error?.message || 'Custom endpoint API Error';
+        if (isModelUnavailable(response.status, detail)) {
+          throw new Error(modelUnavailableMessage('the custom endpoint', model, detail));
+        }
+        throw new Error(detail);
+      }
+
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content;
+
+      if (content) {
+        let parsed;
+        try {
+          parsed = JSON.parse(content);
+
+          // Handle wrapping logic
+          if (parsed.results && Array.isArray(parsed.results)) {
+            parsed = parsed.results;
+          } else if (!Array.isArray(parsed)) {
+            // Attempt to find the first array value in the object
+            const values = Object.values(parsed);
+            const arrayValue = values.find((v) => Array.isArray(v));
+            if (arrayValue) {
+              parsed = arrayValue;
+            }
+          }
+        } catch (_e) {
+          logger.error('Failed to parse custom endpoint JSON', content);
+        }
+
+        if (Array.isArray(parsed)) {
+          // Normalize fields
+          const results: CategorizationResult[] = parsed.map(
+            (item: {
+              id: string;
+              category?: TransactionCategory;
+              subCategory?: string;
+              confidence?: number;
+              reason?: string;
+            }) => ({
+              id: item.id,
+              category: item.category || TransactionCategory.Uncategorized,
+              subCategory: item.subCategory,
+              confidence: item.confidence || 0.8,
+              reason: item.reason || 'Custom endpoint AI',
+            })
+          );
+          if (onChunkProcessed) onChunkProcessed(results);
+        }
+      }
+    } catch (e: unknown) {
+      logger.error('Custom Endpoint Batch Failed', e);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      if (errorMessage === 'Failed to fetch' || (e instanceof Error && e.name === 'TypeError')) {
+        throw new Error(
+          'Connection Failed. Check that the Base URL is correct and that the server ' +
+            'allows cross-origin requests (CORS) from this app.'
+        );
+      }
       // Propagate rate limits, JSON-contract breaks, and retired-model errors
       if (
         errorMessage.includes('Rate Limit') ||

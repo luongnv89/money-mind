@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AppSettings, AIMode, GeminiConfig, OllamaConfig, GroqConfig } from '../types';
+import {
+  AppSettings,
+  AIMode,
+  GeminiConfig,
+  OllamaConfig,
+  GroqConfig,
+  CustomOpenAIConfig,
+} from '../types';
 import { DEFAULT_MODELS } from '../constants';
 
 interface SettingsState extends AppSettings {
@@ -11,6 +18,7 @@ interface SettingsState extends AppSettings {
   setGeminiConfig: (config: Partial<GeminiConfig>) => void;
   setGroqConfig: (config: Partial<GroqConfig>) => void;
   setOllamaConfig: (config: Partial<OllamaConfig>) => void;
+  setCustomConfig: (config: Partial<CustomOpenAIConfig>) => void;
   resetSettings: () => void;
 
   // Usage Control
@@ -62,6 +70,12 @@ export const useSettingsStore = create<SettingsState>()(
         model: DEFAULT_MODELS.local,
       },
 
+      customConfig: {
+        baseUrl: '',
+        apiKey: '',
+        model: DEFAULT_MODELS.custom,
+      },
+
       usage: {
         txAnalyzed: 0,
         chatMessages: 0,
@@ -96,6 +110,15 @@ export const useSettingsStore = create<SettingsState>()(
           ollamaConfig: { ...state.ollamaConfig, ...config },
         })),
 
+      setCustomConfig: (config) =>
+        set((state) => {
+          const newConfig = { ...state.customConfig, ...config };
+          if (config.apiKey) {
+            newConfig.apiKey = obfuscate(config.apiKey);
+          }
+          return { customConfig: newConfig };
+        }),
+
       resetSettings: () =>
         set({
           aiMode: 'cloud',
@@ -108,6 +131,7 @@ export const useSettingsStore = create<SettingsState>()(
           },
           groqConfig: { apiKey: '', model: DEFAULT_MODELS.groq },
           ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: DEFAULT_MODELS.local },
+          customConfig: { baseUrl: '', apiKey: '', model: DEFAULT_MODELS.custom },
           usage: { txAnalyzed: 0, chatMessages: 0, lastReset: new Date().toISOString() },
         }),
 
@@ -128,6 +152,12 @@ export const useSettingsStore = create<SettingsState>()(
         // Check if Groq Key present -> Unlimited
         if (aiMode === 'groq') {
           const key = deobfuscate(get().groqConfig.apiKey);
+          if (key) return true;
+        }
+
+        // Check if Custom endpoint key present -> Unlimited
+        if (aiMode === 'custom') {
+          const key = deobfuscate(get().customConfig.apiKey);
           if (key) return true;
         }
 
@@ -165,14 +195,23 @@ export const useSettingsStore = create<SettingsState>()(
  */
 export const getDeobfuscatedProviderKey = (
   storeState: SettingsState,
-  provider: 'cloud' | 'groq'
+  provider: 'cloud' | 'groq' | 'custom'
 ): string =>
-  deobfuscate(provider === 'groq' ? storeState.groqConfig.apiKey : storeState.geminiConfig.apiKey);
+  deobfuscate(
+    provider === 'groq'
+      ? storeState.groqConfig.apiKey
+      : provider === 'custom'
+        ? storeState.customConfig.apiKey
+        : storeState.geminiConfig.apiKey
+  );
 
 // Helper to get usable key based on active mode
 export const getDeobfuscatedApiKey = (storeState: SettingsState) => {
   if (storeState.aiMode === 'groq') {
     return getDeobfuscatedProviderKey(storeState, 'groq');
+  }
+  if (storeState.aiMode === 'custom') {
+    return getDeobfuscatedProviderKey(storeState, 'custom');
   }
   // Default to gemini for cloud mode
   return getDeobfuscatedProviderKey(storeState, 'cloud');
@@ -227,6 +266,12 @@ export const validatePersistedModel = (
 export const selectAIReady = (state: SettingsState): boolean => {
   if (state.aiMode === 'local') return true;
   if (state.aiMode === 'groq') return !!deobfuscate(state.groqConfig.apiKey);
+  if (state.aiMode === 'custom')
+    return (
+      !!state.customConfig.baseUrl.trim() &&
+      !!state.customConfig.model.trim() &&
+      !!deobfuscate(state.customConfig.apiKey)
+    );
   return !!deobfuscate(state.geminiConfig.apiKey);
 };
 

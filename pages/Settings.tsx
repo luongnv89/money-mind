@@ -22,6 +22,7 @@ import {
   Download,
   Upload,
   BarChart2,
+  Globe,
 } from 'lucide-react';
 import { testAiConnection } from '../services/aiService';
 import { loadModelCatalog } from '../services/modelCatalog';
@@ -39,6 +40,8 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     setGroqConfig,
     ollamaConfig,
     setOllamaConfig,
+    customConfig,
+    setCustomConfig,
   } = useSettingsStore();
 
   const { addToast } = useToastStore();
@@ -59,10 +62,17 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   // the inputs they depend on so typing a key or host doesn't fire a request
   // per keystroke.
   const currentApiKey =
-    aiMode === 'cloud' ? geminiConfig.apiKey : aiMode === 'groq' ? groqConfig.apiKey : '';
+    aiMode === 'cloud'
+      ? geminiConfig.apiKey
+      : aiMode === 'groq'
+        ? groqConfig.apiKey
+        : aiMode === 'custom'
+          ? customConfig.apiKey
+          : '';
   const debouncedApiKey = useDebouncedValue(currentApiKey, 500);
   const debouncedOllamaBaseUrl = useDebouncedValue(ollamaConfig.baseUrl, 500);
   const debouncedOllamaPort = useDebouncedValue(ollamaConfig.port, 500);
+  const debouncedCustomBaseUrl = useDebouncedValue(customConfig.baseUrl, 500);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,16 +110,32 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     return () => {
       cancelled = true;
     };
-  }, [aiMode, debouncedApiKey, debouncedOllamaBaseUrl, debouncedOllamaPort, addToast]);
+  }, [
+    aiMode,
+    debouncedApiKey,
+    debouncedOllamaBaseUrl,
+    debouncedOllamaPort,
+    debouncedCustomBaseUrl,
+    addToast,
+  ]);
 
-  const providerName = aiMode === 'cloud' ? 'Gemini' : aiMode === 'groq' ? 'Groq' : 'Ollama';
+  const providerName =
+    aiMode === 'cloud'
+      ? 'Gemini'
+      : aiMode === 'groq'
+        ? 'Groq'
+        : aiMode === 'custom'
+          ? 'your endpoint'
+          : 'Ollama';
   const catalogModels = catalog?.models ?? FALLBACK_MODEL_CATALOG[aiMode];
   const selectedModel =
     aiMode === 'cloud'
       ? geminiConfig.model
       : aiMode === 'groq'
         ? groqConfig.model
-        : ollamaConfig.model;
+        : aiMode === 'custom'
+          ? customConfig.model
+          : ollamaConfig.model;
   // Keep a saved-but-missing model selectable (labeled) so the control never
   // shows a blank value — e.g. when the list is degraded (issue #79, AC5).
   const selectedModelMissing =
@@ -299,6 +325,8 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           <CardTitle className="flex items-center gap-2">
             {aiMode === 'local' ? (
               <Cpu className="w-5 h-5 text-accent" />
+            ) : aiMode === 'custom' ? (
+              <Globe className="w-5 h-5 text-accent" />
             ) : (
               <Cloud className="w-5 h-5 text-accent" />
             )}
@@ -337,6 +365,16 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             >
               <Cpu className="w-4 h-4" />
               Ollama (Local)
+            </button>
+            <button
+              className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === 'custom' ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+              onClick={() => {
+                setAiMode('custom');
+                setTestResult(null);
+              }}
+            >
+              <Globe className="w-4 h-4" />
+              Custom Endpoint
             </button>
           </div>
 
@@ -532,6 +570,80 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         <div className="text-gray-400 mb-1 select-none"># Windows (PowerShell)</div>
                         <div className="select-all">$env:OLLAMA_ORIGINS="*"; ollama serve</div>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {aiMode === 'custom' && (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <Globe className="w-4 h-4" /> Base URL
+                  </label>
+                  <Input
+                    placeholder="https://api.example.com/v1"
+                    value={customConfig.baseUrl}
+                    onChange={(e) => setCustomConfig({ baseUrl: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Any OpenAI-compatible server — requests go to{' '}
+                    <code>{`{Base URL}/chat/completions`}</code>. Include the version path if your
+                    server needs one (e.g. <code>/v1</code>).
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                    <Key className="w-4 h-4" /> API Key
+                  </label>
+                  <Input
+                    type="password"
+                    placeholder="Enter your endpoint's API key"
+                    value={getDeobfuscatedApiKey(useSettingsStore.getState())}
+                    onChange={(e) => setCustomConfig({ apiKey: e.target.value })}
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Stored locally (obfuscated, not encrypted). Leave empty only if your server
+                    skips authentication.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="custom-model" className="text-sm font-medium text-gray-700">
+                    Model Name
+                  </label>
+                  <Input
+                    id="custom-model"
+                    placeholder="e.g. gpt-4o-mini, llama3.1, my-finetune"
+                    value={customConfig.model}
+                    onChange={(e) => setCustomConfig({ model: e.target.value })}
+                    list="custom-models"
+                  />
+                  <datalist id="custom-models">
+                    {catalogModels.map((m) => (
+                      <option key={m.id} value={m.id} />
+                    ))}
+                  </datalist>
+                  <p className="text-xs text-gray-500">
+                    Free text — models reported by your endpoint appear as suggestions, but any
+                    model id works.
+                  </p>
+                  {catalogStatus}
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-start gap-3">
+                    <Terminal className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <div className="text-sm text-gray-600 space-y-2">
+                      <p className="font-medium text-gray-900">OpenAI-compatible endpoints:</p>
+                      <ul className="list-disc list-inside space-y-1 ml-1 text-xs">
+                        <li>Works with LM Studio, vLLM, LocalAI, OpenRouter and similar servers</li>
+                        <li>The server must allow browser access (CORS)</li>
+                        <li>Use &quot;Test Connection&quot; below to verify your setup</li>
+                      </ul>
                     </div>
                   </div>
                 </div>
