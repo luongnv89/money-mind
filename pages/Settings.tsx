@@ -113,18 +113,22 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     selectedModel !== '' &&
     !catalog.models.some((m) => m.id === selectedModel);
 
-  const catalogStatus = isLoadingCatalog ? (
-    <p className="text-xs text-gray-500">Loading available models…</p>
-  ) : catalog?.status === 'fallback' ? (
-    <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg p-3">
-      <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-      <p className="text-xs text-amber-700">{catalog.notice}</p>
+  const catalogStatus = (
+    <div role="status" aria-live="polite">
+      {isLoadingCatalog ? (
+        <p className="text-xs text-gray-500">Loading available models…</p>
+      ) : catalog?.status === 'fallback' ? (
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg p-3">
+          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+          <p className="text-xs text-amber-700">{catalog.notice}</p>
+        </div>
+      ) : (
+        <p className="text-xs text-gray-500">
+          Showing {catalogModels.length} models from {providerName}
+          {catalog?.status === 'cached' ? ' (cached list)' : ''}.
+        </p>
+      )}
     </div>
-  ) : (
-    <p className="text-xs text-gray-500">
-      Showing {catalogModels.length} models from {providerName}
-      {catalog?.status === 'cached' ? ' (cached list)' : ''}.
-    </p>
   );
 
   // Logic to detect key usage state
@@ -362,10 +366,15 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <label
+                    htmlFor="gemini-model"
+                    className="text-sm font-medium text-gray-700 flex items-center gap-2"
+                  >
                     <Server className="w-4 h-4" /> Model Selection
                   </label>
                   <select
+                    id="gemini-model"
+                    aria-busy={isLoadingCatalog}
                     className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
                     value={geminiConfig.model}
                     onChange={(e) => setGeminiConfig({ model: e.target.value })}
@@ -402,10 +411,15 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <label
+                    htmlFor="groq-model"
+                    className="text-sm font-medium text-gray-700 flex items-center gap-2"
+                  >
                     <Server className="w-4 h-4" /> Model Selection
                   </label>
                   <select
+                    id="groq-model"
+                    aria-busy={isLoadingCatalog}
                     className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
                     value={groqConfig.model}
                     onChange={(e) => setGroqConfig({ model: e.target.value })}
@@ -474,8 +488,11 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Specific Model Name</label>
+                  <label htmlFor="ollama-model" className="text-sm font-medium text-gray-700">
+                    Specific Model Name
+                  </label>
                   <Input
+                    id="ollama-model"
                     placeholder="llama3.2"
                     value={ollamaConfig.model}
                     onChange={(e) => setOllamaConfig({ model: e.target.value })}
