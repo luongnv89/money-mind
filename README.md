@@ -83,11 +83,12 @@ Since MoneyMind is a pure Single Page Application (SPA) with no serverless funct
 
 ## 🤖 AI Configuration
 
-MoneyMind supports three AI modes, configurable in the **Settings** page (`services/aiService.ts:232` dispatches to each). The model pickers load each provider's current model list dynamically (`services/modelCatalog.ts`), falling back to a curated list when the provider is unreachable:
+MoneyMind supports four AI modes, configurable in the **Settings** page (`services/aiService.ts:232` dispatches to each). The model pickers load each provider's current model list dynamically (`services/modelCatalog.ts`), falling back to a curated list when the provider is unreachable:
 
 1.  **Cloud (Gemini):** Uses Google's Gemini models (default `models/gemini-flash-latest`, `constants.ts:180`). Requires a free API key from [Google AI Studio](https://aistudio.google.com/).
 2.  **Cloud (Groq):** Uses Groq's ultra-fast inference (default `llama-3.1-8b-instant`, `constants.ts:181`). Requires an API key from [Groq Console](https://console.groq.com/).
 3.  **Local (Ollama):** 100% private. Requires Ollama running locally (`ollama serve`) and the `llama3.2` (or similar) model pulled (`ollama pull llama3.2` — this is the configured default, `constants.ts:182`).
+4.  **Custom Endpoint:** Connect any OpenAI-compatible server (LM Studio, vLLM, OpenRouter, local proxies). Enter the server's base URL, an API key, and a model name in Settings; requests are sent in the OpenAI chat-completions format (`services/aiService.ts`, `categorizeWithCustom`). The model picker loads `{base URL}/models` when reachable and always accepts free-text model names.
 
 ## 🧪 Quality Assurance
 
