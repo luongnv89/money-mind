@@ -25,39 +25,54 @@ export const resetWith = (s: UploaderStateBundle) => () => {
   s.setSelectedDuplicate(null);
   s.setError(null);
   s.setMappingPreview([]);
+  s.setMappingAutoDetected(false);
 };
+
+/** Result of mapping resolution: the mapping plus whether detection (bank
+ * format or smart header detection) filled it in, so the mapping screen can
+ * word its heading correctly (F-UX-005). */
+export interface ResolvedMapping {
+  mapping: CsvMapping;
+  autoDetected: boolean;
+}
 
 /** Resolve the CSV column mapping: strict bank format first, then smart detection, then defaults. */
 export const resolveMapping = (
   detected: Partial<CsvMapping> | null,
   extractedHeaders: string[],
   delimiter: string
-): CsvMapping => {
+): ResolvedMapping => {
   if (detected) {
     return {
-      ...detected,
-      hasHeader: true,
-      delimiter,
-      dateCol: detected.dateCol || '',
-      descCol: detected.descCol || '',
-      amountCol: detected.amountCol || '',
-      categoryCol: detected.categoryCol || '',
+      autoDetected: true,
+      mapping: {
+        ...detected,
+        hasHeader: true,
+        delimiter,
+        dateCol: detected.dateCol || '',
+        descCol: detected.descCol || '',
+        amountCol: detected.amountCol || '',
+        categoryCol: detected.categoryCol || '',
+      },
     };
   }
 
   const autoMapping = autoDetectMapping(extractedHeaders, delimiter);
   if (autoMapping.dateCol && autoMapping.amountCol) {
-    return autoMapping;
+    return { autoDetected: true, mapping: autoMapping };
   }
 
   // Fallback default
   return {
-    dateCol: extractedHeaders[0] || '',
-    descCol: extractedHeaders[1] || '',
-    amountCol: extractedHeaders[2] || '',
-    categoryCol: '',
-    hasHeader: true,
-    delimiter,
+    autoDetected: false,
+    mapping: {
+      dateCol: extractedHeaders[0] || '',
+      descCol: extractedHeaders[1] || '',
+      amountCol: extractedHeaders[2] || '',
+      categoryCol: '',
+      hasHeader: true,
+      delimiter,
+    },
   };
 };
 
@@ -109,8 +124,13 @@ export const selectFileWith =
       const { headers: extractedHeaders, delimiter } = await getCSVHeaders(selectedFile);
       s.setHeaders(extractedHeaders);
       const detected = detectBankFormat(extractedHeaders);
-      const nextMapping = resolveMapping(detected, extractedHeaders, delimiter);
+      const { mapping: nextMapping, autoDetected } = resolveMapping(
+        detected,
+        extractedHeaders,
+        delimiter
+      );
       s.setMapping(nextMapping);
+      s.setMappingAutoDetected(autoDetected);
 
       if (detected) {
         await processFile(selectedFile, nextMapping);

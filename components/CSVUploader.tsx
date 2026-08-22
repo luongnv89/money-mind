@@ -14,6 +14,7 @@ interface CSVUploaderProps {
 interface ScreenProps {
   headers: string[];
   mapping: CsvMapping;
+  mappingAutoDetected: boolean;
   mappingPreview: Transaction[];
   onMappingChange: (m: CsvMapping) => void;
   onReset: () => void;
@@ -24,6 +25,7 @@ interface ScreenProps {
 const MappingScreen: React.FC<ScreenProps> = ({
   headers,
   mapping,
+  mappingAutoDetected,
   mappingPreview,
   onMappingChange,
   onReset,
@@ -33,6 +35,7 @@ const MappingScreen: React.FC<ScreenProps> = ({
   <MappingView
     headers={headers}
     mapping={mapping}
+    autoDetected={mappingAutoDetected}
     mappingPreview={mappingPreview}
     onMappingChange={onMappingChange}
     onCancel={onReset}
@@ -108,6 +111,7 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
       <MappingScreen
         headers={s.headers}
         mapping={s.mapping}
+        mappingAutoDetected={s.mappingAutoDetected}
         mappingPreview={s.mappingPreview}
         onMappingChange={s.setMapping}
         onReset={reset}

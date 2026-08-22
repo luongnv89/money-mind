@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useTransactionStore } from '../stores/useTransactionStore';
-import { useSettingsStore } from '../stores/useSettingsStore';
+import { useSettingsStore, useAIReady } from '../stores/useSettingsStore';
 import { chatWithFinancialAgent } from '../services/aiService';
 import { Send, X, Smile, Settings } from 'lucide-react';
 import { Button, Input, Card } from './UI';
@@ -20,8 +20,9 @@ interface MonkeySmileChatProps {
 
 export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) => {
   const { transactions } = useTransactionStore();
-  // Subscribe to config objects so component re-renders when keys are updated
-  const { isDemoMode, aiMode, groqConfig } = useSettingsStore();
+  const { isDemoMode } = useSettingsStore();
+  // Single shared readiness selector — see stores/useSettingsStore.ts (F-UX-007).
+  const isAIReady = useAIReady();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -42,21 +43,6 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isOpen]);
-
-  const isAIReady = React.useMemo(() => {
-    if (aiMode === 'local') return true;
-
-    // If Cloud mode, we allow fallback to server proxy if no key is present
-    if (aiMode === 'cloud') {
-      return true;
-    }
-
-    if (aiMode === 'groq') {
-      return !!groqConfig.apiKey && groqConfig.apiKey.length > 0;
-    }
-
-    return false;
-  }, [aiMode, groqConfig.apiKey]);
 
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -122,6 +108,10 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
 
   return (
     <>
+      {/* Announce the chat to screen readers the moment it appears (F-UX-012) */}
+      <p className="sr-only" role="status">
+        MonkeySmile budget chat is available.
+      </p>
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -132,6 +122,8 @@ export const MonkeySmileChat: React.FC<MonkeySmileChatProps> = ({ onNavigate }) 
             : 'bg-gradient-to-tr from-accent to-emerald-600 text-white'
         )}
         aria-label="Toggle MonkeySmile Chat"
+        aria-expanded={isOpen}
+        title={isOpen ? 'Close chat' : 'Open MonkeySmile chat'}
       >
         {isOpen ? <X className="w-6 h-6" /> : <Smile className="w-6 h-6" />}
       </button>

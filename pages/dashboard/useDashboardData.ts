@@ -20,7 +20,9 @@ export const filterByTimeRange = (
   const timestamps = transactions.map((t) => getTimestamp(t.date)).filter((t) => t > 0);
   if (timestamps.length === 0) return transactions;
 
-  const maxDate = Math.max(...timestamps);
+  // reduce instead of Math.max(...spread): spreading throws RangeError on very
+  // large arrays (F-PERF-011).
+  const maxDate = timestamps.reduce((max, t) => (t > max ? t : max), 0);
   const msPerDay = 1000 * 60 * 60 * 24;
 
   let daysToSubtract = 0;
@@ -45,8 +47,10 @@ export const formatDateRange = (transactions: Transaction[]): string => {
 
   if (timestamps.length === 0) return '';
 
-  const min = Math.min(...timestamps);
-  const max = Math.max(...timestamps);
+  // reduce instead of Math.min/max(...spread) — spreads overflow the argument
+  // stack on very large arrays (F-PERF-011).
+  const min = timestamps.reduce((m, t) => (t < m ? t : m), Infinity);
+  const max = timestamps.reduce((m, t) => (t > m ? t : m), -Infinity);
 
   const format = (ts: number) =>
     new Intl.DateTimeFormat('en-US', {
@@ -58,6 +62,25 @@ export const formatDateRange = (transactions: Transaction[]): string => {
   if (min === max) return format(min);
   return `${format(min)} - ${format(max)}`;
 };
+
+/** Dashboard status counts computed by a single pass over the transactions (F-PERF-007). */
+export interface DashboardCounts {
+  uncategorizedCount: number;
+  failedCount: number;
+  unapprovedCount: number;
+}
+
+/** One reduce replaces the previous per-render full-array filter scans (F-PERF-007). */
+export const summarizeTransactions = (transactions: Transaction[]): DashboardCounts =>
+  transactions.reduce(
+    (counts, t) => {
+      if (t.category === TransactionCategory.Uncategorized) counts.uncategorizedCount++;
+      if (t.reason?.includes('Failed') || t.reason?.includes('Error')) counts.failedCount++;
+      if (!t.isApproved) counts.unapprovedCount++;
+      return counts;
+    },
+    { uncategorizedCount: 0, failedCount: 0, unapprovedCount: 0 }
+  );
 
 /** Derived counts and filtered views the Dashboard renders. */
 export const useDashboardData = (timeRange: TimeRange) => {
@@ -73,13 +96,10 @@ export const useDashboardData = (timeRange: TimeRange) => {
     [displayedTransactions]
   );
 
-  const uncategorizedCount = transactions.filter(
-    (t) => t.category === TransactionCategory.Uncategorized
-  ).length;
-  const failedCount = transactions.filter(
-    (t) => t.reason?.includes('Failed') || t.reason?.includes('Error')
-  ).length;
-  const unapprovedCount = transactions.filter((t) => !t.isApproved).length;
+  const { uncategorizedCount, failedCount, unapprovedCount } = useMemo(
+    () => summarizeTransactions(transactions),
+    [transactions]
+  );
   const progressPercent =
     totalToProcess > 0 ? Math.round((processedCount / totalToProcess) * 100) : 0;
 

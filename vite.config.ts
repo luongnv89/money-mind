@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import pkg from './package.json';
 
 const DEV_CSP = [
   "default-src 'self'",
@@ -25,14 +26,21 @@ const relaxCspForDev = {
 };
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react(), relaxCspForDev],
+  define: {
+    // Single source of truth for the version shown in the footer: injected
+    // from package.json at build time instead of being hardcoded (F-UX-013).
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   server: {
     port: 3000,
   },
   build: {
     outDir: 'dist',
-    sourcemap: true,
+    // Source maps are a dev/preview artifact; shipping them to production
+    // bloats the deploy (F-PERF-010).
+    sourcemap: mode !== 'production',
   },
   test: {
     // jsdom gives tests localStorage, File and Date-formatting APIs
@@ -56,4 +64,4 @@ export default defineConfig({
       thresholds: { lines: 60 },
     },
   },
-});
+}));

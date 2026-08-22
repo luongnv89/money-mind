@@ -4,6 +4,7 @@ import { useTransactionStore } from '../stores/useTransactionStore';
 import { TransactionCategory, Transaction } from '../types';
 import { CATEGORY_COLORS, CATEGORY_HIERARCHY } from '../constants';
 import { cn, formatCurrency, formatDate } from '../lib/utils';
+import { useDebouncedValue } from '../lib/useDebounce';
 import { Button, Input } from './UI';
 import {
   Edit2,
@@ -27,7 +28,8 @@ const ITEMS_PER_PAGE = 10;
 // --- Category Dropdown Component ---
 
 interface CategoryDropdownProps {
-  anchorRect: DOMRect;
+  /** The button the dropdown is anchored to; live element so the dropdown can reposition while the page scrolls (F-UX-009). */
+  anchorEl: HTMLElement;
   currentCategory: TransactionCategory;
   currentSubCategory?: string;
   onSelect: (category: TransactionCategory, subCategory?: string) => void;
@@ -35,13 +37,14 @@ interface CategoryDropdownProps {
 }
 
 const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
-  anchorRect,
+  anchorEl,
   currentCategory,
   currentSubCategory,
   onSelect,
   onClose,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [anchorRect, setAnchorRect] = useState<DOMRect>(() => anchorEl.getBoundingClientRect());
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -52,17 +55,37 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
     }
   }, []);
 
-  // Handle scroll to close dropdown
+  // Follow the anchor on scroll/resize instead of detaching: reposition while
+  // the anchor is on screen, close once it scrolls out of view (F-UX-009).
   useEffect(() => {
-    const handleScroll = (e: Event) => {
-      if (containerRef.current && containerRef.current.contains(e.target as Node)) {
+    const reposition = (e: Event) => {
+      // Scrolling inside the dropdown itself must not move or close it.
+      if (
+        containerRef.current &&
+        e.target instanceof Node &&
+        containerRef.current.contains(e.target)
+      ) {
         return;
       }
-      onClose();
+      const rect = anchorEl.getBoundingClientRect();
+      if (
+        rect.bottom < 0 ||
+        rect.top > window.innerHeight ||
+        rect.right < 0 ||
+        rect.left > window.innerWidth
+      ) {
+        onClose();
+        return;
+      }
+      setAnchorRect(rect);
     };
-    window.addEventListener('scroll', handleScroll, { capture: true });
-    return () => window.removeEventListener('scroll', handleScroll, { capture: true });
-  }, [onClose]);
+    window.addEventListener('scroll', reposition, { capture: true, passive: true });
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, { capture: true } as EventListenerOptions);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [anchorEl, onClose]);
 
   // Calculate position
   const positionStyle = useMemo(() => {
@@ -268,12 +291,17 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
   // State
   const [categoryFilter, setCategoryFilter] = useState<TransactionCategory | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  // Debounced at ~150 ms so filtering/sorting runs once typing pauses, not per
+  // keystroke (F-PERF-008).
+  const debouncedSearchQuery = useDebouncedValue(searchQuery);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
     key: 'date',
     direction: 'desc',
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeDropdown, setActiveDropdown] = useState<{ id: string; rect: DOMRect } | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<{ id: string; anchor: HTMLElement } | null>(
+    null
+  );
 
   // Confirmation Modal State
   const [transactionToDelete, setTransactionToDelete] = useState<string | null>(null);
@@ -308,9 +336,9 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
       data = data.filter((t) => t.category === categoryFilter);
     }
 
-    // 2. Filter by Search
-    if (searchQuery.trim()) {
-      const lowerQuery = searchQuery.toLowerCase().trim();
+    // 2. Filter by Search (debounced — see state above)
+    if (debouncedSearchQuery.trim()) {
+      const lowerQuery = debouncedSearchQuery.toLowerCase().trim();
       data = data.filter(
         (t) =>
           t.description.toLowerCase().includes(lowerQuery) ||
@@ -353,12 +381,12 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
     });
 
     return data;
-  }, [transactions, categoryFilter, searchQuery, sortConfig]);
+  }, [transactions, categoryFilter, debouncedSearchQuery, sortConfig]);
 
   // Reset pagination on filter change
   useEffect(() => {
     setCurrentPage(1);
-  }, [categoryFilter, searchQuery, transactions.length]);
+  }, [categoryFilter, debouncedSearchQuery, transactions.length]);
 
   // Pagination Logic
   const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE);
@@ -510,11 +538,11 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
 
                 return (
                   <tr key={t.id} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="px-6 py-3 text-gray-500 whitespace-nowrap text-xs">
+                    <td className="px-6 py-3 h-11 text-gray-500 whitespace-nowrap text-xs">
                       {formatDate(t.date)}
                     </td>
                     <td
-                      className="px-6 py-3 text-gray-900 font-medium max-w-xs truncate"
+                      className="px-6 py-3 h-11 text-gray-900 font-medium max-w-xs truncate"
                       title={t.description}
                     >
                       {t.description}
@@ -526,7 +554,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                     </td>
                     <td
                       className={cn(
-                        'px-6 py-3 font-mono text-sm font-semibold',
+                        'px-6 py-3 h-11 font-mono text-sm font-semibold',
                         t.amount > 0
                           ? 'text-green-600'
                           : t.amount < 0
@@ -537,14 +565,14 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                       {t.amount > 0 ? '+' : ''}
                       {formatCurrency(t.amount)}
                     </td>
-                    <td className="px-6 py-3">
+                    <td className="px-6 py-3 h-11">
                       <button
                         onClick={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setActiveDropdown({ id: t.id, rect });
+                          setActiveDropdown({ id: t.id, anchor: e.currentTarget });
                         }}
+                        aria-label={`Change category for ${t.description}`}
                         className={cn(
-                          'flex flex-col items-start px-3 py-1.5 rounded-md border cursor-pointer hover:shadow-xs transition-all w-full max-w-[180px] group',
+                          'flex flex-col items-start px-3 py-1.5 min-h-11 justify-center rounded-md border cursor-pointer hover:shadow-xs transition-all w-full max-w-[180px] group',
                           categoryColors.bg,
                           categoryColors.border,
                           activeDropdown?.id === t.id ? 'ring-2 ring-accent/50' : ''
@@ -578,9 +606,15 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                         )}
                       </button>
                     </td>
-                    <td className="px-6 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden">
+                    <td className="px-6 py-3 h-11">
+                      <div
+                        className="flex items-center gap-2"
+                        title="How confident the AI (or a learned rule) is about this category"
+                      >
+                        <div
+                          className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden"
+                          aria-hidden="true"
+                        >
                           <div
                             className={cn(
                               'h-full rounded-full',
@@ -598,12 +632,12 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-3 text-center">
+                    <td className="px-6 py-3 h-11 text-center">
                       <div className="flex items-center justify-center gap-2">
                         {t.isApproved ? (
                           <div
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200"
-                            title="Approved"
+                            title="You approved this categorization"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             <span className="text-[10px] font-bold uppercase tracking-wide">
@@ -613,8 +647,9 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                         ) : (
                           <button
                             onClick={() => approveTransaction(t.id)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-gray-300 text-gray-500 hover:text-green-600 hover:border-green-500 hover:bg-green-50 transition-all shadow-xs"
-                            title="Click to Approve"
+                            className="inline-flex items-center gap-1 px-3 min-h-11 rounded-full bg-white border border-gray-300 text-gray-500 hover:text-green-600 hover:border-green-500 hover:bg-green-50 transition-all shadow-xs"
+                            title="Confirm the suggested category is correct — this saves it as a learned rule"
+                            aria-label={`Verify: confirm the suggested category for ${t.description}`}
                           >
                             <span className="text-[10px] font-medium">Verify</span>
                             <Check className="w-3 h-3" />
@@ -625,8 +660,9 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                             e.stopPropagation();
                             setTransactionToDelete(t.id);
                           }}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                          className="p-1.5 min-h-11 min-w-11 inline-flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
                           title="Delete Transaction"
+                          aria-label={`Delete transaction ${t.description}`}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -687,7 +723,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
 
       {activeDropdown && (
         <CategoryDropdown
-          anchorRect={activeDropdown.rect}
+          anchorEl={activeDropdown.anchor}
           currentCategory={
             transactions.find((t) => t.id === activeDropdown.id)?.category ||
             TransactionCategory.Uncategorized

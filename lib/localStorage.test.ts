@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   applyPatterns,
+  buildPatternIndex,
   clearPatterns,
   extractMerchantName,
+  findBestPatternIndexed,
   getPatterns,
   importPatterns,
   learnPattern,
   matchesKeyword,
   MIN_KEYWORD_LENGTH,
 } from './localStorage';
-import { Transaction, TransactionCategory } from '../types';
+import { LocalPattern, Transaction, TransactionCategory } from '../types';
 
 const tx = (overrides: Partial<Transaction> = {}): Transaction => ({
   id: 'tx-1',
@@ -218,5 +220,147 @@ describe('getPatterns with corrupt storage', () => {
     expect(getPatterns()).toEqual([]);
     learnPattern(tx(), TransactionCategory.NiceToHave, 'Dining Out');
     expect(getPatterns()).toHaveLength(1);
+  });
+});
+
+describe('buildPatternIndex / findBestPatternIndexed (issue #40, F-PERF-006)', () => {
+  const pattern = (
+    keyword: string,
+    category: TransactionCategory = TransactionCategory.Waste
+  ): LocalPattern => ({
+    keyword,
+    category,
+    subCategory: undefined,
+    confidence: 0.9,
+    timesApplied: 1,
+    learnedFrom: keyword,
+    correctedAt: '2026-01-01T00:00:00.000Z',
+  });
+
+  /** The previous full-scan matcher, kept as the equivalence oracle. */
+  const findBestPatternScan = (
+    merchant: string,
+    patterns: LocalPattern[]
+  ): LocalPattern | undefined => {
+    const matches = patterns.filter((p) => matchesKeyword(merchant, p.keyword));
+    if (matches.length === 0) return undefined;
+    return matches.sort((a, b) => b.keyword.length - a.keyword.length)[0];
+  };
+
+  it('indexes by keyword and skips keywords that can never match', () => {
+    const patterns = [pattern('UBER TRIP'), pattern('AM'), pattern('NETFLIX')];
+    const index = buildPatternIndex(patterns);
+
+    expect(index.size).toBe(2);
+    expect(index.get('UBER TRIP')?.pattern.keyword).toBe('UBER TRIP');
+    // 'AM' is skipped but still consumes array position 1, so NETFLIX is 2.
+    expect(index.get('NETFLIX')?.order).toBe(2);
+  });
+
+  it('keeps the first stored pattern when a keyword repeats', () => {
+    const first = pattern('UBER', TransactionCategory.MustHave);
+    const second = pattern('UBER', TransactionCategory.Waste);
+    const index = buildPatternIndex([first, second]);
+
+    expect(index.get('UBER')?.pattern).toBe(first);
+  });
+
+  it('prefers the longest keyword, breaking length ties by first stored', () => {
+    const short = pattern('UBER');
+    const long = pattern('UBER TRIP', TransactionCategory.MustHave);
+    const tied = pattern('TRIP', TransactionCategory.NiceToHave);
+    const index = buildPatternIndex([short, long, tied]);
+
+    expect(findBestPatternIndexed('UBER TRIP', index)?.keyword).toBe('UBER TRIP');
+    expect(findBestPatternIndexed('SQ TRIP', index)?.keyword).toBe('TRIP');
+    expect(findBestPatternIndexed('UBER EATS', index)?.keyword).toBe('UBER');
+  });
+
+  it('never matches a bare substring, exactly like matchesKeyword', () => {
+    const index = buildPatternIndex([pattern('COFFEE')]);
+    expect(findBestPatternIndexed('SQ COFFEE SHOP', index)?.keyword).toBe('COFFEE');
+    expect(findBestPatternIndexed('MYCOFFEELADY', index)).toBeUndefined();
+  });
+
+  it('is equivalent to the previous full scan across a generated corpus', () => {
+    const keywords = [
+      'UBER',
+      'UBER TRIP',
+      'UBER EATS',
+      'SQ COFFEE SHOP',
+      'COFFEE',
+      'NETFLIX',
+      'AMAZON MKTPLACE',
+      'TST* CAFE LUCA',
+      'CAFE',
+      'LUCA',
+      'SHELL OIL',
+      'CHEVRON',
+      'ACH DELTA AIR',
+      'DELTA',
+      'AIR',
+      'PNP KINGPRONTO',
+    ];
+    const patterns = keywords.map((k) => pattern(k));
+    const index = buildPatternIndex(patterns);
+
+    const merchants = [
+      'UBER TRIP',
+      'UBER EATS',
+      'UBER',
+      'SQ COFFEE SHOP',
+      'COFFEE SHOP',
+      'NETFLIX.COM',
+      'AMAZON MKTPLACE P',
+      'TST* CAFE LUCA',
+      'CAFE LUCA',
+      'SHELL OIL 4449',
+      'CHEVRON 0093',
+      'ACH DELTA AIR 00',
+      'DELTA AIR',
+      'PNP KINGPRONTO',
+      'AIR CANADA',
+      'KINGPRONTO',
+      'UNRELATED GROCER',
+      'MYCOFFEELADY',
+      'CAFE',
+      'AIR',
+    ];
+
+    merchants.forEach((merchant) => {
+      expect(findBestPatternIndexed(merchant, index)).toEqual(
+        findBestPatternScan(merchant, patterns)
+      );
+    });
+  });
+
+  it('benchmarks 5,000 rows against 500 patterns in under 200 ms', () => {
+    const KEYWORD_POOL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const keywords: string[] = [];
+    for (let i = 0; i < 500; i++) {
+      // Distinct, realistic (<=20 char) uppercase keywords with token structure.
+      const stem = (i * 7919).toString(36).toUpperCase().padEnd(8, 'X').slice(0, 8);
+      keywords.push(`${stem} ${KEYWORD_POOL[i % 26]}${i}`);
+    }
+    const patterns: LocalPattern[] = keywords.map((k) => pattern(k, TransactionCategory.MustHave));
+    // Persist so applyPatterns reads exactly 500 patterns from storage.
+    localStorage.setItem('financePatterns', JSON.stringify(patterns));
+
+    const rows: Transaction[] = Array.from({ length: 5000 }, (_, i) =>
+      tx({
+        id: `row-${i}`,
+        // extractMerchantName strips the trailing "#NNNN", leaving the keyword.
+        description: `${keywords[i % keywords.length]} #${100000 + i}`,
+      })
+    );
+
+    const start = performance.now();
+    const result = applyPatterns(rows);
+    const elapsed = performance.now() - start;
+
+    expect(result.transactions).toHaveLength(5000);
+    // Most rows hit a learned pattern at 0.9 confidence (> 0.6 gate).
+    expect(result.appliedCount).toBeGreaterThan(4000);
+    expect(elapsed).toBeLessThan(200);
   });
 });

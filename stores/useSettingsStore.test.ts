@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useSettingsStore } from './useSettingsStore';
+import { selectAIReady, useSettingsStore } from './useSettingsStore';
 
 describe('useSettingsStore usage limits', () => {
   beforeEach(() => {
@@ -38,5 +38,33 @@ describe('useSettingsStore usage limits', () => {
     useSettingsStore.getState().setAiMode('local');
     useSettingsStore.getState().incrementUsage('chat', 999);
     expect(useSettingsStore.getState().checkUsageLimit('chat')).toBe(true);
+  });
+});
+
+describe('selectAIReady — the single AI readiness definition (issue #41, F-UX-007)', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useSettingsStore.getState().resetSettings();
+  });
+
+  it('is always ready in local (Ollama) mode', () => {
+    useSettingsStore.getState().setAiMode('local');
+    expect(selectAIReady(useSettingsStore.getState())).toBe(true);
+  });
+
+  it('needs a stored Gemini key in cloud mode', () => {
+    useSettingsStore.getState().setAiMode('cloud');
+    expect(selectAIReady(useSettingsStore.getState())).toBe(false);
+
+    useSettingsStore.getState().setGeminiConfig({ apiKey: btoa('gemini-key') });
+    expect(selectAIReady(useSettingsStore.getState())).toBe(true);
+  });
+
+  it('needs a stored Groq key in groq mode', () => {
+    useSettingsStore.getState().setAiMode('groq');
+    expect(selectAIReady(useSettingsStore.getState())).toBe(false);
+
+    useSettingsStore.getState().setGroqConfig({ apiKey: btoa('gsk-key') });
+    expect(selectAIReady(useSettingsStore.getState())).toBe(true);
   });
 });
