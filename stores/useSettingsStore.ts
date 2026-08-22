@@ -165,3 +165,18 @@ export const getDeobfuscatedApiKey = (storeState: SettingsState) => {
   // Default to gemini for cloud mode
   return deobfuscate(storeState.geminiConfig.apiKey);
 };
+
+/**
+ * The single definition of "an AI backend is ready" (F-UX-007): local mode is
+ * always ready; cloud needs the stored Gemini key and groq needs the stored
+ * Groq key. Every consumer — Layout, MonkeySmileChat, the Dashboard — reads
+ * this selector instead of re-deriving its own.
+ */
+export const selectAIReady = (state: SettingsState): boolean => {
+  if (state.aiMode === 'local') return true;
+  if (state.aiMode === 'groq') return !!deobfuscate(state.groqConfig.apiKey);
+  return !!deobfuscate(state.geminiConfig.apiKey);
+};
+
+/** React binding for `selectAIReady`. */
+export const useAIReady = (): boolean => useSettingsStore(selectAIReady);

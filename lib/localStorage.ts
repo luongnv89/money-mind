@@ -131,11 +131,71 @@ export const matchesKeyword = (merchant: string, keyword: string): boolean => {
   return merchant === keyword || merchant.startsWith(keyword) || merchant.includes(` ${keyword}`);
 };
 
-/** Prefer the longest matching keyword so the most specific pattern wins. */
-const findBestPattern = (merchant: string, patterns: LocalPattern[]): LocalPattern | undefined => {
-  const matches = patterns.filter((p) => matchesKeyword(merchant, p.keyword));
-  if (matches.length === 0) return undefined;
-  return matches.sort((a, b) => b.keyword.length - a.keyword.length)[0];
+/**
+ * A learned pattern plus its position in the stored array, used to break
+ * length ties exactly like the previous linear scan (first stored wins).
+ */
+export interface IndexedPattern {
+  pattern: LocalPattern;
+  order: number;
+}
+
+/** Patterns indexed by normalized keyword: `Map<keyword, IndexedPattern>` (F-PERF-006). */
+export type PatternIndex = Map<string, IndexedPattern>;
+
+/**
+ * Index patterns by keyword once per batch so each row costs a handful of Map
+ * lookups instead of a scan over up to 500 patterns. The first occurrence of a
+ * keyword wins, and keywords shorter than `MIN_KEYWORD_LENGTH` can never match,
+ * so they are skipped — both preserve the previous array-scan semantics.
+ */
+export const buildPatternIndex = (patterns: LocalPattern[]): PatternIndex => {
+  const index: PatternIndex = new Map();
+  patterns.forEach((pattern, order) => {
+    if (pattern.keyword.length < MIN_KEYWORD_LENGTH) return;
+    if (!index.has(pattern.keyword)) index.set(pattern.keyword, { pattern, order });
+  });
+  return index;
+};
+
+/**
+ * Prefer the longest matching keyword so the most specific pattern wins.
+ * Candidates are the substrings of `merchant` starting at position 0 or right
+ * after any space — exactly the positions `matchesKeyword` can match — so the
+ * indexed lookup is equivalent to the previous full scan, at O(len²) per row
+ * with merchant capped at 20 characters.
+ */
+export const findBestPatternIndexed = (
+  merchant: string,
+  index: PatternIndex
+): LocalPattern | undefined => {
+  let best: IndexedPattern | undefined;
+
+  const consider = (keyword: string) => {
+    const hit = index.get(keyword);
+    if (!hit) return;
+    if (
+      !best ||
+      keyword.length > best.pattern.keyword.length ||
+      (keyword.length === best.pattern.keyword.length && hit.order < best.order)
+    ) {
+      best = hit;
+    }
+  };
+
+  // Prefix and exact matches start at index 0.
+  for (let end = merchant.length; end >= MIN_KEYWORD_LENGTH; end--) {
+    consider(merchant.slice(0, end));
+  }
+  // Whole-token matches start right after a space.
+  for (let space = merchant.indexOf(' '); space !== -1; space = merchant.indexOf(' ', space + 1)) {
+    const start = space + 1;
+    for (let end = merchant.length; end >= start + MIN_KEYWORD_LENGTH; end--) {
+      consider(merchant.slice(start, end));
+    }
+  }
+
+  return best?.pattern;
 };
 
 export const applyPatterns = (
@@ -144,13 +204,14 @@ export const applyPatterns = (
   const patterns = getPatterns();
   if (patterns.length === 0) return { transactions, appliedCount: 0 };
 
+  const index = buildPatternIndex(patterns);
   let appliedCount = 0;
   const newTransactions = transactions.map((tx) => {
     // Skip transactions that are already approved/verified by the user
     if (tx.isApproved) return tx;
 
     const merchant = extractMerchantName(tx.description);
-    const match = findBestPattern(merchant, patterns);
+    const match = findBestPatternIndexed(merchant, index);
 
     if (match && match.confidence > 0.6) {
       // Check if we are actually changing anything (category or upgrading confidence)

@@ -63,6 +63,10 @@ const PreviewRow: React.FC<{ row: Transaction }> = ({ row }) => (
 export interface MappingViewProps {
   headers: string[];
   mapping: CsvMapping;
+  /** Whether bank-format or header detection filled the mapping in; the
+   * heading words the ask accordingly instead of blaming detection on success
+   * (F-UX-005). */
+  autoDetected: boolean;
   mappingPreview: Transaction[];
   onMappingChange: (mapping: CsvMapping) => void;
   onCancel: () => void;
@@ -72,6 +76,7 @@ export interface MappingViewProps {
 export const MappingView: React.FC<MappingViewProps> = ({
   headers,
   mapping,
+  autoDetected,
   mappingPreview,
   onMappingChange,
   onCancel,
@@ -81,7 +86,9 @@ export const MappingView: React.FC<MappingViewProps> = ({
     <CardHeader>
       <CardTitle>Map Columns</CardTitle>
       <p className="text-sm text-gray-500">
-        We couldn't auto-detect your bank format. Please map the columns below.
+        {autoDetected
+          ? 'We auto-detected your columns — review the mapping below and adjust anything that looks wrong.'
+          : "We couldn't auto-detect your bank format. Please map the columns below."}
       </p>
     </CardHeader>
     <CardContent className="space-y-6">

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTransactionStore } from '../stores/useTransactionStore';
-import { useSettingsStore } from '../stores/useSettingsStore';
+import { useSettingsStore, useAIReady } from '../stores/useSettingsStore';
 import { Settings, LogOut, Shield, LayoutDashboard, UploadCloud, AlertCircle } from 'lucide-react';
 import { Button } from './UI';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -18,7 +18,9 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewChange }) => {
   const { clearAll, transactions } = useTransactionStore();
-  const { isDemoMode, setDemoMode, aiMode, geminiConfig, groqConfig } = useSettingsStore();
+  const { isDemoMode, setDemoMode } = useSettingsStore();
+  // Single shared readiness selector — see stores/useSettingsStore.ts (F-UX-007).
+  const isAIReady = useAIReady();
 
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -26,12 +28,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
     clearAll();
     setDemoMode(false);
   };
-
-  const isAIReady = React.useMemo(() => {
-    if (aiMode === 'local') return true;
-    if (aiMode === 'groq') return !!groqConfig.apiKey && groqConfig.apiKey.length > 0;
-    return !!geminiConfig.apiKey && geminiConfig.apiKey.length > 0;
-  }, [aiMode, geminiConfig.apiKey, groqConfig.apiKey]);
 
   return (
     <div className="min-h-screen flex flex-col font-sans">
@@ -106,13 +102,18 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
                   onConfirm={handleClear}
                   onCancel={() => setShowClearConfirm(false)}
                 />
+                {/* Clear stays reachable at every breakpoint: the label
+                    collapses to the icon on mobile instead of hiding the
+                    button entirely (F-UX-008). */}
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowClearConfirm(true)}
-                  className="text-red-500 hover:text-red-600 hover:bg-red-50 hidden sm:flex"
+                  aria-label="Clear all transactions"
+                  className="text-red-500 hover:text-red-600 hover:bg-red-50"
                 >
-                  <LogOut className="w-4 h-4 mr-2" /> Clear
+                  <LogOut className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Clear</span>
                 </Button>
               </>
             )}
@@ -120,9 +121,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
               variant="ghost"
               size="sm"
               onClick={() => onViewChange('settings')}
+              aria-label="Settings"
+              title="Settings"
               className={cn(currentView === 'settings' ? 'bg-gray-100' : '')}
             >
               <Settings className="w-5 h-5" />
+              <span className="hidden sm:inline ml-2">Settings</span>
             </Button>
           </div>
         </div>
@@ -178,7 +182,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
                 </a>
               </div>
               <div className="flex items-center gap-2 font-mono text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
-                <span>v1.0.0</span>
+                {/* Injected from package.json at build time (F-UX-013). */}
+                <span>v{__APP_VERSION__}</span>
                 <span className="text-gray-300">|</span>
                 <span title="Commit Hash">
                   {(import.meta.env?.VITE_COMMIT_HASH as string) || 'dev-local'}

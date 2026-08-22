@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { selectFileWith } from './uploaderActions';
+import { resetWith, resolveMapping, selectFileWith } from './uploaderActions';
 import type { UploaderStateBundle } from './useCSVUploader';
 
 vi.mock('../../lib/csvParser', () => ({
@@ -25,6 +25,7 @@ const makeBundle = () => {
     setFile: vi.fn(),
     setHeaders: vi.fn(),
     setMapping: vi.fn(),
+    setMappingAutoDetected: vi.fn(),
     setMappingPreview: vi.fn(),
     setStagedTransactions: vi.fn(),
     setDuplicateTransactions: vi.fn(),
@@ -65,5 +66,65 @@ describe('selectFileWith file-type guard (issue #37, F-BUG-011)', () => {
       'Only .csv files are supported. Please export your statement as CSV.'
     );
     expect(bundle.setFile).toHaveBeenCalledWith(csv);
+    expect(bundle.setMappingAutoDetected).toHaveBeenCalledWith(true);
+  });
+});
+
+describe('resolveMapping detection outcome (issue #41, F-UX-005)', () => {
+  it('flags a strict bank-format detection as auto-detected', () => {
+    const { autoDetected, mapping } = resolveMapping(
+      { dateCol: 'Posting Date', descCol: 'Description', amountCol: 'Amount' },
+      ['Posting Date', 'Description', 'Amount'],
+      ','
+    );
+
+    expect(autoDetected).toBe(true);
+    expect(mapping.dateCol).toBe('Posting Date');
+    expect(mapping.hasHeader).toBe(true);
+  });
+
+  it('flags smart header detection as auto-detected', () => {
+    const { autoDetected, mapping } = resolveMapping(null, ['Date', 'Description', 'Amount'], ',');
+
+    expect(autoDetected).toBe(true);
+    expect(mapping).toEqual({
+      dateCol: 'Date',
+      descCol: 'Description',
+      amountCol: 'Amount',
+      categoryCol: '',
+      hasHeader: true,
+      delimiter: ',',
+    });
+  });
+
+  it('flags the positional fallback as NOT auto-detected', async () => {
+    const { autoDetectMapping } = await import('../../lib/csvParser');
+    vi.mocked(autoDetectMapping).mockReturnValueOnce({
+      dateCol: '',
+      descCol: '',
+      amountCol: '',
+      categoryCol: '',
+      hasHeader: true,
+      delimiter: ',',
+    });
+
+    const { autoDetected, mapping } = resolveMapping(null, ['A', 'B', 'C'], ';');
+
+    expect(autoDetected).toBe(false);
+    expect(mapping.dateCol).toBe('A');
+    expect(mapping.descCol).toBe('B');
+    expect(mapping.amountCol).toBe('C');
+    expect(mapping.delimiter).toBe(';');
+  });
+});
+
+describe('resetWith clears detection state', () => {
+  it('resets the auto-detected flag alongside the mapping', () => {
+    const { bundle, cast } = makeBundle();
+
+    resetWith(cast)();
+
+    expect(bundle.setMappingAutoDetected).toHaveBeenCalledWith(false);
+    expect(bundle.setMappingPreview).toHaveBeenCalledWith([]);
   });
 });

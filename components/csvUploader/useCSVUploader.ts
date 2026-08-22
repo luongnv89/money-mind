@@ -73,6 +73,7 @@ const useUploadFlowState = () => {
 /** Mapping + preview/staging state for the CSV upload flow. */
 const useStagingState = () => {
   const [mapping, setMapping] = useState<CsvMapping>(EMPTY_MAPPING);
+  const [mappingAutoDetected, setMappingAutoDetected] = useState(false);
   const [mappingPreview, setMappingPreview] = useState<Transaction[]>([]);
   const [stagedTransactions, setStagedTransactions] = useState<Transaction[]>([]);
   const [duplicateTransactions, setDuplicateTransactions] = useState<DuplicateTransaction[]>([]);
@@ -83,6 +84,8 @@ const useStagingState = () => {
   return {
     mapping,
     setMapping,
+    mappingAutoDetected,
+    setMappingAutoDetected,
     mappingPreview,
     setMappingPreview,
     stagedTransactions,

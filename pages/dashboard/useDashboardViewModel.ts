@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTransactionStore } from '../../stores/useTransactionStore';
-import { useSettingsStore, getDeobfuscatedApiKey } from '../../stores/useSettingsStore';
+import { useSettingsStore, useAIReady } from '../../stores/useSettingsStore';
 import { getPatterns, learnPattern } from '../../lib/localStorage';
 import { checkFinancialHealth } from '../../services/alertService';
 import { useToastStore, ToastType } from '../../stores/useToastStore';
@@ -13,32 +13,33 @@ import type { TimeRange, TabView } from './TimeFilterBar';
 const useDashboardSetup = () => {
   const { transactions, isCategorizing, addTransactions, applyLocalPatterns, setError } =
     useTransactionStore();
-  const { aiMode, isDemoMode, enableFunnyAlerts, geminiConfig, groqConfig } = useSettingsStore();
+  const { aiMode, isDemoMode, enableFunnyAlerts } = useSettingsStore();
+  const aiReady = useAIReady();
   const { addToast } = useToastStore();
 
-  // Run Alert Check on Mount or when transactions change significantly
+  // Run Alert Check on Mount or when transactions change significantly.
+  // F-PERF-009: depend on the count, not the array identity — analysis batches
+  // (`updateTransactionBatch`) swap the array ~200 times per run without
+  // changing its length, and each swap re-armed this timer for nothing.
+  const txCount = transactions.length;
   useEffect(() => {
-    if (enableFunnyAlerts && transactions.length > 0 && !isCategorizing) {
+    if (enableFunnyAlerts && txCount > 0 && !isCategorizing) {
       // Delay slightly to allow UI to settle
       const timer = setTimeout(() => {
-        const alerts = checkFinancialHealth(transactions);
+        const alerts = checkFinancialHealth(useTransactionStore.getState().transactions);
         alerts.forEach((alert) => {
           addToast(alert.message, alert.type as ToastType, 6000);
         });
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [transactions, isCategorizing, enableFunnyAlerts, addToast]);
+    // `transactions` is read from the store inside the timer so the dep array
+    // can stay coarse without reading a stale array.
+  }, [txCount, isCategorizing, enableFunnyAlerts, addToast]);
 
-  // Check if AI is configured or in demo mode
-  const isAIConfigured = useMemo(() => {
-    if (isDemoMode) return true;
-    if (aiMode === 'local') return true; // Assume local is always "ready" to try
-    const key = getDeobfuscatedApiKey(useSettingsStore.getState());
-    return !!key && key.length > 0;
-    // Track the (obfuscated) key fields so saving a key re-renders the Dashboard immediately.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aiMode, isDemoMode, geminiConfig.apiKey, groqConfig.apiKey]);
+  // Check if AI is configured or in demo mode — a single memoized read of the
+  // shared selector (F-UX-007), no third hand-rolled definition.
+  const isAIConfigured = useMemo(() => isDemoMode || aiReady, [isDemoMode, aiReady]);
 
   // Check if we have local patterns
   const hasPatterns = useMemo(() => {
