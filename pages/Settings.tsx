@@ -579,10 +579,14 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             {aiMode === 'custom' && (
               <div className="space-y-6 animate-in fade-in duration-300">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <label
+                    htmlFor="custom-base-url"
+                    className="text-sm font-medium text-gray-700 flex items-center gap-2"
+                  >
                     <Globe className="w-4 h-4" /> Base URL
                   </label>
                   <Input
+                    id="custom-base-url"
                     placeholder="https://api.example.com/v1"
                     value={customConfig.baseUrl}
                     onChange={(e) => setCustomConfig({ baseUrl: e.target.value })}
@@ -595,10 +599,14 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <label
+                    htmlFor="custom-api-key"
+                    className="text-sm font-medium text-gray-700 flex items-center gap-2"
+                  >
                     <Key className="w-4 h-4" /> API Key
                   </label>
                   <Input
+                    id="custom-api-key"
                     type="password"
                     placeholder="Enter your endpoint's API key"
                     value={getDeobfuscatedApiKey(useSettingsStore.getState())}
