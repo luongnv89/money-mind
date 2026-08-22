@@ -25,3 +25,25 @@ describe('repository quality configuration', () => {
     expect(pkg.engines?.node).toBe('>=24');
   });
 });
+
+describe('documentation alignment', () => {
+  const readme = readFileSync('README.md', 'utf8');
+
+  it('states a license backed by a LICENSE file', () => {
+    expect(readFileSync('LICENSE', 'utf8')).toContain('MIT License');
+    expect(readme).toContain('[LICENSE](LICENSE)');
+  });
+
+  it('backs the contributing section with a CONTRIBUTING.md', () => {
+    const contributing = readFileSync('CONTRIBUTING.md', 'utf8');
+    expect(contributing).toContain('pre-commit install');
+    expect(readme).toContain('[CONTRIBUTING.md](CONTRIBUTING.md)');
+  });
+
+  it('documents only AI backends that exist in the dependency tree', () => {
+    // WebLLM is absent from package.json and the lockfile (F-DOCS-004);
+    // the documented local backend is Ollama only.
+    expect(readme).not.toMatch(/webllm/i);
+    expect(readme).toContain('Ollama');
+  });
+});

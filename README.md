@@ -1,7 +1,7 @@
 
 # MoneyMind 🧠💰
 
-MoneyMind is a privacy-first, serverless financial analyzer built with React. It uses on-device AI (via WebLLM/Ollama) or Cloud AI (Gemini/Groq) to categorize transactions, detect spending patterns, and provide "sassy" financial advice—all without storing your data on a backend server.
+MoneyMind is a privacy-first, serverless financial analyzer built with React. It uses local AI (Ollama) or Cloud AI (Gemini/Groq) to categorize transactions, detect spending patterns, and provide "sassy" financial advice—all without storing your data on a backend server.
 
 ## 🚀 Features
 
@@ -18,7 +18,7 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
 
 -   **Frontend:** React 19, TypeScript, Vite
 -   **State Management:** Zustand (with LocalStorage persistence)
--   **Styling:** Tailwind CSS, Lucide React (Icons)
+-   **Styling:** Tailwind CSS v4 via a local PostCSS build (`@tailwindcss/postcss`, no CDN), Lucide React (Icons)
 -   **AI Integration:** Google GenAI SDK, Custom REST connectors for Groq/Ollama
 -   **Parsing:** PapaParse (CSV)
 -   **Visualization:** Recharts
@@ -34,8 +34,8 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/yourusername/moneymind.git
-    cd moneymind
+    git clone https://github.com/luongnv89/money-mind.git
+    cd money-mind
     ```
 
 2.  **Install dependencies:**
@@ -112,10 +112,12 @@ This application deals with financial data.
 2.  The app is designed to be client-side only. There is no database. Clearing your browser cache will delete your transaction history and learned patterns.
 
 ## 🤝 Contributing
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development workflow (setup, quality gates, and commit/PR conventions). In short:
+
 1.  Fork the repo.
 2.  Create a feature branch.
 3.  Commit your changes.
 4.  Open a Pull Request.
 
 ## 📄 License
-MIT
+MIT — see [LICENSE](LICENSE).
