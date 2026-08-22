@@ -50,6 +50,9 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [patternCount, setPatternCount] = useState(getPatterns().length);
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
+  // Mirrors the stale-model reset toast inside the catalog status live region
+  // so screen readers also hear it (WCAG 4.1.3) — issue #79 review ui-1.
+  const [modelResetNotice, setModelResetNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Issue #79: the model lists are loaded live from each provider. Debounce
@@ -65,6 +68,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     let cancelled = false;
     setCatalog(null);
     setIsLoadingCatalog(true);
+    setModelResetNotice(null);
 
     loadModelCatalog(aiMode).then((result) => {
       if (cancelled) return;
@@ -83,11 +87,12 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           result.models.map((m) => m.id)
         );
         if (outcome.reset) {
-          addToast(
-            `Saved model "${outcome.from}" is no longer available — switched to "${outcome.to}".`,
-            'warning',
-            6000
-          );
+          const message = `Saved model "${outcome.from}" is no longer available — switched to "${outcome.to}".`;
+          // Echo the toast in the catalog status live region: the ToastContainer
+          // is not an aria-live region, so without this screen readers stay
+          // silent when the saved model is swapped (WCAG 4.1.3, issue #79).
+          setModelResetNotice(message);
+          addToast(message, 'warning', 6000);
         }
       }
     });
@@ -128,6 +133,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           {catalog?.status === 'cached' ? ' (cached list)' : ''}.
         </p>
       )}
+      {modelResetNotice && <p className="text-xs text-amber-700 mt-1">{modelResetNotice}</p>}
     </div>
   );
 
