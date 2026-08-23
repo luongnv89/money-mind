@@ -30,6 +30,20 @@ const modelUnavailableMessage = (provider: string, model: string, detail: string
   `Model "${model}" is not available on ${provider} (${detail}). ` +
   'It may have been renamed or retired — pick a current model in Settings.';
 
+/**
+ * OpenAI-compatible servers return API errors in two shapes: the canonical
+ * `{ "error": { "message": "..." } }` and the flat `{ "error": "..." }`.
+ * Resolve both so users see the server's actual message, falling back to the
+ * caller's generic string only when neither shape is present.
+ */
+const extractApiDetail = (payload: unknown, fallback: string): string => {
+  const error = (payload as { error?: unknown } | null | undefined)?.error;
+  if (typeof error === 'string' && error.trim()) return error;
+  const message = (error as { message?: unknown } | null | undefined)?.message;
+  if (typeof message === 'string' && message.trim()) return message;
+  return fallback;
+};
+
 const ollamaModelMissingMessage = (model: string): string =>
   `Model "${model}" was not found on the Ollama server. Run \`ollama pull ${model}\` ` +
   'or pick another model in Settings.';
@@ -110,7 +124,7 @@ export const testAiConnection = async (): Promise<boolean> => {
 
       if (!response.ok) {
         const err = await response.json();
-        const detail = err.error?.message || 'Groq connection failed';
+        const detail = extractApiDetail(err, 'Groq connection failed');
         if (isModelUnavailable(response.status, detail)) {
           throw new Error(modelUnavailableMessage('Groq', settings.groqConfig.model, detail));
         }
@@ -138,7 +152,7 @@ export const testAiConnection = async (): Promise<boolean> => {
 
       if (!response.ok) {
         const err = await response.json();
-        const detail = err.error?.message || 'Custom endpoint connection failed';
+        const detail = extractApiDetail(err, 'Custom endpoint connection failed');
         if (isModelUnavailable(response.status, detail)) {
           throw new Error(modelUnavailableMessage('the custom endpoint', model, detail));
         }
@@ -262,7 +276,7 @@ export const chatWithFinancialAgent = async (
 
     if (!response.ok) {
       const err = await response.json();
-      throw new Error(err.error?.message || 'Groq API Error');
+      throw new Error(extractApiDetail(err, 'Groq API Error'));
     }
 
     const data = await response.json();
@@ -281,7 +295,7 @@ export const chatWithFinancialAgent = async (
 
     if (!response.ok) {
       const err = await response.json();
-      throw new Error(err.error?.message || 'Custom endpoint API Error');
+      throw new Error(extractApiDetail(err, 'Custom endpoint API Error'));
     }
 
     const data = await response.json();
@@ -540,7 +554,7 @@ const categorizeWithOpenAICompatible = async (
           throw new Error(config.rateLimitMessage);
         }
         const err = await response.json();
-        const detail = err.error?.message || config.apiErrorMessage;
+        const detail = extractApiDetail(err, config.apiErrorMessage);
         if (isModelUnavailable(response.status, detail)) {
           throw new Error(modelUnavailableMessage(config.label, config.model, detail));
         }

@@ -657,6 +657,18 @@ describe('testAiConnection — custom OpenAI-compatible endpoint (issue #82)', (
     await expect(testAiConnection()).rejects.toThrow('Custom Endpoint Error: invalid key');
   });
 
+  it('surfaces flat string-shaped connection errors (issue #82 review N3)', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'plain-text failure' }, false));
+    await expect(testAiConnection()).rejects.toThrow('Custom Endpoint Error: plain-text failure');
+  });
+
+  it('falls back to the generic detail when the error body has neither shape', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(jsonResponse({ error: { code: 500 } }, false));
+    await expect(testAiConnection()).rejects.toThrow('Custom endpoint connection failed');
+  });
+
   it('explains a retired model id on the custom endpoint', async () => {
     resetSettings(customReady);
     fetchMock.mockResolvedValue(
@@ -718,6 +730,12 @@ describe('chatWithFinancialAgent — custom endpoint (issue #82)', () => {
     resetSettings(customReady);
     fetchMock.mockResolvedValue(jsonResponse({ error: { message: 'quota blown' } }, false));
     await expect(chatWithFinancialAgent('hi', 'ctx')).rejects.toThrow('quota blown');
+  });
+
+  it('surfaces flat string-shaped chat errors from the endpoint (issue #82 review N3)', async () => {
+    resetSettings(customReady);
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'keyless server says no' }, false));
+    await expect(chatWithFinancialAgent('hi', 'ctx')).rejects.toThrow('keyless server says no');
   });
 });
 
