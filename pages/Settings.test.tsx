@@ -140,6 +140,31 @@ describe('Settings — custom OpenAI-compatible endpoint tab (issue #82)', () =>
     expect(document.activeElement?.id).toBe('settings-tab-groq');
   });
 
+  it('shows a scroll affordance and scrolls focused tabs into view (issue #82 review N4)', async () => {
+    const scrollSpy = vi.fn();
+    Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
+      value: scrollSpy,
+      writable: true,
+      configurable: true,
+    });
+    await render();
+
+    // Edge fades mark that more provider tabs exist off-screen.
+    expect(document.querySelector('[data-testid="provider-tabs-fade-left"]')).not.toBeNull();
+    expect(
+      document
+        .querySelector('[data-testid="provider-tabs-fade-right"]')
+        ?.getAttribute('aria-hidden')
+    ).toBe('true');
+
+    // Focusing a tab (keyboard or programmatic) scrolls it into view.
+    const lastTab = document.getElementById('settings-tab-custom')!;
+    await React.act(async () => {
+      lastTab.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+    });
+    expect(scrollSpy).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
+  });
+
   it('switches to the custom tab and renders Base URL, API key and model inputs', async () => {
     await render();
 

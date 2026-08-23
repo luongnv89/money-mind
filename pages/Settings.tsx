@@ -354,31 +354,48 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Mode Selection Tabs */}
-          <div
-            role="tablist"
-            aria-label="AI provider"
-            className="flex border-b border-gray-100 overflow-x-auto"
-          >
-            {PROVIDER_TABS.map(({ mode, label, Icon }, index) => (
-              <button
-                key={mode}
-                id={`settings-tab-${mode}`}
-                role="tab"
-                aria-selected={aiMode === mode}
-                aria-controls={`settings-panel-${mode}`}
-                tabIndex={aiMode === mode ? 0 : -1}
-                onKeyDown={(e) => handleProviderTabKeyDown(e, index)}
-                onClick={() => {
-                  setAiMode(mode);
-                  setTestResult(null);
-                }}
-                className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === mode ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-              >
-                <Icon className="w-4 h-4" />
-                {label}
-              </button>
-            ))}
+          {/* Mode Selection Tabs — the strip scrolls horizontally on narrow
+              viewports; the edge fades make off-screen tabs discoverable and
+              focusing a tab always scrolls it into view (review N4). */}
+          <div className="relative">
+            <div
+              role="tablist"
+              aria-label="AI provider"
+              className="flex border-b border-gray-100 overflow-x-auto"
+            >
+              {PROVIDER_TABS.map(({ mode, label, Icon }, index) => (
+                <button
+                  key={mode}
+                  id={`settings-tab-${mode}`}
+                  role="tab"
+                  aria-selected={aiMode === mode}
+                  aria-controls={`settings-panel-${mode}`}
+                  tabIndex={aiMode === mode ? 0 : -1}
+                  onKeyDown={(e) => handleProviderTabKeyDown(e, index)}
+                  onFocus={(e) =>
+                    e.currentTarget.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+                  }
+                  onClick={() => {
+                    setAiMode(mode);
+                    setTestResult(null);
+                  }}
+                  className={`min-h-11 flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === mode ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div
+              aria-hidden="true"
+              data-testid="provider-tabs-fade-left"
+              className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-linear-to-r from-gray-200/70 to-transparent"
+            />
+            <div
+              aria-hidden="true"
+              data-testid="provider-tabs-fade-right"
+              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-linear-to-l from-gray-200/70 to-transparent"
+            />
           </div>
 
           <div className="p-6 space-y-6">
