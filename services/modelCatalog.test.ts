@@ -6,6 +6,7 @@ import {
   fetchGeminiModels,
   fetchGroqModels,
   fetchOllamaModels,
+  fetchCustomModels,
   loadModelCatalog,
 } from './modelCatalog';
 import { useSettingsStore } from '../stores/useSettingsStore';
@@ -25,6 +26,7 @@ const resetSettings = (overrides: Record<string, unknown> = {}) => {
     geminiConfig: { apiKey: '', model: 'models/gemini-flash-latest' },
     groqConfig: { apiKey: '', model: 'llama-3.1-8b-instant' },
     ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: 'llama3.2' },
+    customConfig: { baseUrl: '', apiKey: '', model: 'gpt-3.5-turbo' },
     ...overrides,
   });
 };
@@ -287,5 +289,87 @@ describe('loadModelCatalog — cache resilience', () => {
     const result = await loadModelCatalog('cloud');
     expect(result.status).toBe('live');
     expect(result.models[0].id).toBe('models/gemini-flash-latest');
+  });
+});
+
+describe('fetchCustomModels — OpenAI-compatible /models (issue #82)', () => {
+  it('hits {baseUrl}/models with a normalized URL and bearer key', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ data: [{ id: 'm2' }, { id: 'm1' }, { id: 'm1' }, { id: '' }] })
+    );
+
+    const models = await fetchCustomModels('https://api.example.com/v1/', 'sk-k');
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.example.com/v1/models');
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer sk-k');
+    expect(models).toEqual([
+      { id: 'm1', label: 'm1' },
+      { id: 'm2', label: 'm2' },
+    ]);
+  });
+
+  it('omits the Authorization header when no key is saved', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ data: [{ id: 'local-model' }] }));
+
+    await fetchCustomModels('http://localhost:1234/v1', '');
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
+  });
+
+  it('throws with the status on a non-OK response', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}, false, 404));
+    await expect(fetchCustomModels('http://localhost:1234/v1', '')).rejects.toThrow(
+      'The endpoint returned 404'
+    );
+  });
+});
+
+describe('loadModelCatalog — custom endpoint (issue #82)', () => {
+  const customKey = {
+    customConfig: { baseUrl: 'https://api.example.com/v1', apiKey: btoa('sk-k'), model: 'm' },
+  };
+
+  it('loads the live list and caches per base URL', async () => {
+    resetSettings(customKey);
+    fetchMock.mockResolvedValue(jsonResponse({ data: [{ id: 'a' }, { id: 'b' }] }));
+
+    const first = await loadModelCatalog('custom');
+    expect(first.status).toBe('live');
+    expect(first.models.map((m) => m.id)).toEqual(['a', 'b']);
+
+    const second = await loadModelCatalog('custom');
+    expect(second.status).toBe('cached');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // A different base URL is a different server — cache miss
+    useSettingsStore.getState().setCustomConfig({ baseUrl: 'https://other.example.com/v1' });
+    await loadModelCatalog('custom');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe('https://other.example.com/v1/models');
+  });
+
+  it('falls back when no Base URL is saved yet', async () => {
+    const result = await loadModelCatalog('custom');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.status).toBe('fallback');
+    expect(result.models).toBe(FALLBACK_MODEL_CATALOG.custom);
+    expect(result.notice).toMatch(/No Base URL saved yet/);
+  });
+
+  it('falls back with a notice when the endpoint is unreachable', async () => {
+    resetSettings(customKey);
+    fetchMock.mockRejectedValue(new Error('Failed to fetch'));
+
+    const result = await loadModelCatalog('custom');
+    expect(result.status).toBe('fallback');
+    expect(result.models).toBe(FALLBACK_MODEL_CATALOG.custom);
+    expect(result.notice).toMatch(/Could not load the live model list/);
+  });
+
+  it('falls back when the endpoint lists no usable models', async () => {
+    resetSettings(customKey);
+    fetchMock.mockResolvedValue(jsonResponse({ data: [] }));
+
+    const result = await loadModelCatalog('custom');
+    expect(result.status).toBe('fallback');
+    expect(result.models).toBe(FALLBACK_MODEL_CATALOG.custom);
   });
 });

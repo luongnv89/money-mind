@@ -22,12 +22,21 @@ import {
   Download,
   Upload,
   BarChart2,
+  Globe,
 } from 'lucide-react';
 import { testAiConnection } from '../services/aiService';
 import { loadModelCatalog } from '../services/modelCatalog';
 import { FALLBACK_MODEL_CATALOG } from '../constants';
 import { ModelCatalog } from '../types';
 import { useToastStore } from '../stores/useToastStore';
+
+/** Provider switcher tabs — order defines arrow-key traversal. */
+const PROVIDER_TABS = [
+  { mode: 'cloud', label: 'Gemini (Google)', Icon: Cloud },
+  { mode: 'groq', label: 'Groq (Fast)', Icon: Zap },
+  { mode: 'local', label: 'Ollama (Local)', Icon: Cpu },
+  { mode: 'custom', label: 'Custom Endpoint', Icon: Globe },
+] as const;
 
 export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const {
@@ -39,6 +48,8 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     setGroqConfig,
     ollamaConfig,
     setOllamaConfig,
+    customConfig,
+    setCustomConfig,
   } = useSettingsStore();
 
   const { addToast } = useToastStore();
@@ -59,10 +70,17 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   // the inputs they depend on so typing a key or host doesn't fire a request
   // per keystroke.
   const currentApiKey =
-    aiMode === 'cloud' ? geminiConfig.apiKey : aiMode === 'groq' ? groqConfig.apiKey : '';
+    aiMode === 'cloud'
+      ? geminiConfig.apiKey
+      : aiMode === 'groq'
+        ? groqConfig.apiKey
+        : aiMode === 'custom'
+          ? customConfig.apiKey
+          : '';
   const debouncedApiKey = useDebouncedValue(currentApiKey, 500);
   const debouncedOllamaBaseUrl = useDebouncedValue(ollamaConfig.baseUrl, 500);
   const debouncedOllamaPort = useDebouncedValue(ollamaConfig.port, 500);
+  const debouncedCustomBaseUrl = useDebouncedValue(customConfig.baseUrl, 500);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,16 +118,32 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     return () => {
       cancelled = true;
     };
-  }, [aiMode, debouncedApiKey, debouncedOllamaBaseUrl, debouncedOllamaPort, addToast]);
+  }, [
+    aiMode,
+    debouncedApiKey,
+    debouncedOllamaBaseUrl,
+    debouncedOllamaPort,
+    debouncedCustomBaseUrl,
+    addToast,
+  ]);
 
-  const providerName = aiMode === 'cloud' ? 'Gemini' : aiMode === 'groq' ? 'Groq' : 'Ollama';
+  const providerName =
+    aiMode === 'cloud'
+      ? 'Gemini'
+      : aiMode === 'groq'
+        ? 'Groq'
+        : aiMode === 'custom'
+          ? 'your endpoint'
+          : 'Ollama';
   const catalogModels = catalog?.models ?? FALLBACK_MODEL_CATALOG[aiMode];
   const selectedModel =
     aiMode === 'cloud'
       ? geminiConfig.model
       : aiMode === 'groq'
         ? groqConfig.model
-        : ollamaConfig.model;
+        : aiMode === 'custom'
+          ? customConfig.model
+          : ollamaConfig.model;
   // Keep a saved-but-missing model selectable (labeled) so the control never
   // shows a blank value — e.g. when the list is degraded (issue #79, AC5).
   const selectedModelMissing =
@@ -217,6 +251,18 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     }
   };
 
+  // Roving-tabindex arrow-key navigation for the provider tabs (WCAG 4.1.2).
+  const handleProviderTabKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    e.preventDefault();
+    const delta = e.key === 'ArrowRight' ? 1 : -1;
+    const nextMode =
+      PROVIDER_TABS[(index + delta + PROVIDER_TABS.length) % PROVIDER_TABS.length].mode;
+    setAiMode(nextMode);
+    setTestResult(null);
+    document.getElementById(`settings-tab-${nextMode}`)?.focus();
+  };
+
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4">
       <div className="flex items-center justify-between mb-6">
@@ -299,6 +345,8 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           <CardTitle className="flex items-center gap-2">
             {aiMode === 'local' ? (
               <Cpu className="w-5 h-5 text-accent" />
+            ) : aiMode === 'custom' ? (
+              <Globe className="w-5 h-5 text-accent" />
             ) : (
               <Cloud className="w-5 h-5 text-accent" />
             )}
@@ -306,43 +354,58 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Mode Selection Tabs */}
-          <div className="flex border-b border-gray-100 overflow-x-auto">
-            <button
-              className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === 'cloud' ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-              onClick={() => {
-                setAiMode('cloud');
-                setTestResult(null);
-              }}
+          {/* Mode Selection Tabs — the strip scrolls horizontally on narrow
+              viewports; the edge fades make off-screen tabs discoverable and
+              focusing a tab always scrolls it into view (review N4). */}
+          <div className="relative">
+            <div
+              role="tablist"
+              aria-label="AI provider"
+              className="flex border-b border-gray-100 overflow-x-auto"
             >
-              <Cloud className="w-4 h-4" />
-              Gemini (Google)
-            </button>
-            <button
-              className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === 'groq' ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-              onClick={() => {
-                setAiMode('groq');
-                setTestResult(null);
-              }}
-            >
-              <Zap className="w-4 h-4" />
-              Groq (Fast)
-            </button>
-            <button
-              className={`flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === 'local' ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-              onClick={() => {
-                setAiMode('local');
-                setTestResult(null);
-              }}
-            >
-              <Cpu className="w-4 h-4" />
-              Ollama (Local)
-            </button>
+              {PROVIDER_TABS.map(({ mode, label, Icon }, index) => (
+                <button
+                  key={mode}
+                  id={`settings-tab-${mode}`}
+                  role="tab"
+                  aria-selected={aiMode === mode}
+                  aria-controls={`settings-panel-${mode}`}
+                  tabIndex={aiMode === mode ? 0 : -1}
+                  onKeyDown={(e) => handleProviderTabKeyDown(e, index)}
+                  onFocus={(e) =>
+                    e.currentTarget.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+                  }
+                  onClick={() => {
+                    setAiMode(mode);
+                    setTestResult(null);
+                  }}
+                  className={`min-h-11 flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === mode ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div
+              aria-hidden="true"
+              data-testid="provider-tabs-fade-left"
+              className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-linear-to-r from-gray-200/70 to-transparent"
+            />
+            <div
+              aria-hidden="true"
+              data-testid="provider-tabs-fade-right"
+              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-linear-to-l from-gray-200/70 to-transparent"
+            />
           </div>
 
           <div className="p-6 space-y-6">
             {aiMode === 'cloud' && (
-              <div className="space-y-4 animate-in fade-in duration-300">
+              <div
+                id="settings-panel-cloud"
+                role="tabpanel"
+                aria-labelledby="settings-tab-cloud"
+                className="space-y-4 animate-in fade-in duration-300"
+              >
                 {isUsingCustomKey && (
                   <div className="bg-green-50 border border-green-100 rounded-lg p-3 flex items-start gap-3">
                     <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
@@ -402,7 +465,12 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             )}
 
             {aiMode === 'groq' && (
-              <div className="space-y-6 animate-in fade-in duration-300">
+              <div
+                id="settings-panel-groq"
+                role="tabpanel"
+                aria-labelledby="settings-tab-groq"
+                className="space-y-6 animate-in fade-in duration-300"
+              >
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                     <Key className="w-4 h-4" /> API Key
@@ -473,7 +541,12 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             )}
 
             {aiMode === 'local' && (
-              <div className="space-y-6 animate-in fade-in duration-300">
+              <div
+                id="settings-panel-local"
+                role="tabpanel"
+                aria-labelledby="settings-tab-local"
+                className="space-y-6 animate-in fade-in duration-300"
+              >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-gray-700">Base URL</label>
@@ -532,6 +605,93 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                         <div className="text-gray-400 mb-1 select-none"># Windows (PowerShell)</div>
                         <div className="select-all">$env:OLLAMA_ORIGINS="*"; ollama serve</div>
                       </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {aiMode === 'custom' && (
+              <div
+                id="settings-panel-custom"
+                role="tabpanel"
+                aria-labelledby="settings-tab-custom"
+                className="space-y-6 animate-in fade-in duration-300"
+              >
+                <div className="space-y-2">
+                  <label
+                    htmlFor="custom-base-url"
+                    className="text-sm font-medium text-gray-700 flex items-center gap-2"
+                  >
+                    <Globe className="w-4 h-4" /> Base URL
+                  </label>
+                  <Input
+                    id="custom-base-url"
+                    placeholder="https://api.example.com/v1"
+                    value={customConfig.baseUrl}
+                    onChange={(e) => setCustomConfig({ baseUrl: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Any OpenAI-compatible server — requests go to{' '}
+                    <code>{`{Base URL}/chat/completions`}</code>. Include the version path if your
+                    server needs one (e.g. <code>/v1</code>).
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="custom-api-key"
+                    className="text-sm font-medium text-gray-700 flex items-center gap-2"
+                  >
+                    <Key className="w-4 h-4" /> API Key
+                  </label>
+                  <Input
+                    id="custom-api-key"
+                    type="password"
+                    placeholder="Enter your endpoint's API key"
+                    value={getDeobfuscatedApiKey(useSettingsStore.getState())}
+                    onChange={(e) => setCustomConfig({ apiKey: e.target.value })}
+                    className="font-mono"
+                  />
+                  <p className="text-xs text-gray-500">
+                    Stored locally (obfuscated, not encrypted). Leave empty only if your server
+                    skips authentication.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="custom-model" className="text-sm font-medium text-gray-700">
+                    Model Name
+                  </label>
+                  <Input
+                    id="custom-model"
+                    placeholder="e.g. gpt-4o-mini, llama3.1, my-finetune"
+                    value={customConfig.model}
+                    onChange={(e) => setCustomConfig({ model: e.target.value })}
+                    list="custom-models"
+                  />
+                  <datalist id="custom-models">
+                    {catalogModels.map((m) => (
+                      <option key={m.id} value={m.id} />
+                    ))}
+                  </datalist>
+                  <p className="text-xs text-gray-500">
+                    Free text — models reported by your endpoint appear as suggestions, but any
+                    model id works.
+                  </p>
+                  {catalogStatus}
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-start gap-3">
+                    <Terminal className="w-5 h-5 text-gray-400 mt-0.5" />
+                    <div className="text-sm text-gray-600 space-y-2">
+                      <p className="font-medium text-gray-900">OpenAI-compatible endpoints:</p>
+                      <ul className="list-disc list-inside space-y-1 ml-1 text-xs">
+                        <li>Works with LM Studio, vLLM, LocalAI, OpenRouter and similar servers</li>
+                        <li>The server must allow browser access (CORS)</li>
+                        <li>Use &quot;Test Connection&quot; below to verify your setup</li>
+                      </ul>
                     </div>
                   </div>
                 </div>

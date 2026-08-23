@@ -42,6 +42,17 @@ interface GroqListResponse {
   data?: GroqListModel[];
 }
 
+// OpenAI-compatible /models responses reuse the same `data: [{id}]` shape.
+interface CustomListResponse {
+  data?: { id: string }[];
+}
+
+/** Ensure the custom endpoint base URL is protocol-complete and slash-free. */
+export const normalizeCustomBaseUrl = (baseUrl: string): string => {
+  const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;
+  return safeBaseUrl.replace(/\/+$/, '');
+};
+
 interface OllamaTagsResponse {
   models?: { name: string }[];
 }
@@ -131,6 +142,20 @@ export const fetchOllamaModels = async (baseUrl: string, port: string): Promise<
   return sortModels((data.models ?? []).map((m) => ({ id: m.name, label: m.name })));
 };
 
+/**
+ * GET {baseUrl}/models — any OpenAI-compatible server (issue #82). Unlike
+ * Groq, entries are not filtered on `active`: arbitrary servers rarely set it.
+ * The API key is optional; servers that skip auth simply ignore the header.
+ */
+export const fetchCustomModels = async (baseUrl: string, apiKey: string): Promise<ModelInfo[]> => {
+  const headers: Record<string, string> = {};
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const response = await fetch(`${normalizeCustomBaseUrl(baseUrl)}/models`, { headers });
+  if (!response.ok) throw new Error(`The endpoint returned ${response.status}`);
+  const data = (await response.json()) as CustomListResponse;
+  return sortModels((data.data ?? []).filter((m) => m.id).map((m) => ({ id: m.id, label: m.id })));
+};
+
 const fallbackCatalog = (provider: AIMode, reason: string): ModelCatalog => ({
   provider,
   status: 'fallback',
@@ -138,12 +163,18 @@ const fallbackCatalog = (provider: AIMode, reason: string): ModelCatalog => ({
   notice: `${reason} Showing the built-in model list instead.`,
 });
 
-/** Cache key: the provider — plus the host for Ollama, whose list is per-server. */
+/** Cache key: the provider — plus the host/server for per-server lists. */
 const cacheKeyFor = (provider: AIMode): string => {
-  if (provider !== 'local') return provider;
-  const { baseUrl, port } = useSettingsStore.getState().ollamaConfig;
-  const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;
-  return `local:${safeBaseUrl}:${port}`;
+  if (provider === 'local') {
+    const { baseUrl, port } = useSettingsStore.getState().ollamaConfig;
+    const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;
+    return `local:${safeBaseUrl}:${port}`;
+  }
+  if (provider === 'custom') {
+    const { baseUrl } = useSettingsStore.getState().customConfig;
+    return `custom:${normalizeCustomBaseUrl(baseUrl)}`;
+  }
+  return provider;
 };
 
 /**
@@ -154,7 +185,13 @@ const cacheKeyFor = (provider: AIMode): string => {
 export const loadModelCatalog = async (provider: AIMode): Promise<ModelCatalog> => {
   const settings = useSettingsStore.getState();
 
-  if (provider !== 'local' && !getDeobfuscatedProviderKey(settings, provider)) {
+  if (provider === 'custom') {
+    // A custom endpoint needs a base URL; the API key itself is optional
+    // (many self-hosted OpenAI-compatible servers skip auth).
+    if (!settings.customConfig.baseUrl.trim()) {
+      return fallbackCatalog(provider, 'No Base URL saved yet — the live model list needs one.');
+    }
+  } else if (provider !== 'local' && !getDeobfuscatedProviderKey(settings, provider)) {
     return fallbackCatalog(provider, 'No API key saved yet — the live model list needs one.');
   }
 
@@ -170,6 +207,9 @@ export const loadModelCatalog = async (provider: AIMode): Promise<ModelCatalog> 
       models = await fetchGeminiModels(getDeobfuscatedProviderKey(settings, provider));
     } else if (provider === 'groq') {
       models = await fetchGroqModels(getDeobfuscatedProviderKey(settings, provider));
+    } else if (provider === 'custom') {
+      const { baseUrl } = settings.customConfig;
+      models = await fetchCustomModels(baseUrl, getDeobfuscatedProviderKey(settings, 'custom'));
     } else {
       const { baseUrl, port } = settings.ollamaConfig;
       models = await fetchOllamaModels(baseUrl, port);

@@ -1,8 +1,13 @@
 import { Transaction, AIMode, TransactionCategory } from '../types';
-import { useSettingsStore, getDeobfuscatedApiKey } from '../stores/useSettingsStore';
+import {
+  useSettingsStore,
+  getDeobfuscatedApiKey,
+  getDeobfuscatedProviderKey,
+} from '../stores/useSettingsStore';
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORY_HIERARCHY } from '../constants';
 import { logger } from '../lib/logger';
+import { normalizeCustomBaseUrl } from './modelCatalog';
 
 interface CategorizationResult {
   id: string;
@@ -25,9 +30,49 @@ const modelUnavailableMessage = (provider: string, model: string, detail: string
   `Model "${model}" is not available on ${provider} (${detail}). ` +
   'It may have been renamed or retired — pick a current model in Settings.';
 
+/**
+ * OpenAI-compatible servers return API errors in two shapes: the canonical
+ * `{ "error": { "message": "..." } }` and the flat `{ "error": "..." }`.
+ * Resolve both so users see the server's actual message, falling back to the
+ * caller's generic string only when neither shape is present.
+ */
+const extractApiDetail = (payload: unknown, fallback: string): string => {
+  const error = (payload as { error?: unknown } | null | undefined)?.error;
+  if (typeof error === 'string' && error.trim()) return error;
+  const message = (error as { message?: unknown } | null | undefined)?.message;
+  if (typeof message === 'string' && message.trim()) return message;
+  return fallback;
+};
+
 const ollamaModelMissingMessage = (model: string): string =>
   `Model "${model}" was not found on the Ollama server. Run \`ollama pull ${model}\` ` +
   'or pick another model in Settings.';
+
+// --- Custom OpenAI-compatible endpoint (issue #82) ---
+// normalizeCustomBaseUrl is shared with modelCatalog.ts (single definition).
+
+const customChatUrl = (baseUrl: string): string =>
+  `${normalizeCustomBaseUrl(baseUrl)}/chat/completions`;
+
+/**
+ * Shared OpenAI chat-completions round-trip for the custom endpoint: same wire
+ * shape as the Groq branch, pointed at the user's own server.
+ */
+const fetchCustomChatCompletion = async (
+  settings: ReturnType<typeof useSettingsStore.getState>,
+  body: Record<string, unknown>
+): Promise<Response> => {
+  const apiKey = getDeobfuscatedProviderKey(settings, 'custom');
+  // Keyless servers (no-auth LM Studio / vLLM) get no Authorization header,
+  // mirroring fetchCustomModels in modelCatalog.ts (issue #82).
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  return fetch(customChatUrl(settings.customConfig.baseUrl), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+};
 
 // --- Connection Testing ---
 
@@ -79,7 +124,7 @@ export const testAiConnection = async (): Promise<boolean> => {
 
       if (!response.ok) {
         const err = await response.json();
-        const detail = err.error?.message || 'Groq connection failed';
+        const detail = extractApiDetail(err, 'Groq connection failed');
         if (isModelUnavailable(response.status, detail)) {
           throw new Error(modelUnavailableMessage('Groq', settings.groqConfig.model, detail));
         }
@@ -88,6 +133,42 @@ export const testAiConnection = async (): Promise<boolean> => {
       return true;
     } catch (e: unknown) {
       throw new Error(`Groq Error: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  } else if (mode === 'custom') {
+    const { baseUrl, model } = settings.customConfig;
+    // The API key is optional for custom endpoints — servers without auth work keyless.
+    if (!baseUrl.trim() || !model.trim()) {
+      throw new Error(
+        'Missing Custom Endpoint configuration. Set the Base URL and model in Settings.'
+      );
+    }
+
+    try {
+      const response = await fetchCustomChatCompletion(settings, {
+        model,
+        messages: [{ role: 'user', content: 'Reply with JSON: { "status": "OK" }' }],
+        response_format: { type: 'json_object' },
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        const detail = extractApiDetail(err, 'Custom endpoint connection failed');
+        if (isModelUnavailable(response.status, detail)) {
+          throw new Error(modelUnavailableMessage('the custom endpoint', model, detail));
+        }
+        throw new Error(detail);
+      }
+      return true;
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      if (errorMessage === 'Failed to fetch' || (e instanceof Error && e.name === 'TypeError')) {
+        throw new Error(
+          'Connection Failed. Check that:\n\n' +
+            '1. The Base URL is correct and reachable from your browser.\n' +
+            '2. The server allows cross-origin requests (CORS) from this app.'
+        );
+      }
+      throw new Error(`Custom Endpoint Error: ${errorMessage}`);
     }
   } else {
     const { baseUrl, port, model } = settings.ollamaConfig;
@@ -195,11 +276,30 @@ export const chatWithFinancialAgent = async (
 
     if (!response.ok) {
       const err = await response.json();
-      throw new Error(err.error?.message || 'Groq API Error');
+      throw new Error(extractApiDetail(err, 'Groq API Error'));
     }
 
     const data = await response.json();
     resultText = data.choices?.[0]?.message?.content || 'Groq is silent 🐵';
+  } else if (settings.aiMode === 'custom') {
+    const { baseUrl, model } = settings.customConfig;
+    if (!baseUrl.trim() || !model.trim()) throw new Error('Missing Custom Endpoint configuration');
+
+    const response = await fetchCustomChatCompletion(settings, {
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userQuery },
+      ],
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(extractApiDetail(err, 'Custom endpoint API Error'));
+    }
+
+    const data = await response.json();
+    resultText = data.choices?.[0]?.message?.content || 'Your endpoint is silent 🐵';
   } else {
     // Ollama
     const { baseUrl, port, model } = settings.ollamaConfig;
@@ -260,6 +360,8 @@ export const categorizeWithAI = async (
     await categorizeWithGemini(toProcess, onChunkProcessed);
   } else if (mode === 'groq') {
     await categorizeWithGroq(toProcess, onChunkProcessed);
+  } else if (mode === 'custom') {
+    await categorizeWithCustom(toProcess, onChunkProcessed);
   } else {
     await categorizeWithOllama(toProcess, onChunkProcessed);
   }
@@ -365,16 +467,34 @@ const categorizeWithGemini = async (
   }
 };
 
-const categorizeWithGroq = async (
+/**
+ * Shared OpenAI-compatible categorization pipeline used by the Groq branch and
+ * the custom-endpoint branch (#82): identical batching, strict-JSON contract,
+ * payload wrapping/normalization and per-batch fallbacks. Only the request
+ * transport, provider label and user-facing strings differ.
+ */
+interface OpenAICompatibleCategorizer {
+  model: string;
+  /** Provider label used in "model not available" messages. */
+  label: string;
+  post: (body: Record<string, unknown>) => Promise<Response>;
+  rateLimitMessage: string;
+  apiErrorMessage: string;
+  defaultReason: string;
+  parseLogLabel: string;
+  batchLogLabel: string;
+  /** Custom endpoints get CORS guidance for outright network failures. */
+  mapNetworkErrorsToCors?: boolean;
+}
+
+const categorizeWithOpenAICompatible = async (
   transactions: Transaction[],
+  config: OpenAICompatibleCategorizer,
   onChunkProcessed?: (results: CategorizationResult[]) => void
 ): Promise<void> => {
-  const settings = useSettingsStore.getState();
-  const apiKey = getDeobfuscatedApiKey(settings);
-  const model = settings.groqConfig.model;
   const hierarchyStr = JSON.stringify(CATEGORY_HIERARCHY);
 
-  // Groq creates fast inference, but we still batch to reduce network round trips and stay within TPM/RPM.
+  // Batch to reduce network round trips and stay within TPM/RPM.
   const BATCH_SIZE = 10;
   const RATE_LIMIT_DELAY_MS = 2000;
 
@@ -395,7 +515,7 @@ const categorizeWithGroq = async (
       }))
     );
 
-    // Strictly enforce JSON structure in the prompt to avoid "Failed to generate JSON" errors from Groq
+    // Strictly enforce JSON structure in the prompt to avoid "Failed to generate JSON" errors
     const systemPrompt = `
         You are a strict JSON API for financial categorization.
 
@@ -416,40 +536,33 @@ const categorizeWithGroq = async (
         `;
 
     try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: `Categorize these transactions. Return valid JSON only. Transactions: ${batchStr}`,
-            },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0, // Deterministic output helps with strict JSON
-        }),
+      const response = await config.post({
+        model: config.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: `Categorize these transactions. Return valid JSON only. Transactions: ${batchStr}`,
+          },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0, // Deterministic output helps with strict JSON
       });
 
       if (!response.ok) {
         if (response.status === 429) {
-          throw new Error('Groq Rate Limit Exceeded. Please check your plan.');
+          throw new Error(config.rateLimitMessage);
         }
         const err = await response.json();
-        const detail = err.error?.message || 'Groq API Error';
+        const detail = extractApiDetail(err, config.apiErrorMessage);
         if (isModelUnavailable(response.status, detail)) {
-          throw new Error(modelUnavailableMessage('Groq', model, detail));
+          throw new Error(modelUnavailableMessage(config.label, config.model, detail));
         }
         throw new Error(detail);
       }
 
       const data = await response.json();
-      const content = data.choices[0]?.message?.content;
+      const content = data.choices?.[0]?.message?.content;
 
       if (content) {
         let parsed;
@@ -468,7 +581,7 @@ const categorizeWithGroq = async (
             }
           }
         } catch (_e) {
-          logger.error('Failed to parse Groq JSON', content);
+          logger.error(config.parseLogLabel, content);
         }
 
         if (Array.isArray(parsed)) {
@@ -485,15 +598,24 @@ const categorizeWithGroq = async (
               category: item.category || TransactionCategory.Uncategorized,
               subCategory: item.subCategory,
               confidence: item.confidence || 0.8,
-              reason: item.reason || 'Groq AI',
+              reason: item.reason || config.defaultReason,
             })
           );
           if (onChunkProcessed) onChunkProcessed(results);
         }
       }
     } catch (e: unknown) {
-      logger.error('Groq Batch Failed', e);
+      logger.error(config.batchLogLabel, e);
       const errorMessage = e instanceof Error ? e.message : String(e);
+      if (
+        config.mapNetworkErrorsToCors &&
+        (errorMessage === 'Failed to fetch' || (e instanceof Error && e.name === 'TypeError'))
+      ) {
+        throw new Error(
+          'Connection Failed. Check that the Base URL is correct and that the server ' +
+            'allows cross-origin requests (CORS) from this app.'
+        );
+      }
       // Propagate rate limits, JSON-contract breaks, and retired-model errors
       if (
         errorMessage.includes('Rate Limit') ||
@@ -513,6 +635,66 @@ const categorizeWithGroq = async (
       if (onChunkProcessed) onChunkProcessed(fallbackResults);
     }
   }
+};
+
+const categorizeWithGroq = async (
+  transactions: Transaction[],
+  onChunkProcessed?: (results: CategorizationResult[]) => void
+): Promise<void> => {
+  const settings = useSettingsStore.getState();
+  const apiKey = getDeobfuscatedApiKey(settings);
+
+  await categorizeWithOpenAICompatible(
+    transactions,
+    {
+      model: settings.groqConfig.model,
+      label: 'Groq',
+      post: (body) =>
+        fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        }),
+      rateLimitMessage: 'Groq Rate Limit Exceeded. Please check your plan.',
+      apiErrorMessage: 'Groq API Error',
+      defaultReason: 'Groq AI',
+      parseLogLabel: 'Failed to parse Groq JSON',
+      batchLogLabel: 'Groq Batch Failed',
+    },
+    onChunkProcessed
+  );
+};
+
+const categorizeWithCustom = async (
+  transactions: Transaction[],
+  onChunkProcessed?: (results: CategorizationResult[]) => void
+): Promise<void> => {
+  const settings = useSettingsStore.getState();
+  const { baseUrl, model } = settings.customConfig;
+  if (!baseUrl.trim() || !model.trim()) {
+    throw new Error(
+      'Missing Custom Endpoint configuration. Set the Base URL and model in Settings.'
+    );
+  }
+
+  await categorizeWithOpenAICompatible(
+    transactions,
+    {
+      model,
+      label: 'the custom endpoint',
+      post: (body) => fetchCustomChatCompletion(settings, body),
+      rateLimitMessage: 'Custom endpoint Rate Limit Exceeded. Please check your plan.',
+      apiErrorMessage: 'Custom endpoint API Error',
+      defaultReason: 'Custom endpoint AI',
+      parseLogLabel: 'Failed to parse custom endpoint JSON',
+      batchLogLabel: 'Custom Endpoint Batch Failed',
+      mapNetworkErrorsToCors: true,
+    },
+    onChunkProcessed
+  );
 };
 
 const categorizeWithOllama = async (
