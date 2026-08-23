@@ -37,10 +37,10 @@ describe('content security policy', () => {
     expect(sources).not.toContain("'unsafe-inline'");
   });
 
-  it('limits connect-src to the three AI providers', () => {
+  it('limits connect-src to self, user-configured https endpoints, and localhost', () => {
     const sources = directive('connect-src');
-    expect(sources).toContain('https://generativelanguage.googleapis.com');
-    expect(sources).toContain('https://api.groq.com');
+    expect(sources).toContain("'self'");
+    expect(sources).toContain('https:');
     expect(sources).toContain('http://localhost:*');
     expect(sources).toContain('http://127.0.0.1:*');
   });

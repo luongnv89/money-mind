@@ -8,7 +8,7 @@ const DEV_CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
   "font-src 'self' data:",
-  "connect-src 'self' https://generativelanguage.googleapis.com https://api.groq.com http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*",
+  "connect-src 'self' https: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
