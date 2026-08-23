@@ -7,6 +7,7 @@ import {
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORY_HIERARCHY } from '../constants';
 import { logger } from '../lib/logger';
+import { normalizeCustomBaseUrl } from './modelCatalog';
 
 interface CategorizationResult {
   id: string;
@@ -34,11 +35,7 @@ const ollamaModelMissingMessage = (model: string): string =>
   'or pick another model in Settings.';
 
 // --- Custom OpenAI-compatible endpoint (issue #82) ---
-
-const normalizeCustomBaseUrl = (baseUrl: string): string => {
-  const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;
-  return safeBaseUrl.replace(/\/+$/, '');
-};
+// normalizeCustomBaseUrl is shared with modelCatalog.ts (single definition).
 
 const customChatUrl = (baseUrl: string): string =>
   `${normalizeCustomBaseUrl(baseUrl)}/chat/completions`;
@@ -456,16 +453,34 @@ const categorizeWithGemini = async (
   }
 };
 
-const categorizeWithGroq = async (
+/**
+ * Shared OpenAI-compatible categorization pipeline used by the Groq branch and
+ * the custom-endpoint branch (#82): identical batching, strict-JSON contract,
+ * payload wrapping/normalization and per-batch fallbacks. Only the request
+ * transport, provider label and user-facing strings differ.
+ */
+interface OpenAICompatibleCategorizer {
+  model: string;
+  /** Provider label used in "model not available" messages. */
+  label: string;
+  post: (body: Record<string, unknown>) => Promise<Response>;
+  rateLimitMessage: string;
+  apiErrorMessage: string;
+  defaultReason: string;
+  parseLogLabel: string;
+  batchLogLabel: string;
+  /** Custom endpoints get CORS guidance for outright network failures. */
+  mapNetworkErrorsToCors?: boolean;
+}
+
+const categorizeWithOpenAICompatible = async (
   transactions: Transaction[],
+  config: OpenAICompatibleCategorizer,
   onChunkProcessed?: (results: CategorizationResult[]) => void
 ): Promise<void> => {
-  const settings = useSettingsStore.getState();
-  const apiKey = getDeobfuscatedApiKey(settings);
-  const model = settings.groqConfig.model;
   const hierarchyStr = JSON.stringify(CATEGORY_HIERARCHY);
 
-  // Groq creates fast inference, but we still batch to reduce network round trips and stay within TPM/RPM.
+  // Batch to reduce network round trips and stay within TPM/RPM.
   const BATCH_SIZE = 10;
   const RATE_LIMIT_DELAY_MS = 2000;
 
@@ -486,7 +501,7 @@ const categorizeWithGroq = async (
       }))
     );
 
-    // Strictly enforce JSON structure in the prompt to avoid "Failed to generate JSON" errors from Groq
+    // Strictly enforce JSON structure in the prompt to avoid "Failed to generate JSON" errors
     const systemPrompt = `
         You are a strict JSON API for financial categorization.
 
@@ -507,162 +522,8 @@ const categorizeWithGroq = async (
         `;
 
     try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            {
-              role: 'user',
-              content: `Categorize these transactions. Return valid JSON only. Transactions: ${batchStr}`,
-            },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0, // Deterministic output helps with strict JSON
-        }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error('Groq Rate Limit Exceeded. Please check your plan.');
-        }
-        const err = await response.json();
-        const detail = err.error?.message || 'Groq API Error';
-        if (isModelUnavailable(response.status, detail)) {
-          throw new Error(modelUnavailableMessage('Groq', model, detail));
-        }
-        throw new Error(detail);
-      }
-
-      const data = await response.json();
-      const content = data.choices[0]?.message?.content;
-
-      if (content) {
-        let parsed;
-        try {
-          parsed = JSON.parse(content);
-
-          // Handle wrapping logic
-          if (parsed.results && Array.isArray(parsed.results)) {
-            parsed = parsed.results;
-          } else if (!Array.isArray(parsed)) {
-            // Attempt to find the first array value in the object
-            const values = Object.values(parsed);
-            const arrayValue = values.find((v) => Array.isArray(v));
-            if (arrayValue) {
-              parsed = arrayValue;
-            }
-          }
-        } catch (_e) {
-          logger.error('Failed to parse Groq JSON', content);
-        }
-
-        if (Array.isArray(parsed)) {
-          // Normalize fields
-          const results: CategorizationResult[] = parsed.map(
-            (item: {
-              id: string;
-              category?: TransactionCategory;
-              subCategory?: string;
-              confidence?: number;
-              reason?: string;
-            }) => ({
-              id: item.id,
-              category: item.category || TransactionCategory.Uncategorized,
-              subCategory: item.subCategory,
-              confidence: item.confidence || 0.8,
-              reason: item.reason || 'Groq AI',
-            })
-          );
-          if (onChunkProcessed) onChunkProcessed(results);
-        }
-      }
-    } catch (e: unknown) {
-      logger.error('Groq Batch Failed', e);
-      const errorMessage = e instanceof Error ? e.message : String(e);
-      // Propagate rate limits, JSON-contract breaks, and retired-model errors
-      if (
-        errorMessage.includes('Rate Limit') ||
-        errorMessage.includes('JSON') ||
-        MODEL_UNAVAILABLE_PATTERN.test(errorMessage)
-      ) {
-        throw e;
-      }
-
-      // Fallback for failed batch
-      const fallbackResults = batch.map((t) => ({
-        id: t.id,
-        category: TransactionCategory.Uncategorized,
-        confidence: 0,
-        reason: 'AI Request Failed: ' + errorMessage,
-      }));
-      if (onChunkProcessed) onChunkProcessed(fallbackResults);
-    }
-  }
-};
-
-const categorizeWithCustom = async (
-  transactions: Transaction[],
-  onChunkProcessed?: (results: CategorizationResult[]) => void
-): Promise<void> => {
-  const settings = useSettingsStore.getState();
-  const { baseUrl, model } = settings.customConfig;
-  if (!baseUrl.trim() || !model.trim()) {
-    throw new Error(
-      'Missing Custom Endpoint configuration. Set the Base URL and model in Settings.'
-    );
-  }
-
-  const hierarchyStr = JSON.stringify(CATEGORY_HIERARCHY);
-
-  // Batch like the Groq branch to reduce round trips against slower servers.
-  const BATCH_SIZE = 10;
-  const RATE_LIMIT_DELAY_MS = 2000;
-
-  for (let i = 0; i < transactions.length; i += BATCH_SIZE) {
-    // Rate-limit buffer between requests only — never before the first batch
-    // or after the last (F-PERF-002).
-    if (i > 0) {
-      await new Promise((r) => setTimeout(r, RATE_LIMIT_DELAY_MS));
-    }
-
-    const batch = transactions.slice(i, i + BATCH_SIZE);
-    const batchStr = JSON.stringify(
-      batch.map((t) => ({
-        id: t.id,
-        desc: t.description,
-        amt: t.amount,
-        original: t.originalCategory,
-      }))
-    );
-
-    const systemPrompt = `
-        You are a strict JSON API for financial categorization.
-
-        Hierarchy: ${hierarchyStr}
-
-        Output **only** valid JSON.
-        The JSON must be an object with a single key "results" containing an array.
-        Each item in the array must match this schema:
-        {
-            "id": "string (original id)",
-            "category": "string (from hierarchy keys)",
-            "subCategory": "string (from hierarchy values)",
-            "confidence": number (0.0 to 1.0),
-            "reason": "string (short explanation)"
-        }
-
-        Do not add any markdown formatting (like \`\`\`json). Do not add explanations outside the JSON.
-        `;
-
-    try {
-      const response = await fetchCustomChatCompletion(settings, {
-        model,
+      const response = await config.post({
+        model: config.model,
         messages: [
           { role: 'system', content: systemPrompt },
           {
@@ -676,12 +537,12 @@ const categorizeWithCustom = async (
 
       if (!response.ok) {
         if (response.status === 429) {
-          throw new Error('Custom endpoint Rate Limit Exceeded. Please check your plan.');
+          throw new Error(config.rateLimitMessage);
         }
         const err = await response.json();
-        const detail = err.error?.message || 'Custom endpoint API Error';
+        const detail = err.error?.message || config.apiErrorMessage;
         if (isModelUnavailable(response.status, detail)) {
-          throw new Error(modelUnavailableMessage('the custom endpoint', model, detail));
+          throw new Error(modelUnavailableMessage(config.label, config.model, detail));
         }
         throw new Error(detail);
       }
@@ -706,7 +567,7 @@ const categorizeWithCustom = async (
             }
           }
         } catch (_e) {
-          logger.error('Failed to parse custom endpoint JSON', content);
+          logger.error(config.parseLogLabel, content);
         }
 
         if (Array.isArray(parsed)) {
@@ -723,16 +584,19 @@ const categorizeWithCustom = async (
               category: item.category || TransactionCategory.Uncategorized,
               subCategory: item.subCategory,
               confidence: item.confidence || 0.8,
-              reason: item.reason || 'Custom endpoint AI',
+              reason: item.reason || config.defaultReason,
             })
           );
           if (onChunkProcessed) onChunkProcessed(results);
         }
       }
     } catch (e: unknown) {
-      logger.error('Custom Endpoint Batch Failed', e);
+      logger.error(config.batchLogLabel, e);
       const errorMessage = e instanceof Error ? e.message : String(e);
-      if (errorMessage === 'Failed to fetch' || (e instanceof Error && e.name === 'TypeError')) {
+      if (
+        config.mapNetworkErrorsToCors &&
+        (errorMessage === 'Failed to fetch' || (e instanceof Error && e.name === 'TypeError'))
+      ) {
         throw new Error(
           'Connection Failed. Check that the Base URL is correct and that the server ' +
             'allows cross-origin requests (CORS) from this app.'
@@ -757,6 +621,66 @@ const categorizeWithCustom = async (
       if (onChunkProcessed) onChunkProcessed(fallbackResults);
     }
   }
+};
+
+const categorizeWithGroq = async (
+  transactions: Transaction[],
+  onChunkProcessed?: (results: CategorizationResult[]) => void
+): Promise<void> => {
+  const settings = useSettingsStore.getState();
+  const apiKey = getDeobfuscatedApiKey(settings);
+
+  await categorizeWithOpenAICompatible(
+    transactions,
+    {
+      model: settings.groqConfig.model,
+      label: 'Groq',
+      post: (body) =>
+        fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        }),
+      rateLimitMessage: 'Groq Rate Limit Exceeded. Please check your plan.',
+      apiErrorMessage: 'Groq API Error',
+      defaultReason: 'Groq AI',
+      parseLogLabel: 'Failed to parse Groq JSON',
+      batchLogLabel: 'Groq Batch Failed',
+    },
+    onChunkProcessed
+  );
+};
+
+const categorizeWithCustom = async (
+  transactions: Transaction[],
+  onChunkProcessed?: (results: CategorizationResult[]) => void
+): Promise<void> => {
+  const settings = useSettingsStore.getState();
+  const { baseUrl, model } = settings.customConfig;
+  if (!baseUrl.trim() || !model.trim()) {
+    throw new Error(
+      'Missing Custom Endpoint configuration. Set the Base URL and model in Settings.'
+    );
+  }
+
+  await categorizeWithOpenAICompatible(
+    transactions,
+    {
+      model,
+      label: 'the custom endpoint',
+      post: (body) => fetchCustomChatCompletion(settings, body),
+      rateLimitMessage: 'Custom endpoint Rate Limit Exceeded. Please check your plan.',
+      apiErrorMessage: 'Custom endpoint API Error',
+      defaultReason: 'Custom endpoint AI',
+      parseLogLabel: 'Failed to parse custom endpoint JSON',
+      batchLogLabel: 'Custom Endpoint Batch Failed',
+      mapNetworkErrorsToCors: true,
+    },
+    onChunkProcessed
+  );
 };
 
 const categorizeWithOllama = async (

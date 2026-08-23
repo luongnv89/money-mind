@@ -48,7 +48,7 @@ interface CustomListResponse {
 }
 
 /** Ensure the custom endpoint base URL is protocol-complete and slash-free. */
-const normalizeCustomBaseUrl = (baseUrl: string): string => {
+export const normalizeCustomBaseUrl = (baseUrl: string): string => {
   const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;
   return safeBaseUrl.replace(/\/+$/, '');
 };
