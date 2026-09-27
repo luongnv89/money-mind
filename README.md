@@ -46,29 +46,29 @@ MoneyMind is a privacy-first, serverless financial analyzer built with React. It
     ```
 
 3.  **Configure your AI keys in the app:**
-    MoneyMind does not read API keys from environment variables or `.env` files. Start the app (step 4), open the **Settings** page, and enter your Gemini or Groq key there. Keys are stored locally in your browser's LocalStorage (obfuscated, not encrypted).
+    MoneyMind does not read API keys from environment variables or `.env` files. Start the app (step 4), open the **Settings** page, and enter your Gemini, Groq, or optional TypeSafe key there. Keys are stored locally in your browser's LocalStorage (obfuscated, not encrypted).
 
 4.  **Start the development server:**
     ```bash
     npm run dev
     ```
-    This starts the app at `http://localhost:3000` (`vite.config.ts:37`). Configure your AI keys on the in-app **Settings** page.
+    This starts the app at `http://localhost:3000` (`vite.config.ts:46`). Configure your AI keys on the in-app **Settings** page.
 
-    **Note:** There are no serverless functions — the `api/` directory has been removed; `vercel.json` ships security headers only. No `vercel dev` step is needed for local development; the Vite dev server is all you need.
+    **Note:** There are no serverless functions — the `api/` directory has been removed; `vercel.json` ships security headers plus one rewrite (`/typesafe-api/:path*` → `https://api.typesafe.ai/:path*`, which `vite.config.ts` proxies locally). No `vercel dev` step is needed for local development; the Vite dev server is all you need.
 
 ### Deployment
 
 > Validate this runbook: `./scripts/validate-dev-setup.sh --check`
 
 #### 1. Static Site Deployment (SPA)
-MoneyMind is a Single Page Application (SPA) with no client-side router — navigation is in-app state (`App.tsx:15`), so there are no deep links and no rewrite rules are needed. You can deploy it to any static hosting provider (GitHub Pages, Netlify, Vercel, etc.):
+MoneyMind is a Single Page Application (SPA) with no client-side router — navigation is in-app state (`App.tsx:15`), so there are no deep links. The only rewrite rule the app ships is `/typesafe-api/:path*` → `https://api.typesafe.ai/:path*`, which proxies TypeSafe categorization requests (TypeSafe's API does not accept direct browser calls). You can deploy it to any static hosting provider (GitHub Pages, Netlify, Vercel, etc.):
 
 1.  **Build the project:**
     ```bash
     npm run build
     ```
 2.  **Deploy the `dist/` folder.**
-    Any host that serves `dist/index.html` at the root works; no SPA fallback rewrite is required (`vercel.json` declares none).
+    Any host that serves `dist/index.html` at the root works; no SPA fallback rewrite is required. To keep TypeSafe categorization working on a non-Vercel host, configure an equivalent `/typesafe-api/:path*` → `https://api.typesafe.ai/:path*` rewrite — without it TypeSafe is unavailable (the Gemini, Groq, Ollama and custom-endpoint modes are unaffected).
 
 #### 2. Vercel Deployment (Static)
 
@@ -77,9 +77,9 @@ Since MoneyMind is a pure Single Page Application (SPA) with no serverless funct
 1.  Push your code to a GitHub repository.
 2.  Connect the repository to **Vercel**.
 3.  Vercel will automatically detect the `vite.config.ts` and build the static SPA.
-4.  Open the deployed app, go to the **Settings** page, and enter your Gemini or Groq API key. Keys are stored locally in each user's browser (obfuscated, not encrypted) — no server-side key configuration is needed.
+4.  Open the deployed app, go to the **Settings** page, and enter your Gemini, Groq, or TypeSafe API key. Keys are stored locally in each user's browser (obfuscated, not encrypted) — no server-side key configuration is needed.
 
-**Note:** There are no serverless functions (`api/` directory removed). The app calls AI provider APIs (Gemini, Groq, Ollama) directly from the browser. All API keys are stored locally in the browser's LocalStorage (obfuscated, not encrypted).
+**Note:** There are no serverless functions (`api/` directory removed). The app calls the Gemini, Groq, Ollama and custom-endpoint APIs directly from the browser; TypeSafe requests go through the same-origin `/typesafe-api` pass-through (`vercel.json` rewrite on Vercel, dev-server proxy locally), because TypeSafe's API rejects browser CORS. All API keys are stored locally in the browser's LocalStorage (obfuscated, not encrypted).
 
 ## 🤖 AI Configuration
 
@@ -89,6 +89,8 @@ MoneyMind supports four AI modes, configurable in the **Settings** page (`servic
 2.  **Cloud (Groq):** Uses Groq's ultra-fast inference (default `llama-3.1-8b-instant`, `constants.ts:181`). Requires an API key from [Groq Console](https://console.groq.com/).
 3.  **Local (Ollama):** 100% private. Requires Ollama running locally (`ollama serve`) and the `llama3.2` (or similar) model pulled (`ollama pull llama3.2` — this is the configured default, `constants.ts:182`).
 4.  **Custom Endpoint:** Connect any OpenAI-compatible server (LM Studio, vLLM, OpenRouter, local proxies). Enter the server's base URL, an API key, and a model name in Settings; requests are sent in the OpenAI chat-completions format (`services/aiService.ts`, `categorizeWithCustom`). The model picker loads `{base URL}/models` when reachable and always accepts free-text model names.
+
+**TypeSafe classification (optional):** whenever a TypeSafe API key is set in **Settings**, transaction categorization uses TypeSafe's Jev model (`services/typesafeService.ts`) instead of the provider above — it picks each category from the app's fixed hierarchy and returns calibrated probabilities rather than generated JSON. MonkeySmile chat keeps using the configured AI provider; without a TypeSafe key, categorization falls back to the provider above. Requests are relayed through the app's `/typesafe-api` pass-through (see Deployment).
 
 ## 🧪 Quality Assurance
 
@@ -105,7 +107,7 @@ All commands map to scripts in `package.json:8-19`:
 -   `npm run format:check`: Verify formatting without modifying files.
 -   `npm test` / `npm run test:run`: Run the Vitest suite once.
 -   `npm run test:watch`: Run Vitest in watch mode.
--   `npm run coverage`: Run the Vitest suite with a line/branch coverage report (`lib/` and `services/`, gated at ≥60% lines — `vite.config.ts:56-65`).
+-   `npm run coverage`: Run the Vitest suite with a line/branch coverage report (`lib/` and `services/`, gated at ≥60% lines — `vite.config.ts:66-75`).
 
 ### CI/CD (GitHub Actions)
 On every push or pull request (`.github/workflows/ci.yml:11,44`; behaviors additionally pinned by `ci-workflow.test.ts:6-28`):

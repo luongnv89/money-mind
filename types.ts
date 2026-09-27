@@ -60,6 +60,10 @@ export interface OllamaConfig {
   model: string;
 }
 
+export interface TypeSafeConfig {
+  apiKey: string; // Stored obfuscated
+}
+
 /**
  * How a provider's model list was resolved (issue #79): straight from the
  * provider's API, from the local TTL cache, or the curated fallback list.
@@ -96,6 +100,7 @@ export interface AppSettings {
   groqConfig: GroqConfig;
   ollamaConfig: OllamaConfig;
   customConfig: CustomOpenAIConfig;
+  typesafeConfig: TypeSafeConfig;
   usage: UsageStats; // Budget control
 }
 
@@ -120,4 +125,12 @@ export interface CsvMapping {
   debitCreditCols?: boolean; // Amount lives in separate debit/credit columns
   debitCol?: string;
   creditCol?: string;
+}
+
+export interface CategorizationResult {
+  id: string;
+  category: TransactionCategory;
+  subCategory?: string;
+  confidence: number;
+  reason: string;
 }

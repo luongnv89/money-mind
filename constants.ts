@@ -206,3 +206,7 @@ export const FALLBACK_MODEL_CATALOG: Record<AIMode, ModelInfo[]> = {
     { id: 'gpt-4o-mini', label: 'gpt-4o-mini (Common alias)' },
   ],
 };
+
+export const TYPESAFE_API_BASE = '/typesafe-api';
+
+export const TYPESAFE_MODEL = 'jev-latest';

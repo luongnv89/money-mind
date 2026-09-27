@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTransactionStore } from '../../stores/useTransactionStore';
-import { useSettingsStore, useAIReady } from '../../stores/useSettingsStore';
+import { useSettingsStore, useCategorizationReady } from '../../stores/useSettingsStore';
 import { getPatterns, learnPattern } from '../../lib/localStorage';
 import { checkFinancialHealth } from '../../services/alertService';
 import { useToastStore, ToastType } from '../../stores/useToastStore';
@@ -14,7 +14,7 @@ const useDashboardSetup = () => {
   const { transactions, isCategorizing, addTransactions, applyLocalPatterns, setError } =
     useTransactionStore();
   const { aiMode, isDemoMode, enableFunnyAlerts } = useSettingsStore();
-  const aiReady = useAIReady();
+  const categorizationReady = useCategorizationReady();
   const { addToast } = useToastStore();
 
   // Run Alert Check on Mount or when transactions change significantly.
@@ -39,7 +39,10 @@ const useDashboardSetup = () => {
 
   // Check if AI is configured or in demo mode — a single memoized read of the
   // shared selector (F-UX-007), no third hand-rolled definition.
-  const isAIConfigured = useMemo(() => isDemoMode || aiReady, [isDemoMode, aiReady]);
+  const isAIConfigured = useMemo(
+    () => isDemoMode || categorizationReady,
+    [isDemoMode, categorizationReady]
+  );
 
   // Check if we have local patterns
   const hasPatterns = useMemo(() => {

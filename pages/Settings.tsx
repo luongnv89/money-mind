@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   useSettingsStore,
   getDeobfuscatedApiKey,
+  getTypesafeApiKey,
   validatePersistedModel,
 } from '../stores/useSettingsStore';
 import { clearPatterns, getPatterns, importPatterns } from '../lib/localStorage';
@@ -23,8 +24,10 @@ import {
   Upload,
   BarChart2,
   Globe,
+  Sparkles,
 } from 'lucide-react';
 import { testAiConnection } from '../services/aiService';
+import { testTypesafeConnection } from '../services/typesafeService';
 import { loadModelCatalog } from '../services/modelCatalog';
 import { FALLBACK_MODEL_CATALOG } from '../constants';
 import { ModelCatalog } from '../types';
@@ -38,6 +41,25 @@ const PROVIDER_TABS = [
   { mode: 'custom', label: 'Custom Endpoint', Icon: Globe },
 ] as const;
 
+const ConnectionTestResult: React.FC<{
+  result: 'success' | 'error' | null;
+  message: string;
+}> = ({ result, message }) => (
+  <div className="flex-1">
+    {result === 'success' && (
+      <div className="text-sm text-green-600 flex items-center gap-1 font-medium animate-in fade-in bg-green-50 p-3 rounded-lg border border-green-100">
+        <CheckCircle className="w-4 h-4 shrink-0" /> {message}
+      </div>
+    )}
+    {result === 'error' && (
+      <div className="text-sm text-red-600 flex items-start gap-2 animate-in fade-in bg-red-50 p-3 rounded-lg border border-red-100">
+        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+        <div className="whitespace-pre-wrap font-medium font-mono text-xs">{message}</div>
+      </div>
+    )}
+  </div>
+);
+
 export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const {
     aiMode,
@@ -50,6 +72,8 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     setOllamaConfig,
     customConfig,
     setCustomConfig,
+    typesafeConfig,
+    setTypesafeConfig,
   } = useSettingsStore();
 
   const { addToast } = useToastStore();
@@ -58,6 +82,9 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [testMessage, setTestMessage] = useState('');
+  const [isTestingTypesafe, setIsTestingTypesafe] = useState(false);
+  const [typesafeTestResult, setTypesafeTestResult] = useState<'success' | 'error' | null>(null);
+  const [typesafeTestMessage, setTypesafeTestMessage] = useState('');
   const [patternCount, setPatternCount] = useState(getPatterns().length);
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null);
   const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
@@ -248,6 +275,22 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       setTestMessage(e instanceof Error ? e.message : String(e));
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  const handleTestTypesafe = async () => {
+    setIsTestingTypesafe(true);
+    setTypesafeTestResult(null);
+    setTypesafeTestMessage('');
+    try {
+      await testTypesafeConnection();
+      setTypesafeTestResult('success');
+      setTypesafeTestMessage('TypeSafe connection successful!');
+    } catch (e: unknown) {
+      setTypesafeTestResult('error');
+      setTypesafeTestMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsTestingTypesafe(false);
     }
   };
 
@@ -701,21 +744,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             {/* Test Connection Section with Enhanced Error Display */}
             <div className="pt-4 border-t border-gray-100">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex-1">
-                  {testResult === 'success' && (
-                    <div className="text-sm text-green-600 flex items-center gap-1 font-medium animate-in fade-in bg-green-50 p-3 rounded-lg border border-green-100">
-                      <CheckCircle className="w-4 h-4 shrink-0" /> {testMessage}
-                    </div>
-                  )}
-                  {testResult === 'error' && (
-                    <div className="text-sm text-red-600 flex items-start gap-2 animate-in fade-in bg-red-50 p-3 rounded-lg border border-red-100">
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                      <div className="whitespace-pre-wrap font-medium font-mono text-xs">
-                        {testMessage}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <ConnectionTestResult result={testResult} message={testMessage} />
                 <Button
                   onClick={handleTestConnection}
                   isLoading={isTesting}
@@ -732,6 +761,73 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                   )}
                 </Button>
               </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="bg-gray-50/50 border-b border-gray-100">
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-accent" />
+            Transaction Classification (TypeSafe)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4">
+          <p className="text-sm text-gray-600">
+            With a TypeSafe key, transaction categorization uses TypeSafe's Jev model: it picks each
+            category from the fixed list and returns calibrated probabilities instead of generated
+            JSON. MonkeySmile chat keeps using the AI provider above. Without a key, categorization
+            uses the AI provider above too.
+          </p>
+          <div className="space-y-2">
+            <label
+              htmlFor="typesafe-api-key"
+              className="text-sm font-medium text-gray-700 flex items-center gap-2"
+            >
+              <Key className="w-4 h-4" /> TypeSafe API Key
+            </label>
+            <Input
+              id="typesafe-api-key"
+              type="password"
+              placeholder="Enter your TypeSafe API key"
+              value={getTypesafeApiKey({ typesafeConfig })}
+              onChange={(e) => setTypesafeConfig({ apiKey: e.target.value })}
+              className="font-mono"
+            />
+            <p className="text-xs text-gray-500">
+              Stored locally (obfuscated, not encrypted). Requests go through this app's
+              /typesafe-api pass-through because TypeSafe does not accept direct browser calls. Get
+              a key at{' '}
+              <a
+                href="https://console.typesafe.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent hover:underline"
+              >
+                console.typesafe.ai
+              </a>
+              .
+            </p>
+          </div>
+          <div className="pt-4 border-t border-gray-100">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <ConnectionTestResult result={typesafeTestResult} message={typesafeTestMessage} />
+              <Button
+                onClick={handleTestTypesafe}
+                isLoading={isTestingTypesafe}
+                className="shrink-0"
+                variant={typesafeTestResult === 'success' ? 'outline' : 'primary'}
+              >
+                {isTestingTypesafe ? (
+                  'Testing...'
+                ) : (
+                  <>
+                    <PlayCircle className="w-4 h-4 mr-2" />
+                    Test TypeSafe
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </CardContent>

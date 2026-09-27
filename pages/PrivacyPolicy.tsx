@@ -61,8 +61,8 @@ export const PrivacyPolicy: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             your uploaded files.
           </li>
           <li>
-            <strong>API Keys:</strong> If you use Cloud AI (Google/Groq), your API keys are
-            obfuscated and stored locally in your browser's LocalStorage (not encrypted).
+            <strong>API Keys:</strong> If you use Cloud AI (Google/Groq) or TypeSafe, your API keys
+            are obfuscated and stored locally in your browser's LocalStorage (not encrypted).
           </li>
           <li>
             <strong>Usage Data:</strong> We do not track user behavior or analytics.
@@ -78,6 +78,11 @@ export const PrivacyPolicy: React.FC<{ onBack: () => void }> = ({ onBack }) => {
           <li>
             <strong>Google Gemini / Groq:</strong> If configured, transaction descriptions are sent
             to these APIs for categorization.
+          </li>
+          <li>
+            <strong>TypeSafe (Jev):</strong> If you add a TypeSafe key, each transaction's
+            description, amount and bank category are sent to TypeSafe for categorization, relayed
+            through this app's /typesafe-api pass-through.
           </li>
           <li>
             <strong>Local LLM (Ollama):</strong> If configured, data never leaves your machine.

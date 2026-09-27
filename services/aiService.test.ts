@@ -36,6 +36,7 @@ const resetSettings = (overrides: Record<string, unknown> = {}) => {
     groqConfig: { apiKey: '', model: 'llama-3.1-8b-instant' },
     ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: 'llama3.2' },
     customConfig: { baseUrl: '', apiKey: '', model: 'gpt-3.5-turbo' },
+    typesafeConfig: { apiKey: '' },
     usage: { txAnalyzed: 0, chatMessages: 0, lastReset: '2024-01-01T00:00:00.000Z' },
     ...overrides,
   });
@@ -858,5 +859,55 @@ describe('simulateCategorization heuristics (via demo mode)', () => {
   it('treats a positive refund as non-income', async () => {
     const refund = await simulate(tx({ amount: 20, description: 'refund' }));
     expect(refund.category).not.toBe(TransactionCategory.Income);
+  }, 10000);
+});
+
+describe('categorizeWithAI — TypeSafe routing', () => {
+  const typesafeJson = (body: unknown) => ({
+    ok: true,
+    status: 200,
+    headers: {
+      get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/json' : null),
+    },
+    json: async () => body,
+  });
+
+  const systemOneResponse = {
+    model: 'jev-1.13.0',
+    answers: {
+      category: {
+        type: 'choice',
+        choice: 'Nice-to-have: Dining Out',
+        probabilities: { 'Nice-to-have: Dining Out': 0.9, 'Must-have: Food & Groceries': 0.1 },
+        confidence: 0.8,
+      },
+    },
+    usage: { input_tokens: 10, output_tokens: 5 },
+  };
+
+  it('routes to TypeSafe when a key is set, regardless of aiMode', async () => {
+    resetSettings({
+      typesafeConfig: { apiKey: btoa('ts-key') },
+      geminiConfig: { apiKey: btoa('g'), model: 'm' },
+    });
+    fetchMock.mockResolvedValue(typesafeJson(systemOneResponse));
+    const onChunk = vi.fn();
+    await categorizeWithAI([tx()], 'cloud', onChunk);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('/typesafe-api/v1/systemone');
+    expect(generateContentMock).not.toHaveBeenCalled();
+    expect(onChunk.mock.calls[0][0][0]).toMatchObject({
+      id: 't1',
+      category: 'Nice-to-have',
+      subCategory: 'Dining Out',
+    });
+  });
+
+  it('still simulates in demo mode even with a TypeSafe key', async () => {
+    resetSettings({ isDemoMode: true, typesafeConfig: { apiKey: btoa('ts-key') } });
+    const onChunk = vi.fn();
+    await categorizeWithAI([tx({ originalCategory: 'rent' })], 'cloud', onChunk);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(onChunk.mock.calls[0][0][0].category).toBe(TransactionCategory.MustHave);
   }, 10000);
 });

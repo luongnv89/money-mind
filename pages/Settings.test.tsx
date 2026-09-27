@@ -4,11 +4,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsPage } from './Settings';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { loadModelCatalog } from '../services/modelCatalog';
+import { testTypesafeConnection } from '../services/typesafeService';
 import { ModelInfo } from '../types';
 
 vi.mock('../services/modelCatalog', () => ({
   loadModelCatalog: vi.fn(),
 }));
+
+vi.mock('../services/typesafeService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/typesafeService')>();
+  return { ...actual, testTypesafeConnection: vi.fn() };
+});
 
 const liveModels: ModelInfo[] = [
   { id: 'models/gemini-flash-latest', label: 'gemini-flash-latest' },
@@ -228,5 +234,73 @@ describe('Settings — custom OpenAI-compatible endpoint tab (issue #82)', () =>
     });
 
     expect(useSettingsStore.getState().customConfig.model).toBe('my-finetune');
+  });
+});
+
+describe('Settings — TypeSafe card', () => {
+  let container: HTMLDivElement;
+  let root: ReturnType<typeof createRoot>;
+
+  const render = async () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await React.act(async () => {
+      root.render(<SettingsPage onBack={() => {}} />);
+    });
+    await React.act(async () => {});
+  };
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    useSettingsStore.getState().resetSettings();
+    vi.mocked(loadModelCatalog).mockReset();
+    vi.mocked(loadModelCatalog).mockResolvedValue({
+      provider: 'cloud',
+      status: 'live',
+      models: liveModels,
+    });
+    vi.mocked(testTypesafeConnection).mockReset();
+  });
+
+  afterEach(() => {
+    React.act(() => root?.unmount());
+    container?.remove();
+    vi.clearAllMocks();
+  });
+
+  it('stores the TypeSafe key obfuscated via the password input', async () => {
+    await render();
+
+    const input = container.querySelector<HTMLInputElement>('#typesafe-api-key');
+    expect(input).not.toBeNull();
+
+    const setNative = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
+      ?.set as (v: string) => void;
+    await React.act(async () => {
+      setNative.call(input!, 'ts-secret-key');
+      input!.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const stored = useSettingsStore.getState().typesafeConfig.apiKey;
+    expect(stored).not.toBe('ts-secret-key');
+    expect(atob(stored)).toBe('ts-secret-key');
+  });
+
+  it('runs the TypeSafe connection test and shows the success message', async () => {
+    vi.mocked(testTypesafeConnection).mockResolvedValue(true);
+    await render();
+
+    const button = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Test TypeSafe')
+    );
+    expect(button).toBeDefined();
+    await React.act(async () => {
+      button!.click();
+    });
+    await React.act(async () => {});
+
+    expect(testTypesafeConnection).toHaveBeenCalled();
+    expect(container.textContent).toContain('TypeSafe connection successful!');
   });
 });

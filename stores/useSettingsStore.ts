@@ -7,6 +7,7 @@ import {
   OllamaConfig,
   GroqConfig,
   CustomOpenAIConfig,
+  TypeSafeConfig,
 } from '../types';
 import { DEFAULT_MODELS } from '../constants';
 
@@ -19,6 +20,7 @@ interface SettingsState extends AppSettings {
   setGroqConfig: (config: Partial<GroqConfig>) => void;
   setOllamaConfig: (config: Partial<OllamaConfig>) => void;
   setCustomConfig: (config: Partial<CustomOpenAIConfig>) => void;
+  setTypesafeConfig: (config: Partial<TypeSafeConfig>) => void;
   resetSettings: () => void;
 
   // Usage Control
@@ -76,6 +78,10 @@ export const useSettingsStore = create<SettingsState>()(
         model: DEFAULT_MODELS.custom,
       },
 
+      typesafeConfig: {
+        apiKey: '',
+      },
+
       usage: {
         txAnalyzed: 0,
         chatMessages: 0,
@@ -119,6 +125,15 @@ export const useSettingsStore = create<SettingsState>()(
           return { customConfig: newConfig };
         }),
 
+      setTypesafeConfig: (config) =>
+        set((state) => {
+          const newConfig = { ...state.typesafeConfig, ...config };
+          if (config.apiKey) {
+            newConfig.apiKey = obfuscate(config.apiKey);
+          }
+          return { typesafeConfig: newConfig };
+        }),
+
       resetSettings: () =>
         set({
           aiMode: 'cloud',
@@ -132,6 +147,7 @@ export const useSettingsStore = create<SettingsState>()(
           groqConfig: { apiKey: '', model: DEFAULT_MODELS.groq },
           ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: DEFAULT_MODELS.local },
           customConfig: { baseUrl: '', apiKey: '', model: DEFAULT_MODELS.custom },
+          typesafeConfig: { apiKey: '' },
           usage: { txAnalyzed: 0, chatMessages: 0, lastReset: new Date().toISOString() },
         }),
 
@@ -140,6 +156,10 @@ export const useSettingsStore = create<SettingsState>()(
 
         // Unlimited for Local
         if (aiMode === 'local') return true;
+
+        if (type === 'analysis' && deobfuscate(get().typesafeConfig.apiKey)) {
+          return true;
+        }
 
         // Check if Custom Key (Cloud) -> Unlimited
         if (aiMode === 'cloud') {
@@ -274,3 +294,12 @@ export const selectAIReady = (state: SettingsState): boolean => {
 
 /** React binding for `selectAIReady`. */
 export const useAIReady = (): boolean => useSettingsStore(selectAIReady);
+
+export const getTypesafeApiKey = (state: Pick<AppSettings, 'typesafeConfig'>): string =>
+  deobfuscate(state.typesafeConfig.apiKey);
+
+export const selectCategorizationReady = (state: SettingsState): boolean =>
+  !!getTypesafeApiKey(state) || selectAIReady(state);
+
+/** React binding for `selectCategorizationReady`. */
+export const useCategorizationReady = (): boolean => useSettingsStore(selectCategorizationReady);

@@ -24,9 +24,9 @@ Gates run locally via `pre-commit`; config is `.pre-commit-config.yaml`.
 
 - `App.tsx` — **no router.** Navigation is a `View` string union + `useState`. A new page means editing `App.tsx` *and* `components/Layout.tsx`.
 - `stores/` — Zustand with `persist` middleware (settings, transactions, toasts)
-- `services/` — `aiService` (Gemini/Groq/Ollama dispatch), `scoreService`, `alertService`
+- `services/` — `aiService` (Gemini/Groq/Ollama dispatch), `typesafeService` (TypeSafe Jev categorization, used whenever a TypeSafe key is set), `scoreService`, `alertService`
 - `lib/` — `csvParser` (PapaParse), `localStorage` (learned category patterns), `utils` (`cn`)
-- There is no `api/` directory — the app is a static SPA; `vercel.json` sets security headers only. Do not reintroduce serverless functions.
+- There is no `api/` directory — the app is a static SPA. `vercel.json` sets security headers plus one rewrite, `/typesafe-api/:path*` → `https://api.typesafe.ai/:path*`, because TypeSafe's API rejects browser CORS; `vite.config.ts` proxies the same path for `npm run dev`/`preview`. Do not reintroduce serverless functions.
 - `constants.ts` — shared app constants imported by the frontend as `../constants` (`components/`, `lib/csvParser.ts`, `services/aiService.ts`). Keep it at repo root.
 - Tests are `*.test.{ts,tsx}` beside their source (a few live in `tests/`); `tests/setup.ts` is the Vitest setup file.
 
@@ -46,6 +46,7 @@ Gates run locally via `pre-commit`; config is `.pre-commit-config.yaml`.
 
 - Prettier owns formatting — do not hand-format. `.prettierignore` deliberately skips `*.md` and `migrated_prompt_history/`.
 - Prefer the smallest change that works. Ask before adding a dependency, a router, or a build-tool config file.
+- Transaction categorization uses TypeSafe (Jev) via `services/typesafeService.ts` whenever a TypeSafe key is set; the LLM categorizers are the fallback. Read the live docs (https://docs.typesafe.ai/llms.txt) before changing its questions.
 - `MODERNIZATION_PLAN.md`, `MODERNIZATION_REPORT.md`, and `CODE_REVIEW.md` are one-off audit artifacts — not specifications. Do not act on them unless asked.
 
 ## Token Efficiency

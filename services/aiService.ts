@@ -1,21 +1,15 @@
-import { Transaction, AIMode, TransactionCategory } from '../types';
+import { Transaction, AIMode, TransactionCategory, CategorizationResult } from '../types';
 import {
   useSettingsStore,
   getDeobfuscatedApiKey,
   getDeobfuscatedProviderKey,
+  getTypesafeApiKey,
 } from '../stores/useSettingsStore';
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORY_HIERARCHY } from '../constants';
 import { logger } from '../lib/logger';
 import { normalizeCustomBaseUrl } from './modelCatalog';
-
-interface CategorizationResult {
-  id: string;
-  category: TransactionCategory;
-  subCategory?: string;
-  confidence: number;
-  reason: string;
-}
+import { categorizeWithTypeSafe } from './typesafeService';
 
 // --- Model availability errors (issue #79) ---
 
@@ -356,7 +350,9 @@ export const categorizeWithAI = async (
   const toProcess = transactions;
   if (toProcess.length === 0) return;
 
-  if (mode === 'cloud') {
+  if (getTypesafeApiKey(settings)) {
+    await categorizeWithTypeSafe(toProcess, onChunkProcessed);
+  } else if (mode === 'cloud') {
     await categorizeWithGemini(toProcess, onChunkProcessed);
   } else if (mode === 'groq') {
     await categorizeWithGroq(toProcess, onChunkProcessed);

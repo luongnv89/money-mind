@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import pkg from './package.json';
+import { TYPESAFE_API_BASE } from './constants';
 
 const DEV_CSP = [
   "default-src 'self'",
@@ -25,6 +26,14 @@ const relaxCspForDev = {
   },
 };
 
+const typesafeProxy = {
+  [TYPESAFE_API_BASE]: {
+    target: 'https://api.typesafe.ai',
+    changeOrigin: true,
+    rewrite: (path: string) => path.slice(TYPESAFE_API_BASE.length),
+  },
+};
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [react(), relaxCspForDev],
@@ -35,6 +44,7 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     port: 3000,
+    proxy: typesafeProxy,
   },
   build: {
     outDir: 'dist',

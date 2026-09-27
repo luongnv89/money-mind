@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_MODELS } from '../constants';
 import {
   getDeobfuscatedProviderKey,
+  getTypesafeApiKey,
   selectAIReady,
+  selectCategorizationReady,
   useSettingsStore,
   validatePersistedModel,
 } from './useSettingsStore';
@@ -276,5 +278,42 @@ describe('selectAIReady — custom endpoint gating (issue #82)', () => {
     expect(selectAIReady(useSettingsStore.getState())).toBe(false);
     useSettingsStore.getState().setGeminiConfig({ apiKey: btoa('g') });
     expect(selectAIReady(useSettingsStore.getState())).toBe(true);
+  });
+});
+
+describe('TypeSafe config', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useSettingsStore.getState().resetSettings();
+  });
+
+  it('round-trips the key through obfuscation and clears it on reset', () => {
+    useSettingsStore.getState().setTypesafeConfig({ apiKey: 'ts-secret' });
+
+    const state = useSettingsStore.getState();
+    expect(state.typesafeConfig.apiKey).not.toBe('ts-secret');
+    expect(atob(state.typesafeConfig.apiKey)).toBe('ts-secret');
+    expect(getTypesafeApiKey(state)).toBe('ts-secret');
+
+    useSettingsStore.getState().resetSettings();
+    expect(getTypesafeApiKey(useSettingsStore.getState())).toBe('');
+  });
+
+  it('makes analysis unlimited with a TypeSafe key while chat limits stay', () => {
+    useSettingsStore.getState().setTypesafeConfig({ apiKey: 'ts-secret' });
+    useSettingsStore.getState().incrementUsage('analysis', 500);
+    expect(useSettingsStore.getState().checkUsageLimit('analysis', 10)).toBe(true);
+
+    useSettingsStore.getState().incrementUsage('chat', 10);
+    expect(useSettingsStore.getState().checkUsageLimit('chat')).toBe(false);
+  });
+
+  it('is categorization-ready but not chat-ready with only a TypeSafe key', () => {
+    useSettingsStore.getState().setAiMode('cloud');
+    expect(selectCategorizationReady(useSettingsStore.getState())).toBe(false);
+
+    useSettingsStore.getState().setTypesafeConfig({ apiKey: 'ts-secret' });
+    expect(selectCategorizationReady(useSettingsStore.getState())).toBe(true);
+    expect(selectAIReady(useSettingsStore.getState())).toBe(false);
   });
 });

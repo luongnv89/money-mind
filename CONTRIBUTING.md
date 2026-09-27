@@ -20,7 +20,7 @@ pre-commit install   # installs the commit and push hooks from .pre-commit-confi
 
 ## Everyday commands
 
-All scripts are defined in `package.json:8-19`; the dev port comes from `vite.config.ts:37`.
+All scripts are defined in `package.json:8-19`; the dev port comes from `vite.config.ts:46`.
 
 | Command | What it does |
 |---------|--------------|
@@ -31,7 +31,7 @@ All scripts are defined in `package.json:8-19`; the dev port comes from `vite.co
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run format` / `npm run format:check` | Prettier write / verify |
 | `npm test` / `npm run test:run` | Vitest single run (`npm run test:watch` to iterate) |
-| `npm run coverage` | Vitest with a line/branch coverage report (`lib/**`, `services/**` — `vite.config.ts:56-65`) |
+| `npm run coverage` | Vitest with a line/branch coverage report (`lib/**`, `services/**` — `vite.config.ts:66-75`) |
 
 ## Quality gates
 

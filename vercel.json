@@ -16,5 +16,11 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/typesafe-api/:path*",
+      "destination": "https://api.typesafe.ai/:path*"
+    }
   ]
 }

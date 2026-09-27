@@ -60,6 +60,7 @@ describe('useDashboardViewModel flags (issue #37)', () => {
       aiMode: 'cloud',
       geminiConfig: { apiKey: '', model: 'models/gemini-flash-latest' },
       groqConfig: { apiKey: '', model: 'llama-3.1-8b-instant' },
+      typesafeConfig: { apiKey: '' },
     });
   });
 
@@ -87,6 +88,17 @@ describe('useDashboardViewModel flags (issue #37)', () => {
 
     React.act(() => {
       useSettingsStore.getState().setGroqConfig({ apiKey: btoa('gsk-saved') });
+    });
+
+    expect(vm.isAIConfigured).toBe(true);
+  });
+
+  it('isAIConfigured flips to true when only a TypeSafe key is saved', () => {
+    render();
+    expect(vm.isAIConfigured).toBe(false);
+
+    React.act(() => {
+      useSettingsStore.getState().setTypesafeConfig({ apiKey: 'ts-saved' });
     });
 
     expect(vm.isAIConfigured).toBe(true);
