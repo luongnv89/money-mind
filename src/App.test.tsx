@@ -39,7 +39,7 @@ describe('App', () => {
     expect(container.textContent).toContain('Drop your bank statement here');
   });
 
-  it('lazy-loads the dashboard chunk when transactions exist (F-PERF-005)', async () => {
+  it('lazy-loads the Overview chunk when transactions exist (F-PERF-005)', async () => {
     useTransactionStore.setState({ transactions: [makeTx(0), makeTx(1)] });
 
     container = document.createElement('div');
@@ -52,14 +52,14 @@ describe('App', () => {
 
     // React 19 defers the lazy retry to the next act boundary, so await the
     // same dynamic import the lazy component uses INSIDE act; when act exits
-    // it flushes the retry and the Suspense boundary swaps in the dashboard.
+    // it flushes the retry and the Suspense boundary swaps in the overview.
     await React.act(async () => {
-      await import('../pages/Dashboard');
+      await import('../pages/Overview');
     });
     React.act(() => {
       // flush of any remaining act-queued updates
     });
 
-    expect(container.textContent).toContain('Financial Intelligence');
+    expect(container.textContent).toContain('Net cash flow');
   });
 });

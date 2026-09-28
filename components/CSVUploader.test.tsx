@@ -118,4 +118,37 @@ describe('CSVUploader lifecycle reset (issue #21)', () => {
     expect(container.textContent).toContain('Map Columns');
     expect(container.textContent).not.toContain('Drop your bank statement here');
   });
+
+  it('opens the file picker from the keyboard (Enter and Space)', () => {
+    render();
+
+    const dropzone = container.querySelector('[role="button"]') as HTMLElement;
+    expect(dropzone).not.toBeNull();
+    expect(dropzone.getAttribute('tabindex')).toBe('0');
+
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const clickSpy = vi.spyOn(input, 'click');
+
+    React.act(() => {
+      dropzone.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    React.act(() => {
+      dropzone.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+    });
+    expect(clickSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('announces parse errors via role="alert" outside the dropzone button (review F16)', () => {
+    useTransactionStore.setState({ error: 'Only .csv files are supported.' });
+    render();
+
+    const alert = container.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert).not.toBeNull();
+    expect(alert.textContent).toContain('Only .csv files are supported.');
+
+    // Descendants of role="button" are presentational — the alert must live
+    // outside the dropzone or assistive tech would never see it.
+    const dropzone = container.querySelector('[role="button"]') as HTMLElement;
+    expect(dropzone.contains(alert)).toBe(false);
+  });
 });

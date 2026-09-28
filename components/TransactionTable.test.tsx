@@ -58,6 +58,9 @@ describe('TransactionTable (issues #40 and #41)', () => {
       expect(verifyButton().className).toContain('min-h-11');
       expect(deleteButton().className).toContain('min-h-11');
       expect(deleteButton().className).toContain('min-w-11');
+      expect(deleteButton().className).toContain('opacity-100');
+      expect(deleteButton().className).toContain('sm:opacity-0');
+      expect(deleteButton().className).toContain('[@media(hover:none)]:opacity-100');
     });
 
     it('explains what Verify and the confidence bar mean', () => {
@@ -78,6 +81,61 @@ describe('TransactionTable (issues #40 and #41)', () => {
         'Change category for STARBUCKS STORE'
       );
       expect(deleteButton().getAttribute('aria-label')).toBe('Delete transaction STARBUCKS STORE');
+    });
+
+    it('renders the date as a second line inside the description cell for mobile', () => {
+      render([tx({ date: '2026-01-15' })]);
+
+      const descTd = categoryButton().closest('tr')!.querySelectorAll('td')[1] as HTMLElement;
+      const dateLine = descTd.querySelector(
+        'button[aria-label="Sort by date"]'
+      ) as HTMLButtonElement;
+      expect(dateLine).not.toBeNull();
+      expect(dateLine.textContent).toContain('Jan 15, 2026');
+      expect(dateLine.className).toContain('sm:hidden');
+      // The standalone Date column is hidden below sm.
+      const dateTd = descTd.previousElementSibling as HTMLElement;
+      expect(dateTd.className).toContain('hidden sm:table-cell');
+    });
+
+    it('exposes selected states for quick and category filter toggles', () => {
+      render([tx()]);
+
+      const filters = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')
+      );
+      const quickFilters = filters.slice(0, 3);
+      const categoryFilters = filters.slice(3);
+
+      expect(quickFilters.map((button) => button.textContent)).toEqual([
+        'All',
+        'Needs review',
+        'Uncategorized',
+      ]);
+      expect(quickFilters.map((button) => button.getAttribute('aria-pressed'))).toEqual([
+        'true',
+        'false',
+        'false',
+      ]);
+      expect(
+        categoryFilters.filter((button) => button.getAttribute('aria-pressed') === 'true')
+      ).toHaveLength(1);
+      expect(categoryFilters[0].textContent).toBe('All');
+
+      React.act(() => {
+        quickFilters[1].click();
+      });
+      expect(quickFilters[1].getAttribute('aria-pressed')).toBe('true');
+      expect(quickFilters[0].getAttribute('aria-pressed')).toBe('false');
+
+      const uncategorized = categoryFilters.find(
+        (button) => button.textContent === TransactionCategory.Uncategorized
+      )!;
+      React.act(() => {
+        uncategorized.click();
+      });
+      expect(uncategorized.getAttribute('aria-pressed')).toBe('true');
+      expect(categoryFilters[0].getAttribute('aria-pressed')).toBe('false');
     });
   });
 
@@ -106,6 +164,38 @@ describe('TransactionTable (issues #40 and #41)', () => {
       expect(container.querySelectorAll('tbody tr')).toHaveLength(1);
       expect(container.querySelector('tbody')?.textContent).toContain('NETFLIX.COM');
       vi.useRealTimers();
+    });
+  });
+
+  describe('sortable headers are keyboard-operable (issue #85)', () => {
+    const headerCell = (label: string) =>
+      Array.from(container.querySelectorAll('th')).find((th) =>
+        th.textContent?.includes(label)
+      ) as HTMLElement;
+
+    it('renders a button inside each sortable th and exposes aria-sort', () => {
+      render([tx()]);
+
+      // Default sort: date descending.
+      const dateTh = headerCell('Date');
+      expect(dateTh.getAttribute('aria-sort')).toBe('descending');
+      const descTh = headerCell('Description');
+      expect(descTh.getAttribute('aria-sort')).toBeNull();
+
+      // Sorting runs from a real button, not a click handler on the th.
+      const sortButton = descTh.querySelector('button') as HTMLButtonElement;
+      expect(sortButton).not.toBeNull();
+      React.act(() => {
+        sortButton.click();
+      });
+      expect(descTh.getAttribute('aria-sort')).toBe('ascending');
+      expect(dateTh.getAttribute('aria-sort')).toBeNull();
+
+      // Second click on the same column flips the direction.
+      React.act(() => {
+        sortButton.click();
+      });
+      expect(descTh.getAttribute('aria-sort')).toBe('descending');
     });
   });
 

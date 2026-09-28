@@ -270,3 +270,55 @@ describe('Citi split debit/credit columns', () => {
     expect(preview.map((t) => t.amount)).toEqual([-54.2, 2500, -5.75, 12.3]);
   });
 });
+
+describe('AmEx sign convention (Phase A7)', () => {
+  const amexHeaders = ['Date', 'Description', 'Card Member', 'Amount', 'Category'];
+  const amexCsv =
+    'Date,Description,Card Member,Amount,Category\n' +
+    '2024-01-01,Coffee Shop,JOHN DOE,5.75,Restaurant\n' +
+    '2024-01-02,Payment Received,JOHN DOE,-500.00,Payments\n';
+
+  it('detects AmEx via the Card Member column, ahead of the overlapping BofA layout', () => {
+    const detected = detectBankFormat(amexHeaders);
+
+    // Only the AmEx preset carries invertAmounts — its signature wins over BofA.
+    expect(detected?.invertAmounts).toBe(true);
+    expect(detected?.dateCol).toBe('Date');
+    expect(detected?.amountCol).toBe('Amount');
+  });
+
+  it('still detects a plain single-amount layout when Card Member is absent', () => {
+    const detected = detectBankFormat(['Date', 'Description', 'Amount', 'Category']);
+
+    expect(detected).not.toBeNull();
+    // AmEx's requiredCols gate it out, so the generic match has no inversion.
+    expect(detected?.invertAmounts).toBeUndefined();
+  });
+
+  it('negates single-column amounts when invertAmounts is set, in parse and preview', async () => {
+    const amexMapping: CsvMapping = { ...mapping, invertAmounts: true };
+
+    const { accepted } = await parseCSVWithMapping(csvFile(amexCsv), amexMapping);
+    expect(accepted.map((t) => t.amount)).toEqual([-5.75, 500]);
+
+    const preview = await getPreviewTransactions(csvFile(amexCsv), amexMapping);
+    expect(preview.map((t) => t.amount)).toEqual([-5.75, 500]);
+  });
+
+  it('ignores invertAmounts for split debit/credit mappings', async () => {
+    const splitMapping: CsvMapping = {
+      ...mapping,
+      amountCol: '',
+      debitCreditCols: true,
+      debitCol: 'Debit',
+      creditCol: 'Credit',
+      invertAmounts: true,
+    };
+    const { accepted } = await parseCSVWithMapping(
+      csvFile('Date,Description,Debit,Credit\n2024-01-01,Coffee,5.75,\n'),
+      splitMapping
+    );
+
+    expect(accepted[0].amount).toBe(-5.75);
+  });
+});

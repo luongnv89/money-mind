@@ -1,14 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useTransactionStore } from '../stores/useTransactionStore';
-import { useSettingsStore, useAIReady } from '../stores/useSettingsStore';
-import { Settings, LogOut, Shield, LayoutDashboard, UploadCloud, AlertCircle } from 'lucide-react';
-import { Button } from './UI';
-import { ConfirmDialog } from './ConfirmDialog';
+import { useSettingsStore } from '../stores/useSettingsStore';
+import { Settings, Shield, LayoutDashboard, List, UploadCloud } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { ToastContainer } from './Toast';
-import { MonkeySmileChat } from './MonkeySmileChat';
-
-type View = 'dashboard' | 'upload' | 'settings' | 'privacy';
+import { AssistantChat } from './AssistantChat';
+import { View } from '../types';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -16,130 +13,120 @@ interface LayoutProps {
   onViewChange: (view: View) => void;
 }
 
+const NAV_ITEMS: { view: View; label: string; Icon: typeof LayoutDashboard }[] = [
+  { view: 'overview', label: 'Overview', Icon: LayoutDashboard },
+  { view: 'transactions', label: 'Transactions', Icon: List },
+  { view: 'upload', label: 'Import', Icon: UploadCloud },
+];
+
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewChange }) => {
   const { clearAll, transactions } = useTransactionStore();
   const { isDemoMode, setDemoMode } = useSettingsStore();
-  // Single shared readiness selector — see stores/useSettingsStore.ts (F-UX-007).
-  const isAIReady = useAIReady();
 
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-
-  const handleClear = () => {
+  const handleExitDemo = () => {
     clearAll();
     setDemoMode(false);
+    onViewChange('upload');
   };
 
   return (
-    <div className="min-h-screen flex flex-col font-sans">
+    <div className="min-h-screen flex flex-col font-sans bg-paper text-ink">
       <ToastContainer />
-      <MonkeySmileChat onNavigate={onViewChange} />
+      <AssistantChat onNavigate={onViewChange} />
 
       {isDemoMode && (
-        <div
-          className={cn(
-            'text-white text-center py-2 text-sm font-medium flex items-center justify-center gap-2 animate-in slide-in-from-top',
-            isAIReady ? 'bg-emerald-600' : 'bg-indigo-600'
-          )}
-        >
-          <AlertCircle className="w-4 h-4" />
-          {isAIReady
-            ? 'Demo Data Active — Connected to custom AI.'
-            : 'Demo Mode Active — AI analysis is simulated without API keys.'}
+        <div className="flex items-center justify-center gap-3 border-b border-line bg-surface-muted px-4 py-2 text-sm text-ink-soft">
+          <p>You&apos;re exploring sample data. Import your own statement to replace it.</p>
+          <button
+            onClick={handleExitDemo}
+            className="font-medium text-accent underline underline-offset-2 transition-colors hover:text-accent-hover"
+          >
+            Exit demo
+          </button>
         </div>
       )}
-      <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-white/80 backdrop-blur-xs">
-        <div className="container mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
-          <div
-            className="flex items-center gap-2 cursor-pointer"
-            onClick={() => onViewChange('dashboard')}
-          >
-            <div className="w-8 h-8 bg-accent rounded-lg flex items-center justify-center text-white font-bold text-xl">
-              M
-            </div>
-            <span className="font-bold text-xl tracking-tight text-gray-900">
-              Money<span className="text-accent">Mind</span>
-            </span>
-          </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
-            <nav className="flex items-center bg-gray-100/50 p-1 rounded-lg border border-gray-200 mr-2">
-              {transactions.length > 0 && (
-                <button
-                  onClick={() => onViewChange('dashboard')}
-                  className={cn(
-                    'px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2',
-                    currentView === 'dashboard'
-                      ? 'bg-white shadow-xs text-gray-900'
-                      : 'text-gray-500 hover:text-gray-900'
-                  )}
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span className="hidden sm:inline">Dashboard</span>
-                </button>
+      <header className="sticky top-0 z-50 w-full border-b border-line bg-surface/85 backdrop-blur-xs">
+        <div className="container mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
+          <button
+            type="button"
+            aria-label="MoneyMind"
+            title="MoneyMind"
+            className="flex min-h-11 min-w-11 items-center gap-1 rounded-md text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent sm:gap-2.5"
+            onClick={() => onViewChange(transactions.length > 0 ? 'overview' : 'upload')}
+          >
+            <span
+              aria-hidden="true"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ink font-display text-lg text-paper"
+            >
+              M
+            </span>
+            <span
+              aria-hidden="true"
+              className="font-display text-base tracking-tight text-ink sm:hidden"
+            >
+              Money
+            </span>
+            <span
+              aria-hidden="true"
+              className="hidden font-display text-xl tracking-tight text-ink sm:inline"
+            >
+              MoneyMind
+            </span>
+          </button>
+
+          <div className="flex items-center gap-1 md:gap-3">
+            <nav className="flex items-center gap-1" aria-label="Primary">
+              {NAV_ITEMS.filter(({ view }) => view === 'upload' || transactions.length > 0).map(
+                ({ view, label, Icon }) => {
+                  const active = currentView === view;
+                  return (
+                    <button
+                      key={view}
+                      onClick={() => onViewChange(view)}
+                      aria-current={active ? 'page' : undefined}
+                      aria-label={label}
+                      className={cn(
+                        'flex min-h-11 min-w-11 items-center justify-center gap-2 border-b-2 px-2 py-1.5 text-sm font-medium transition-colors sm:px-3',
+                        active
+                          ? 'text-ink border-accent'
+                          : 'text-ink-soft border-transparent hover:text-ink'
+                      )}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="hidden sm:inline">{label}</span>
+                    </button>
+                  );
+                }
               )}
-              <button
-                onClick={() => onViewChange('upload')}
-                className={cn(
-                  'px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-2',
-                  currentView === 'upload'
-                    ? 'bg-white shadow-xs text-gray-900'
-                    : 'text-gray-500 hover:text-gray-900'
-                )}
-              >
-                <UploadCloud className="w-4 h-4" />
-                <span className="hidden sm:inline">Upload</span>
-              </button>
             </nav>
 
-            {transactions.length > 0 && (
-              <>
-                <ConfirmDialog
-                  isOpen={showClearConfirm}
-                  title="Clear All Transactions"
-                  message="Are you sure you want to delete all transactions? This action cannot be undone."
-                  confirmText="Clear All"
-                  variant="danger"
-                  onConfirm={handleClear}
-                  onCancel={() => setShowClearConfirm(false)}
-                />
-                {/* Clear stays reachable at every breakpoint: the label
-                    collapses to the icon on mobile instead of hiding the
-                    button entirely (F-UX-008). */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowClearConfirm(true)}
-                  aria-label="Clear all transactions"
-                  className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                >
-                  <LogOut className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Clear</span>
-                </Button>
-              </>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={() => onViewChange('settings')}
               aria-label="Settings"
               title="Settings"
-              className={cn(currentView === 'settings' ? 'bg-gray-100' : '')}
+              aria-current={currentView === 'settings' ? 'page' : undefined}
+              className={cn(
+                'flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent',
+                currentView === 'settings'
+                  ? 'text-accent bg-accent-light'
+                  : 'text-ink-soft hover:bg-ink/5'
+              )}
             >
               <Settings className="w-5 h-5" />
-              <span className="hidden sm:inline ml-2">Settings</span>
-            </Button>
+            </button>
           </div>
         </div>
       </header>
 
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-8">{children}</main>
 
-      <footer className="border-t border-gray-200 bg-gray-50 mt-auto">
+      <footer className="border-t border-line bg-surface-muted mt-auto">
         <div className="container mx-auto max-w-7xl px-4 py-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-gray-500">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-sm text-muted">
             {/* Left Side: Copyright & Branding */}
             <div className="flex flex-col items-center md:items-start gap-2">
-              <div className="flex items-center gap-2 text-gray-900 font-medium">
+              <div className="flex items-center gap-2 text-ink font-medium">
                 <Shield className="w-4 h-4 text-accent" />
                 <span>Private by default. Open source.</span>
               </div>
@@ -149,7 +136,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
                   href="https://luongnv.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-gray-700 hover:text-accent transition-colors font-medium"
+                  className="text-ink-soft hover:text-accent transition-colors font-medium"
                 >
                   luongnv89
                 </a>
@@ -181,10 +168,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
                   Contact
                 </a>
               </div>
-              <div className="flex items-center gap-2 font-mono text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
+              <div className="flex items-center gap-2 font-mono text-xs text-muted bg-surface border border-line px-2 py-1 rounded">
                 {/* Injected from package.json at build time (F-UX-013). */}
                 <span>v{__APP_VERSION__}</span>
-                <span className="text-gray-300">|</span>
+                <span className="text-line-strong">|</span>
                 <span title="Commit Hash">
                   {(import.meta.env?.VITE_COMMIT_HASH as string) || 'dev-local'}
                 </span>

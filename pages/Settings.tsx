@@ -4,61 +4,28 @@ import {
   getDeobfuscatedApiKey,
   getTypesafeApiKey,
   validatePersistedModel,
+  selectAIReady,
 } from '../stores/useSettingsStore';
 import { clearPatterns, getPatterns, importPatterns } from '../lib/localStorage';
 import { useDebouncedValue } from '../lib/useDebounce';
-import { Card, CardContent, CardHeader, CardTitle, Button, Input } from '../components/UI';
+import { Button } from '../components/UI';
 import { ConfirmDialog } from '../components/ConfirmDialog';
-import {
-  Trash2,
-  CheckCircle,
-  Cloud,
-  Cpu,
-  Terminal,
-  Key,
-  Server,
-  PlayCircle,
-  AlertCircle,
-  Zap,
-  Download,
-  Upload,
-  BarChart2,
-  Globe,
-  Sparkles,
-} from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 import { testAiConnection } from '../services/aiService';
 import { testTypesafeConnection } from '../services/typesafeService';
 import { loadModelCatalog } from '../services/modelCatalog';
-import { FALLBACK_MODEL_CATALOG } from '../constants';
+import { AI_PROVIDER_LABELS, FALLBACK_MODEL_CATALOG } from '../constants';
 import { ModelCatalog } from '../types';
 import { useToastStore } from '../stores/useToastStore';
+import { useTransactionStore } from '../stores/useTransactionStore';
+import { AIOverviewSection } from './settings/AIOverviewSection';
+import { TypeSafeSection } from './settings/TypeSafeSection';
+import { LanguageModelSection } from './settings/LanguageModelSection';
+import { PreferencesSection } from './settings/PreferencesSection';
+import { RulesSection } from './settings/RulesSection';
+import { DangerZoneSection } from './settings/DangerZoneSection';
 
-/** Provider switcher tabs — order defines arrow-key traversal. */
-const PROVIDER_TABS = [
-  { mode: 'cloud', label: 'Gemini (Google)', Icon: Cloud },
-  { mode: 'groq', label: 'Groq (Fast)', Icon: Zap },
-  { mode: 'local', label: 'Ollama (Local)', Icon: Cpu },
-  { mode: 'custom', label: 'Custom Endpoint', Icon: Globe },
-] as const;
-
-const ConnectionTestResult: React.FC<{
-  result: 'success' | 'error' | null;
-  message: string;
-}> = ({ result, message }) => (
-  <div className="flex-1">
-    {result === 'success' && (
-      <div className="text-sm text-green-600 flex items-center gap-1 font-medium animate-in fade-in bg-green-50 p-3 rounded-lg border border-green-100">
-        <CheckCircle className="w-4 h-4 shrink-0" /> {message}
-      </div>
-    )}
-    {result === 'error' && (
-      <div className="text-sm text-red-600 flex items-start gap-2 animate-in fade-in bg-red-50 p-3 rounded-lg border border-red-100">
-        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-        <div className="whitespace-pre-wrap font-medium font-mono text-xs">{message}</div>
-      </div>
-    )}
-  </div>
-);
+const PROVIDER_LABELS = AI_PROVIDER_LABELS;
 
 export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const {
@@ -74,11 +41,23 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     setCustomConfig,
     typesafeConfig,
     setTypesafeConfig,
+    currency,
+    setCurrency,
+    applyPatterns,
+    toggleApplyPatterns,
+    enableSpendingAlerts,
+    toggleSpendingAlerts,
+    resetSettings,
+    setDemoMode,
   } = useSettingsStore();
 
   const { addToast } = useToastStore();
+  const transactions = useTransactionStore((s) => s.transactions);
+  const clearAll = useTransactionStore((s) => s.clearAll);
 
   const [showClearPatternsConfirm, setShowClearPatternsConfirm] = useState(false);
+  const [showDeleteTransactionsConfirm, setShowDeleteTransactionsConfirm] = useState(false);
+  const [showResetSettingsConfirm, setShowResetSettingsConfirm] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [testMessage, setTestMessage] = useState('');
@@ -154,14 +133,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     addToast,
   ]);
 
-  const providerName =
-    aiMode === 'cloud'
-      ? 'Gemini'
-      : aiMode === 'groq'
-        ? 'Groq'
-        : aiMode === 'custom'
-          ? 'your endpoint'
-          : 'Ollama';
+  const providerName = PROVIDER_LABELS[aiMode];
   const catalogModels = catalog?.models ?? FALLBACK_MODEL_CATALOG[aiMode];
   const selectedModel =
     aiMode === 'cloud'
@@ -180,44 +152,45 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     !catalog.models.some((m) => m.id === selectedModel);
 
   const catalogStatus = (
-    <div role="status" aria-live="polite">
+    <div role="status" aria-live="polite" aria-label="Model catalog status">
       {isLoadingCatalog ? (
-        <p className="text-xs text-gray-500">Loading available models…</p>
+        <p className="text-xs text-muted">Loading available models…</p>
       ) : catalog?.status === 'fallback' ? (
-        <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-lg p-3">
-          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-          <p className="text-xs text-amber-700">{catalog.notice}</p>
+        <div className="flex items-start gap-2 bg-warning/10 border border-warning/20 rounded-lg p-3">
+          <AlertCircle className="w-4 h-4 text-warning mt-0.5 shrink-0" />
+          <p className="text-xs text-warning">{catalog.notice}</p>
         </div>
       ) : (
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-muted">
           Showing {catalogModels.length} models from {providerName}
           {catalog?.status === 'cached' ? ' (cached list)' : ''}.
         </p>
       )}
-      {modelResetNotice && <p className="text-xs text-amber-700 mt-1">{modelResetNotice}</p>}
+      {modelResetNotice && <p className="text-xs text-warning mt-1">{modelResetNotice}</p>}
     </div>
   );
 
-  // Logic to detect key usage state
-  const currentStoredKey = (() => {
-    try {
-      return atob(geminiConfig.apiKey);
-    } catch {
-      return geminiConfig.apiKey;
-    }
-  })();
-
-  const isUsingCustomKey = !!currentStoredKey;
+  const aiReady = selectAIReady(useSettingsStore.getState());
+  const typesafeKeySet = !!getTypesafeApiKey({ typesafeConfig });
 
   const handleClearPatterns = () => {
     clearPatterns();
     setPatternCount(0);
+    setShowClearPatternsConfirm(false);
     addToast('Patterns cleared successfully', 'success');
   };
 
-  const handleConfirmClearPatterns = () => {
-    handleClearPatterns();
-    setShowClearPatternsConfirm(false);
+  const handleDeleteTransactions = () => {
+    clearAll();
+    setDemoMode(false);
+    setShowDeleteTransactionsConfirm(false);
+    addToast('All transactions deleted', 'success');
+  };
+
+  const handleResetSettings = () => {
+    resetSettings();
+    setShowResetSettingsConfirm(false);
+    addToast('Settings reset', 'success');
   };
 
   const handleExportPatterns = () => {
@@ -251,7 +224,11 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         const result = importPatterns(content);
         if (result.success) {
           setPatternCount(getPatterns().length);
-          addToast(`Successfully imported ${result.count} patterns`, 'success');
+          addToast(
+            `Successfully imported ${result.count} patterns` +
+              (result.skipped > 0 ? ` (${result.skipped} invalid skipped)` : ''),
+            'success'
+          );
         } else {
           addToast(`Import failed: ${result.error}`, 'error');
         }
@@ -294,544 +271,139 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     }
   };
 
+  const handleSelectMode = (mode: typeof aiMode) => {
+    setAiMode(mode);
+    setTestResult(null);
+  };
+
   // Roving-tabindex arrow-key navigation for the provider tabs (WCAG 4.1.2).
   const handleProviderTabKeyDown = (e: React.KeyboardEvent, index: number) => {
     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
     e.preventDefault();
+    const modes = ['cloud', 'groq', 'local', 'custom'] as const;
     const delta = e.key === 'ArrowRight' ? 1 : -1;
-    const nextMode =
-      PROVIDER_TABS[(index + delta + PROVIDER_TABS.length) % PROVIDER_TABS.length].mode;
+    const nextMode = modes[(index + delta + modes.length) % modes.length];
     setAiMode(nextMode);
     setTestResult(null);
     document.getElementById(`settings-tab-${nextMode}`)?.focus();
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <Button variant="outline" onClick={onBack}>
-          Back to Dashboard
-        </Button>
+    <div className="max-w-3xl mx-auto space-y-6 animate-rise">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-display text-3xl text-ink">Settings</h1>
+            <p className="mt-1 text-sm text-muted">AI services, preferences and your data.</p>
+          </div>
+          <Button variant="outline" onClick={onBack}>
+            Back
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-          <CardTitle className="flex items-center gap-2">
-            <Download className="w-5 h-5 text-accent" />
-            Data Management
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                <BarChart2 className="w-4 h-4 text-accent" />
-                Categorization Patterns
-              </h3>
-              <p className="text-xs text-gray-500">
-                You have <strong>{patternCount}</strong> custom categorization patterns stored
-                locally. These help the AI learn from your manual corrections.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={handleExportPatterns}>
-                  <Download className="w-3.5 h-3.5 mr-2" />
-                  Export
-                </Button>
-                <Button size="sm" variant="outline" onClick={handleImportClick}>
-                  <Upload className="w-3.5 h-3.5 mr-2" />
-                  Import
-                </Button>
-                <Input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  accept=".json"
-                  onChange={handleFileChange}
-                />
-              </div>
-            </div>
+      <AIOverviewSection
+        providerName={providerName}
+        typesafeKeySet={typesafeKeySet}
+        aiReady={aiReady}
+        selectedModel={selectedModel}
+      />
 
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium text-gray-900 flex items-center gap-2">
-                <Trash2 className="w-4 h-4 text-red-500" />
-                Reset & Clear
-              </h3>
-              <p className="text-xs text-gray-500">
-                Permanently delete all learned patterns. This cannot be undone.
-              </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-red-600 border-red-200 hover:bg-red-50"
-                onClick={() => setShowClearPatternsConfirm(true)}
-              >
-                <Trash2 className="w-3.5 h-3.5 mr-2" />
-                Clear All Patterns
-              </Button>
-              <ConfirmDialog
-                isOpen={showClearPatternsConfirm}
-                title="Clear All Patterns"
-                message="Are you sure you want to delete all learned categorization patterns? This action cannot be undone."
-                confirmText="Clear All"
-                variant="danger"
-                onConfirm={handleConfirmClearPatterns}
-                onCancel={() => setShowClearPatternsConfirm(false)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <TypeSafeSection
+        apiKey={getTypesafeApiKey({ typesafeConfig })}
+        onApiKeyChange={(apiKey) => setTypesafeConfig({ apiKey })}
+        onTest={handleTestTypesafe}
+        isTesting={isTestingTypesafe}
+        testResult={typesafeTestResult}
+        testMessage={typesafeTestMessage}
+      />
 
-      <Card className="overflow-hidden">
-        <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-          <CardTitle className="flex items-center gap-2">
-            {aiMode === 'local' ? (
-              <Cpu className="w-5 h-5 text-accent" />
-            ) : aiMode === 'custom' ? (
-              <Globe className="w-5 h-5 text-accent" />
-            ) : (
-              <Cloud className="w-5 h-5 text-accent" />
-            )}
-            AI Model Configuration
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {/* Mode Selection Tabs — the strip scrolls horizontally on narrow
-              viewports; the edge fades make off-screen tabs discoverable and
-              focusing a tab always scrolls it into view (review N4). */}
-          <div className="relative">
-            <div
-              role="tablist"
-              aria-label="AI provider"
-              className="flex border-b border-gray-100 overflow-x-auto"
-            >
-              {PROVIDER_TABS.map(({ mode, label, Icon }, index) => (
-                <button
-                  key={mode}
-                  id={`settings-tab-${mode}`}
-                  role="tab"
-                  aria-selected={aiMode === mode}
-                  aria-controls={`settings-panel-${mode}`}
-                  tabIndex={aiMode === mode ? 0 : -1}
-                  onKeyDown={(e) => handleProviderTabKeyDown(e, index)}
-                  onFocus={(e) =>
-                    e.currentTarget.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
-                  }
-                  onClick={() => {
-                    setAiMode(mode);
-                    setTestResult(null);
-                  }}
-                  className={`min-h-11 flex-1 p-4 flex items-center justify-center gap-2 font-medium transition-colors whitespace-nowrap ${aiMode === mode ? 'bg-white text-accent border-b-2 border-accent' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div
-              aria-hidden="true"
-              data-testid="provider-tabs-fade-left"
-              className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-linear-to-r from-gray-200/70 to-transparent"
-            />
-            <div
-              aria-hidden="true"
-              data-testid="provider-tabs-fade-right"
-              className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-linear-to-l from-gray-200/70 to-transparent"
-            />
-          </div>
+      <LanguageModelSection
+        aiMode={aiMode}
+        onSelectMode={handleSelectMode}
+        onTabKeyDown={handleProviderTabKeyDown}
+        geminiApiKey={getDeobfuscatedApiKey(useSettingsStore.getState())}
+        onGeminiApiKey={(apiKey) => setGeminiConfig({ apiKey })}
+        geminiModel={geminiConfig.model}
+        onGeminiModel={(model) => setGeminiConfig({ model })}
+        groqApiKey={getDeobfuscatedApiKey(useSettingsStore.getState())}
+        onGroqApiKey={(apiKey) => setGroqConfig({ apiKey })}
+        groqModel={groqConfig.model}
+        onGroqModel={(model) => setGroqConfig({ model })}
+        ollamaBaseUrl={ollamaConfig.baseUrl}
+        onOllamaBaseUrl={(baseUrl) => setOllamaConfig({ baseUrl })}
+        ollamaPort={ollamaConfig.port}
+        onOllamaPort={(port) => setOllamaConfig({ port })}
+        ollamaModel={ollamaConfig.model}
+        onOllamaModel={(model) => setOllamaConfig({ model })}
+        customBaseUrl={customConfig.baseUrl}
+        onCustomBaseUrl={(baseUrl) => setCustomConfig({ baseUrl })}
+        customApiKey={getDeobfuscatedApiKey(useSettingsStore.getState())}
+        onCustomApiKey={(apiKey) => setCustomConfig({ apiKey })}
+        customModel={customConfig.model}
+        onCustomModel={(model) => setCustomConfig({ model })}
+        catalogModels={catalogModels}
+        selectedModel={selectedModel}
+        selectedModelMissing={selectedModelMissing}
+        isLoadingCatalog={isLoadingCatalog}
+        catalogStatus={catalogStatus}
+        testResult={testResult}
+        testMessage={testMessage}
+        isTesting={isTesting}
+        onTest={handleTestConnection}
+      />
 
-          <div className="p-6 space-y-6">
-            {aiMode === 'cloud' && (
-              <div
-                id="settings-panel-cloud"
-                role="tabpanel"
-                aria-labelledby="settings-tab-cloud"
-                className="space-y-4 animate-in fade-in duration-300"
-              >
-                {isUsingCustomKey && (
-                  <div className="bg-green-50 border border-green-100 rounded-lg p-3 flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-green-900">Full Access</p>
-                      <div className="text-xs text-green-700 mt-1 leading-relaxed">
-                        Your key allows full access. Available models:
-                      </div>
-                    </div>
-                  </div>
-                )}
+      <PreferencesSection
+        currency={currency}
+        onCurrencyChange={setCurrency}
+        applyPatterns={applyPatterns}
+        onToggleApplyPatterns={toggleApplyPatterns}
+        enableSpendingAlerts={enableSpendingAlerts}
+        onToggleSpendingAlerts={toggleSpendingAlerts}
+      />
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <Key className="w-4 h-4" /> API Key
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder="Enter your Gemini API Key"
-                    value={getDeobfuscatedApiKey(useSettingsStore.getState())}
-                    onChange={(e) => setGeminiConfig({ apiKey: e.target.value })}
-                    className="font-mono"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Your key is stored locally (obfuscated, not encrypted). Without a key, usage is
-                    limited to 150 transaction analyses and 10 chat messages.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <label
-                    htmlFor="gemini-model"
-                    className="text-sm font-medium text-gray-700 flex items-center gap-2"
-                  >
-                    <Server className="w-4 h-4" /> Model Selection
-                  </label>
-                  <select
-                    id="gemini-model"
-                    aria-busy={isLoadingCatalog}
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
-                    value={geminiConfig.model}
-                    onChange={(e) => setGeminiConfig({ model: e.target.value })}
-                  >
-                    {selectedModelMissing && (
-                      <option value={selectedModel}>
-                        {selectedModel} (saved — not in the current model list)
-                      </option>
-                    )}
-                    {catalogModels.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-                  {catalogStatus}
-                </div>
-              </div>
-            )}
+      <RulesSection
+        patternCount={patternCount}
+        onExport={handleExportPatterns}
+        onImportClick={handleImportClick}
+        fileInputRef={fileInputRef}
+        onFileChange={handleFileChange}
+      />
 
-            {aiMode === 'groq' && (
-              <div
-                id="settings-panel-groq"
-                role="tabpanel"
-                aria-labelledby="settings-tab-groq"
-                className="space-y-6 animate-in fade-in duration-300"
-              >
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                    <Key className="w-4 h-4" /> API Key
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder="Enter your Groq API Key (gsk_...)"
-                    value={getDeobfuscatedApiKey(useSettingsStore.getState())}
-                    onChange={(e) => setGroqConfig({ apiKey: e.target.value })}
-                    className="font-mono"
-                  />
-                </div>
+      <DangerZoneSection
+        patternCount={patternCount}
+        onDeleteTransactions={() => setShowDeleteTransactionsConfirm(true)}
+        onClearPatterns={() => setShowClearPatternsConfirm(true)}
+        onResetSettings={() => setShowResetSettingsConfirm(true)}
+      />
 
-                <div className="space-y-2">
-                  <label
-                    htmlFor="groq-model"
-                    className="text-sm font-medium text-gray-700 flex items-center gap-2"
-                  >
-                    <Server className="w-4 h-4" /> Model Selection
-                  </label>
-                  <select
-                    id="groq-model"
-                    aria-busy={isLoadingCatalog}
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
-                    value={groqConfig.model}
-                    onChange={(e) => setGroqConfig({ model: e.target.value })}
-                  >
-                    {selectedModelMissing && (
-                      <option value={selectedModel}>
-                        {selectedModel} (saved — not in the current model list)
-                      </option>
-                    )}
-                    {catalogModels.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-                  {catalogStatus}
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <div className="flex items-start gap-3">
-                    <Zap className="w-5 h-5 text-orange-500 mt-0.5" />
-                    <div className="text-sm text-gray-600 space-y-2">
-                      <p className="font-medium text-gray-900">Groq Quickstart:</p>
-                      <ul className="list-disc list-inside space-y-1 ml-1">
-                        <li>
-                          Sign up at{' '}
-                          <a
-                            href="https://console.groq.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-accent hover:underline"
-                          >
-                            console.groq.com
-                          </a>
-                        </li>
-                        <li>Create an API Key in the dashboard</li>
-                        <li>
-                          Paste the key above starting with <code>gsk_</code>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {aiMode === 'local' && (
-              <div
-                id="settings-panel-local"
-                role="tabpanel"
-                aria-labelledby="settings-tab-local"
-                className="space-y-6 animate-in fade-in duration-300"
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Base URL</label>
-                    <Input
-                      placeholder="http://localhost"
-                      value={ollamaConfig.baseUrl}
-                      onChange={(e) => setOllamaConfig({ baseUrl: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Port</label>
-                    <Input
-                      placeholder="11434"
-                      value={ollamaConfig.port}
-                      onChange={(e) => setOllamaConfig({ port: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="ollama-model" className="text-sm font-medium text-gray-700">
-                    Specific Model Name
-                  </label>
-                  <Input
-                    id="ollama-model"
-                    placeholder="llama3.2"
-                    value={ollamaConfig.model}
-                    onChange={(e) => setOllamaConfig({ model: e.target.value })}
-                    list="ollama-models"
-                  />
-                  <datalist id="ollama-models">
-                    {catalogModels.map((m) => (
-                      <option key={m.id} value={m.id} />
-                    ))}
-                  </datalist>
-                  <p className="text-xs text-gray-500">
-                    Free text — models you have pulled locally appear as suggestions, but any model
-                    name works.
-                  </p>
-                  {catalogStatus}
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <div className="flex items-start gap-3">
-                    <Terminal className="w-5 h-5 text-gray-400 mt-0.5" />
-                    <div className="text-sm text-gray-600 space-y-2">
-                      <p className="font-medium text-gray-900">Ollama Setup Commands:</p>
-                      <p className="text-xs text-gray-500">Close Ollama from the taskbar first!</p>
-
-                      <div className="bg-white border border-gray-200 rounded p-2 text-xs font-mono">
-                        <div className="text-gray-400 mb-1 select-none"># Mac / Linux</div>
-                        <div className="select-all">OLLAMA_ORIGINS="*" ollama serve</div>
-                      </div>
-
-                      <div className="bg-white border border-gray-200 rounded p-2 text-xs font-mono">
-                        <div className="text-gray-400 mb-1 select-none"># Windows (PowerShell)</div>
-                        <div className="select-all">$env:OLLAMA_ORIGINS="*"; ollama serve</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {aiMode === 'custom' && (
-              <div
-                id="settings-panel-custom"
-                role="tabpanel"
-                aria-labelledby="settings-tab-custom"
-                className="space-y-6 animate-in fade-in duration-300"
-              >
-                <div className="space-y-2">
-                  <label
-                    htmlFor="custom-base-url"
-                    className="text-sm font-medium text-gray-700 flex items-center gap-2"
-                  >
-                    <Globe className="w-4 h-4" /> Base URL
-                  </label>
-                  <Input
-                    id="custom-base-url"
-                    placeholder="https://api.example.com/v1"
-                    value={customConfig.baseUrl}
-                    onChange={(e) => setCustomConfig({ baseUrl: e.target.value })}
-                  />
-                  <p className="text-xs text-gray-500">
-                    Any OpenAI-compatible server — requests go to{' '}
-                    <code>{`{Base URL}/chat/completions`}</code>. Include the version path if your
-                    server needs one (e.g. <code>/v1</code>).
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label
-                    htmlFor="custom-api-key"
-                    className="text-sm font-medium text-gray-700 flex items-center gap-2"
-                  >
-                    <Key className="w-4 h-4" /> API Key
-                  </label>
-                  <Input
-                    id="custom-api-key"
-                    type="password"
-                    placeholder="Enter your endpoint's API key"
-                    value={getDeobfuscatedApiKey(useSettingsStore.getState())}
-                    onChange={(e) => setCustomConfig({ apiKey: e.target.value })}
-                    className="font-mono"
-                  />
-                  <p className="text-xs text-gray-500">
-                    Stored locally (obfuscated, not encrypted). Leave empty only if your server
-                    skips authentication.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <label htmlFor="custom-model" className="text-sm font-medium text-gray-700">
-                    Model Name
-                  </label>
-                  <Input
-                    id="custom-model"
-                    placeholder="e.g. gpt-4o-mini, llama3.1, my-finetune"
-                    value={customConfig.model}
-                    onChange={(e) => setCustomConfig({ model: e.target.value })}
-                    list="custom-models"
-                  />
-                  <datalist id="custom-models">
-                    {catalogModels.map((m) => (
-                      <option key={m.id} value={m.id} />
-                    ))}
-                  </datalist>
-                  <p className="text-xs text-gray-500">
-                    Free text — models reported by your endpoint appear as suggestions, but any
-                    model id works.
-                  </p>
-                  {catalogStatus}
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <div className="flex items-start gap-3">
-                    <Terminal className="w-5 h-5 text-gray-400 mt-0.5" />
-                    <div className="text-sm text-gray-600 space-y-2">
-                      <p className="font-medium text-gray-900">OpenAI-compatible endpoints:</p>
-                      <ul className="list-disc list-inside space-y-1 ml-1 text-xs">
-                        <li>Works with LM Studio, vLLM, LocalAI, OpenRouter and similar servers</li>
-                        <li>The server must allow browser access (CORS)</li>
-                        <li>Use &quot;Test Connection&quot; below to verify your setup</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Test Connection Section with Enhanced Error Display */}
-            <div className="pt-4 border-t border-gray-100">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <ConnectionTestResult result={testResult} message={testMessage} />
-                <Button
-                  onClick={handleTestConnection}
-                  isLoading={isTesting}
-                  className="shrink-0"
-                  variant={testResult === 'success' ? 'outline' : 'primary'}
-                >
-                  {isTesting ? (
-                    'Testing...'
-                  ) : (
-                    <>
-                      <PlayCircle className="w-4 h-4 mr-2" />
-                      Test Connection
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="bg-gray-50/50 border-b border-gray-100">
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-accent" />
-            Transaction Classification (TypeSafe)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6 space-y-4">
-          <p className="text-sm text-gray-600">
-            With a TypeSafe key, transaction categorization uses TypeSafe's Jev model: it picks each
-            category from the fixed list and returns calibrated probabilities instead of generated
-            JSON. MonkeySmile chat keeps using the AI provider above. Without a key, categorization
-            uses the AI provider above too.
-          </p>
-          <div className="space-y-2">
-            <label
-              htmlFor="typesafe-api-key"
-              className="text-sm font-medium text-gray-700 flex items-center gap-2"
-            >
-              <Key className="w-4 h-4" /> TypeSafe API Key
-            </label>
-            <Input
-              id="typesafe-api-key"
-              type="password"
-              placeholder="Enter your TypeSafe API key"
-              value={getTypesafeApiKey({ typesafeConfig })}
-              onChange={(e) => setTypesafeConfig({ apiKey: e.target.value })}
-              className="font-mono"
-            />
-            <p className="text-xs text-gray-500">
-              Stored locally (obfuscated, not encrypted). Requests go through this app's
-              /typesafe-api pass-through because TypeSafe does not accept direct browser calls. Get
-              a key at{' '}
-              <a
-                href="https://console.typesafe.ai"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent hover:underline"
-              >
-                console.typesafe.ai
-              </a>
-              .
-            </p>
-          </div>
-          <div className="pt-4 border-t border-gray-100">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <ConnectionTestResult result={typesafeTestResult} message={typesafeTestMessage} />
-              <Button
-                onClick={handleTestTypesafe}
-                isLoading={isTestingTypesafe}
-                className="shrink-0"
-                variant={typesafeTestResult === 'success' ? 'outline' : 'primary'}
-              >
-                {isTestingTypesafe ? (
-                  'Testing...'
-                ) : (
-                  <>
-                    <PlayCircle className="w-4 h-4 mr-2" />
-                    Test TypeSafe
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <ConfirmDialog
+        isOpen={showDeleteTransactionsConfirm}
+        title="Delete all transactions?"
+        message={`This removes all ${transactions.length} transactions stored in this browser. This can't be undone.`}
+        confirmText="Delete"
+        variant="danger"
+        onConfirm={handleDeleteTransactions}
+        onCancel={() => setShowDeleteTransactionsConfirm(false)}
+      />
+      <ConfirmDialog
+        isOpen={showClearPatternsConfirm}
+        title="Clear learned rules?"
+        message={`This removes all ${patternCount} rules. Future imports won't be pre-categorized.`}
+        confirmText="Clear rules"
+        variant="danger"
+        onConfirm={handleClearPatterns}
+        onCancel={() => setShowClearPatternsConfirm(false)}
+      />
+      <ConfirmDialog
+        isOpen={showResetSettingsConfirm}
+        title="Reset settings?"
+        message="This restores default settings and removes all saved API keys."
+        confirmText="Reset"
+        variant="danger"
+        onConfirm={handleResetSettings}
+        onCancel={() => setShowResetSettingsConfirm(false)}
+      />
     </div>
   );
 };

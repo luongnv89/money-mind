@@ -23,7 +23,7 @@ import {
 import Papa from 'papaparse';
 import { ConfirmDialog } from './ConfirmDialog';
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 25;
 
 // --- Category Dropdown Component ---
 
@@ -47,12 +47,38 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
   const [anchorRect, setAnchorRect] = useState<DOMRect>(() => anchorEl.getBoundingClientRect());
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const anchorElRef = useRef(anchorEl);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    anchorElRef.current = anchorEl;
+  });
 
   // Auto-focus search on open
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
+  }, []);
+
+  // Escape closes from anywhere in the dropdown (not just the search input),
+  // and closing returns focus to the row button that opened it (WCAG 2.4.3).
+  // Mount-only effect: onClose/anchorEl are read through refs so parent
+  // re-renders don't re-run the cleanup and steal focus mid-search.
+  useEffect(() => {
+    const panel = containerRef.current;
+    const anchor = anchorElRef.current;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (panel?.contains(document.activeElement)) {
+        anchor.focus();
+      }
+    };
   }, []);
 
   // Follow the anchor on scroll/resize instead of detaching: reposition while
@@ -146,7 +172,7 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
       <div
         ref={containerRef}
         className={cn(
-          'absolute bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100',
+          'absolute bg-surface rounded-lg shadow-xl border border-line flex flex-col overflow-hidden animate-rise',
           positionStyle.bottom !== undefined ? 'origin-bottom-left' : 'origin-top-left'
         )}
         style={{
@@ -158,32 +184,30 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
           pointerEvents: 'auto',
         }}
       >
-        <div className="p-2 border-b border-gray-100 bg-gray-50/50 sticky top-0 z-10">
+        <div className="p-2 border-b border-line bg-surface-muted/60 sticky top-0 z-10">
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted" />
             <input
               ref={inputRef}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-md focus:outline-hidden focus:ring-2 focus:ring-accent/50 focus:border-accent"
+              aria-label="Search categories"
+              className="w-full pl-9 pr-3 py-2 text-sm bg-surface border border-line rounded-md focus:outline-hidden focus:ring-2 focus:ring-accent/50 focus:border-accent"
               placeholder="Search category..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') onClose();
-              }}
             />
           </div>
         </div>
-        <div className="overflow-y-auto flex-1 py-1">
+        <div className="overflow-y-auto flex-1 py-1" role="listbox" aria-label="Categories">
           {Object.entries(filteredHierarchy).length > 0 ? (
             Object.entries(filteredHierarchy).map(([cat, subs]) => {
               const catStyle =
                 CATEGORY_COLORS[cat as TransactionCategory] ||
                 CATEGORY_COLORS[TransactionCategory.Uncategorized];
               return (
-                <div key={cat} className="mb-1">
+                <div key={cat} className="mb-1" role="group" aria-label={cat}>
                   <div
                     className={cn(
-                      'px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 bg-gray-50/80 sticky top-0 backdrop-blur-xs',
+                      'px-3 py-1.5 text-xs font-bold uppercase tracking-wider bg-surface-muted/80 sticky top-0 backdrop-blur-xs',
                       catStyle.text
                     )}
                   >
@@ -191,12 +215,14 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                   </div>
                   {(searchTerm === '' || cat.toLowerCase().includes(searchTerm.toLowerCase())) && (
                     <button
+                      role="option"
+                      aria-selected={currentCategory === cat && !currentSubCategory}
                       onClick={() => onSelect(cat as TransactionCategory, undefined)}
                       className={cn(
-                        'w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-gray-50 transition-colors',
+                        'w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-surface-muted transition-colors',
                         currentCategory === cat && !currentSubCategory
                           ? 'bg-accent/5 text-accent font-medium'
-                          : 'text-gray-700'
+                          : 'text-ink'
                       )}
                     >
                       <span>{cat} (General)</span>
@@ -209,12 +235,14 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                     subs.map((sub: string) => (
                       <button
                         key={sub}
+                        role="option"
+                        aria-selected={currentCategory === cat && currentSubCategory === sub}
                         onClick={() => onSelect(cat as TransactionCategory, sub)}
                         className={cn(
-                          'w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-gray-50 transition-colors pl-6',
+                          'w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-surface-muted transition-colors pl-6',
                           currentCategory === cat && currentSubCategory === sub
                             ? 'bg-accent/5 text-accent font-medium'
-                            : 'text-gray-600'
+                            : 'text-ink-soft'
                         )}
                       >
                         <span>{sub}</span>
@@ -227,9 +255,7 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
               );
             })
           ) : (
-            <div className="p-8 text-center text-gray-400 text-sm">
-              No matching categories found
-            </div>
+            <div className="p-8 text-center text-muted text-sm">No matching categories found</div>
           )}
         </div>
       </div>
@@ -253,42 +279,70 @@ const SortHeader = ({
   onSort: (k: string) => void;
   className?: string;
 }) => {
+  const isActive = currentSort.key === sKey;
   return (
     <th
-      className={cn(
-        'px-6 py-3 font-medium cursor-pointer hover:bg-gray-100 transition-colors group select-none',
-        className
-      )}
-      onClick={() => onSort(sKey)}
+      className={cn('px-3 py-3 sm:px-6 font-medium select-none', className)}
+      aria-sort={
+        isActive ? (currentSort.direction === 'asc' ? 'ascending' : 'descending') : undefined
+      }
     >
-      <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => onSort(sKey)}
+        className={cn(
+          'group flex w-full items-center gap-1.5 rounded-sm font-medium transition-colors hover:text-ink focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent',
+          className?.includes('text-center') && 'justify-center'
+        )}
+      >
         {label}
-        <span className="text-gray-400 group-hover:text-gray-600 flex flex-col">
-          {currentSort.key === sKey ? (
+        <span className="text-muted group-hover:text-ink-soft flex flex-col" aria-hidden="true">
+          {isActive ? (
             currentSort.direction === 'asc' ? (
               <ArrowUp className="w-3.5 h-3.5" />
             ) : (
               <ArrowDown className="w-3.5 h-3.5" />
             )
           ) : (
-            <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50 transition-opacity" />
+            <ArrowUpDown className="w-3.5 h-3.5 opacity-50" />
           )}
         </span>
-      </div>
+      </button>
     </th>
   );
 };
 
 // --- Main Table Component ---
 
+export type QuickFilter = 'all' | 'needsReview' | 'uncategorized';
+
 interface TransactionTableProps {
   transactions: Transaction[];
+  /** Controlled quick filter (e.g. set by the page's summary chips). */
+  quickFilter?: QuickFilter;
+  onQuickFilterChange?: (filter: QuickFilter) => void;
 }
 
-export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions }) => {
+const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'needsReview', label: 'Needs review' },
+  { value: 'uncategorized', label: 'Uncategorized' },
+];
+
+export const TransactionTable: React.FC<TransactionTableProps> = ({
+  transactions,
+  quickFilter: controlledQuickFilter,
+  onQuickFilterChange,
+}) => {
   const { updateCategory, approveTransaction, deleteTransaction } = useTransactionStore();
 
   // State
+  const [internalQuickFilter, setInternalQuickFilter] = useState<QuickFilter>('all');
+  const quickFilter = controlledQuickFilter ?? internalQuickFilter;
+  const setQuickFilter = (filter: QuickFilter) => {
+    setInternalQuickFilter(filter);
+    onQuickFilterChange?.(filter);
+  };
   const [categoryFilter, setCategoryFilter] = useState<TransactionCategory | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   // Debounced at ~150 ms so filtering/sorting runs once typing pauses, not per
@@ -330,6 +384,16 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
   // Process Data
   const processedData = useMemo<Transaction[]>(() => {
     let data = [...transactions];
+
+    // 0. Quick filter
+    if (quickFilter === 'uncategorized') {
+      data = data.filter((t) => t.category === TransactionCategory.Uncategorized);
+    } else if (quickFilter === 'needsReview') {
+      data = data.filter(
+        (t) =>
+          t.category !== TransactionCategory.Uncategorized && !t.isApproved && t.confidence < 0.5
+      );
+    }
 
     // 1. Filter by Category
     if (categoryFilter !== 'All') {
@@ -381,12 +445,12 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
     });
 
     return data;
-  }, [transactions, categoryFilter, debouncedSearchQuery, sortConfig]);
+  }, [transactions, quickFilter, categoryFilter, debouncedSearchQuery, sortConfig]);
 
   // Reset pagination on filter change
   useEffect(() => {
     setCurrentPage(1);
-  }, [categoryFilter, debouncedSearchQuery, transactions.length]);
+  }, [quickFilter, categoryFilter, debouncedSearchQuery, transactions.length]);
 
   // Pagination Logic
   const totalPages = Math.ceil(processedData.length / ITEMS_PER_PAGE);
@@ -426,7 +490,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
 
   if (transactions.length === 0) {
     return (
-      <div className="w-full bg-white rounded-xl shadow-xs border border-gray-200 p-8 text-center text-gray-500">
+      <div className="w-full bg-surface rounded-xl shadow-card border border-line p-8 text-center text-muted">
         No transactions found for this time period.
       </div>
     );
@@ -448,17 +512,19 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
           <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             <Input
               placeholder="Search transactions..."
-              className="pl-9 bg-white"
+              aria-label="Search transactions"
+              className="pl-9 bg-surface"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink-soft"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -474,16 +540,35 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
           </Button>
         </div>
 
+        <div className="flex gap-2 overflow-x-auto w-full scrollbar-hide">
+          {QUICK_FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setQuickFilter(f.value)}
+              aria-pressed={quickFilter === f.value}
+              className={cn(
+                'px-3 py-1.5 rounded-full text-xs font-semibold transition-colors whitespace-nowrap border',
+                quickFilter === f.value
+                  ? 'bg-accent text-paper border-accent'
+                  : 'bg-surface text-ink-soft border-line hover:bg-surface-muted'
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 w-full scrollbar-hide">
           {['All', ...Object.values(TransactionCategory)].map((cat) => (
             <button
               key={cat}
               onClick={() => setCategoryFilter(cat as TransactionCategory | 'All')}
+              aria-pressed={categoryFilter === cat}
               className={cn(
                 'px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap border',
                 categoryFilter === cat
-                  ? 'bg-gray-900 text-white border-gray-900'
-                  : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                  ? 'bg-ink text-paper border-ink'
+                  : 'bg-surface text-ink-soft border-line hover:bg-surface-muted'
               )}
             >
               {cat}
@@ -492,12 +577,18 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-xs border border-gray-200 overflow-hidden">
+      <div className="bg-surface rounded-xl shadow-card border border-line overflow-hidden">
         <div className="overflow-x-auto min-h-[400px]">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500 sticky top-0 z-10 shadow-xs">
+            <thead className="bg-surface-muted border-b border-line text-xs uppercase tracking-wider text-muted sticky top-0 z-10 shadow-xs">
               <tr>
-                <SortHeader label="Date" sKey="date" currentSort={sortConfig} onSort={handleSort} />
+                <SortHeader
+                  label="Date"
+                  sKey="date"
+                  currentSort={sortConfig}
+                  onSort={handleSort}
+                  className="hidden sm:table-cell"
+                />
                 <SortHeader
                   label="Description"
                   sKey="description"
@@ -521,6 +612,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                   sKey="confidence"
                   currentSort={sortConfig}
                   onSort={handleSort}
+                  className="hidden sm:table-cell"
                 />
                 <SortHeader
                   label="Actions"
@@ -531,18 +623,18 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                 />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-line">
               {paginatedData.map((t) => {
                 const categoryColors =
                   CATEGORY_COLORS[t.category] || CATEGORY_COLORS[TransactionCategory.Uncategorized];
 
                 return (
-                  <tr key={t.id} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="px-6 py-3 h-11 text-gray-500 whitespace-nowrap text-xs">
+                  <tr key={t.id} className="group/row hover:bg-surface-muted/70 transition-colors">
+                    <td className="hidden sm:table-cell px-3 py-3 sm:px-6 h-11 num text-ink-soft whitespace-nowrap text-xs">
                       {formatDate(t.date)}
                     </td>
                     <td
-                      className="px-6 py-3 h-11 text-gray-900 font-medium max-w-xs truncate"
+                      className="px-3 py-3 sm:px-6 h-11 text-ink font-medium max-w-[8.5rem] sm:max-w-xs truncate"
                       title={t.description}
                     >
                       {t.description}
@@ -551,28 +643,40 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                           Learned
                         </span>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => handleSort('date')}
+                        aria-label="Sort by date"
+                        className="mt-0.5 flex items-center gap-1 whitespace-normal text-xs font-normal text-muted sm:hidden"
+                      >
+                        {formatDate(t.date)}
+                        {sortConfig.key === 'date' &&
+                          (sortConfig.direction === 'asc' ? (
+                            <ArrowUp className="h-3 w-3" />
+                          ) : (
+                            <ArrowDown className="h-3 w-3" />
+                          ))}
+                      </button>
                     </td>
                     <td
                       className={cn(
-                        'px-6 py-3 h-11 font-mono text-sm font-semibold',
-                        t.amount > 0
-                          ? 'text-green-600'
-                          : t.amount < 0
-                            ? 'text-red-600'
-                            : 'text-gray-900'
+                        'px-3 py-3 sm:px-6 h-11 num text-sm font-semibold whitespace-nowrap',
+                        t.amount > 0 ? 'text-positive' : t.amount < 0 ? 'text-ink' : 'text-muted'
                       )}
                     >
                       {t.amount > 0 ? '+' : ''}
                       {formatCurrency(t.amount)}
                     </td>
-                    <td className="px-6 py-3 h-11">
+                    <td className="px-3 py-3 sm:px-6 h-11">
                       <button
                         onClick={(e) => {
                           setActiveDropdown({ id: t.id, anchor: e.currentTarget });
                         }}
                         aria-label={`Change category for ${t.description}`}
+                        aria-haspopup="listbox"
+                        aria-expanded={activeDropdown?.id === t.id}
                         className={cn(
-                          'flex flex-col items-start px-3 py-1.5 min-h-11 justify-center rounded-md border cursor-pointer hover:shadow-xs transition-all w-full max-w-[180px] group',
+                          'flex flex-col items-start px-3 py-1.5 min-h-11 justify-center rounded-md border cursor-pointer hover:shadow-xs transition-all w-full max-w-[7rem] sm:max-w-[180px] group',
                           categoryColors.bg,
                           categoryColors.border,
                           activeDropdown?.id === t.id ? 'ring-2 ring-accent/50' : ''
@@ -606,37 +710,37 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                         )}
                       </button>
                     </td>
-                    <td className="px-6 py-3 h-11">
+                    <td className="hidden sm:table-cell px-3 py-3 sm:px-6 h-11">
                       <div
                         className="flex items-center gap-2"
                         title="How confident the AI (or a learned rule) is about this category"
                       >
                         <div
-                          className="w-12 h-1 bg-gray-100 rounded-full overflow-hidden"
+                          className="w-12 h-1 bg-line rounded-full overflow-hidden"
                           aria-hidden="true"
                         >
                           <div
                             className={cn(
                               'h-full rounded-full',
                               t.confidence > 0.8
-                                ? 'bg-green-500'
+                                ? 'bg-positive'
                                 : t.confidence > 0.5
-                                  ? 'bg-yellow-500'
-                                  : 'bg-red-500'
+                                  ? 'bg-warning'
+                                  : 'bg-negative'
                             )}
                             style={{ width: `${t.confidence * 100}%` }}
                           />
                         </div>
-                        <span className="text-[10px] text-gray-400 font-mono">
+                        <span className="num text-[10px] text-muted">
                           {Math.round(t.confidence * 100)}%
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-3 h-11 text-center">
-                      <div className="flex items-center justify-center gap-2">
+                    <td className="px-3 py-3 sm:px-6 h-11 text-center">
+                      <div className="flex items-center justify-center gap-1 sm:gap-2">
                         {t.isApproved ? (
                           <div
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-positive/10 text-positive border border-positive/30"
                             title="You approved this categorization"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -647,11 +751,11 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                         ) : (
                           <button
                             onClick={() => approveTransaction(t.id)}
-                            className="inline-flex items-center gap-1 px-3 min-h-11 rounded-full bg-white border border-gray-300 text-gray-500 hover:text-green-600 hover:border-green-500 hover:bg-green-50 transition-all shadow-xs"
+                            className="inline-flex items-center gap-1 px-3 min-h-11 rounded-full bg-surface border border-line-strong text-muted hover:text-positive hover:border-positive hover:bg-positive/10 transition-all shadow-xs"
                             title="Confirm the suggested category is correct — this saves it as a learned rule"
                             aria-label={`Verify: confirm the suggested category for ${t.description}`}
                           >
-                            <span className="text-[10px] font-medium">Verify</span>
+                            <span className="hidden sm:inline text-[10px] font-medium">Verify</span>
                             <Check className="w-3 h-3" />
                           </button>
                         )}
@@ -660,7 +764,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                             e.stopPropagation();
                             setTransactionToDelete(t.id);
                           }}
-                          className="p-1.5 min-h-11 min-w-11 inline-flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                          className="p-1.5 min-h-11 min-w-11 inline-flex items-center justify-center text-muted hover:text-negative hover:bg-negative/10 rounded-md transition-all opacity-100 sm:opacity-0 [@media(hover:none)]:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100"
                           title="Delete Transaction"
                           aria-label={`Delete transaction ${t.description}`}
                         >
@@ -674,7 +778,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
 
               {paginatedData.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-gray-500 italic text-sm">
+                  <td colSpan={6} className="p-12 text-center text-muted italic text-sm">
                     No transactions found matching your filters.
                   </td>
                 </tr>
@@ -685,8 +789,8 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
 
         {/* Pagination Footer */}
         {processedData.length > 0 && (
-          <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
-            <div className="text-xs text-gray-500">
+          <div className="px-6 py-3 border-t border-line bg-surface-muted/50 flex items-center justify-between">
+            <div className="num text-xs text-muted">
               Showing <span className="font-medium">{(currentPage - 1) * ITEMS_PER_PAGE + 1}</span>{' '}
               to{' '}
               <span className="font-medium">
@@ -699,18 +803,20 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({ transactions
                 variant="outline"
                 size="sm"
                 className="h-7 w-7 p-0"
+                aria-label="Previous page"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
-              <div className="flex items-center justify-center min-w-[3rem] text-xs font-medium text-gray-600">
+              <div className="num flex items-center justify-center min-w-[3rem] text-xs font-medium text-ink-soft">
                 {currentPage} / {totalPages}
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 className="h-7 w-7 p-0"
+                aria-label="Next page"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               >

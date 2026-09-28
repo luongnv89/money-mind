@@ -9,43 +9,83 @@ import {
   validatePersistedModel,
 } from './useSettingsStore';
 
-describe('useSettingsStore usage limits', () => {
+describe('useSettingsStore — currency and spending alerts (Phase A6)', () => {
   beforeEach(() => {
     window.localStorage.clear();
     useSettingsStore.getState().resetSettings();
   });
 
-  it('enforces the analysis limit when no API key is set', () => {
-    const store = useSettingsStore.getState();
-    store.incrementUsage('analysis', 149);
-    expect(useSettingsStore.getState().checkUsageLimit('analysis', 1)).toBe(true);
-    expect(useSettingsStore.getState().checkUsageLimit('analysis', 2)).toBe(false);
+  it('defaults to USD with spending alerts enabled', () => {
+    const state = useSettingsStore.getState();
+    expect(state.currency).toBe('USD');
+    expect(state.enableSpendingAlerts).toBe(true);
   });
 
-  it('enforces the chat message limit when no API key is set', () => {
-    const store = useSettingsStore.getState();
-    store.incrementUsage('chat', 10);
-    expect(useSettingsStore.getState().checkUsageLimit('chat')).toBe(false);
+  it('setCurrency stores the new display currency', () => {
+    useSettingsStore.getState().setCurrency('EUR');
+    expect(useSettingsStore.getState().currency).toBe('EUR');
   });
 
-  it('is unlimited in cloud mode once a custom Gemini key is supplied', () => {
-    useSettingsStore.getState().setGeminiConfig({ apiKey: 'my-own-key' });
-    useSettingsStore.getState().incrementUsage('analysis', 500);
-    expect(useSettingsStore.getState().checkUsageLimit('analysis', 10)).toBe(true);
-    expect(useSettingsStore.getState().checkUsageLimit('chat', 100)).toBe(true);
+  it('toggleSpendingAlerts flips the flag', () => {
+    useSettingsStore.getState().toggleSpendingAlerts();
+    expect(useSettingsStore.getState().enableSpendingAlerts).toBe(false);
+    useSettingsStore.getState().toggleSpendingAlerts();
+    expect(useSettingsStore.getState().enableSpendingAlerts).toBe(true);
   });
 
-  it('is unlimited in groq mode once a Groq key is supplied', () => {
-    useSettingsStore.getState().setAiMode('groq');
-    useSettingsStore.getState().setGroqConfig({ apiKey: 'gsk_test' });
-    useSettingsStore.getState().incrementUsage('chat', 50);
-    expect(useSettingsStore.getState().checkUsageLimit('chat')).toBe(true);
+  it('resetSettings restores the currency and alert defaults', () => {
+    useSettingsStore.getState().setCurrency('JPY');
+    useSettingsStore.getState().toggleSpendingAlerts();
+    useSettingsStore.getState().resetSettings();
+
+    const state = useSettingsStore.getState();
+    expect(state.currency).toBe('USD');
+    expect(state.enableSpendingAlerts).toBe(true);
+  });
+});
+
+describe('persist migration v0 → v1 (Phase A6)', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useSettingsStore.getState().resetSettings();
   });
 
-  it('is unlimited in local mode regardless of keys', () => {
-    useSettingsStore.getState().setAiMode('local');
-    useSettingsStore.getState().incrementUsage('chat', 999);
-    expect(useSettingsStore.getState().checkUsageLimit('chat')).toBe(true);
+  it('drops usage, maps enableFunnyAlerts and defaults currency', async () => {
+    window.localStorage.setItem(
+      'moneymind-settings',
+      JSON.stringify({
+        version: 0,
+        state: {
+          aiMode: 'cloud',
+          enableFunnyAlerts: false,
+          usage: { txAnalyzed: 140, chatMessages: 9, lastReset: '' },
+        },
+      })
+    );
+
+    await useSettingsStore.persist.rehydrate();
+    const state = useSettingsStore.getState() as unknown as Record<string, unknown>;
+
+    expect(state.usage).toBeUndefined();
+    expect(state.enableFunnyAlerts).toBeUndefined();
+    expect(state.enableSpendingAlerts).toBe(false);
+    expect(state.currency).toBe('USD');
+  });
+
+  it('defaults spending alerts on when the old flag is absent', async () => {
+    window.localStorage.setItem(
+      'moneymind-settings',
+      JSON.stringify({
+        version: 0,
+        state: { aiMode: 'cloud' },
+      })
+    );
+
+    await useSettingsStore.persist.rehydrate();
+    const state = useSettingsStore.getState();
+
+    expect(state.enableSpendingAlerts).toBe(true);
+    expect(state.currency).toBe('USD');
   });
 });
 
@@ -227,11 +267,13 @@ describe('custom OpenAI-compatible endpoint config (issue #82)', () => {
     });
   });
 
-  it('is unlimited once a custom endpoint key is supplied', () => {
+  it('accepts a custom endpoint key without a usage cap', () => {
     useSettingsStore.getState().setAiMode('custom');
-    useSettingsStore.getState().setCustomConfig({ apiKey: 'sk-unlimited' });
-    useSettingsStore.getState().incrementUsage('analysis', 500);
-    expect(useSettingsStore.getState().checkUsageLimit('analysis', 10)).toBe(true);
+    useSettingsStore.getState().setCustomConfig({ apiKey: 'sk-any' });
+
+    const state = useSettingsStore.getState() as unknown as Record<string, unknown>;
+    expect(state.usage).toBeUndefined();
+    expect(getDeobfuscatedProviderKey(useSettingsStore.getState(), 'custom')).toBe('sk-any');
   });
 });
 
@@ -281,6 +323,22 @@ describe('selectAIReady — custom endpoint gating (issue #82)', () => {
   });
 });
 
+describe('demo categorization readiness', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useSettingsStore.getState().resetSettings();
+  });
+
+  it('allows demo categorization without a key but does not configure the Assistant', () => {
+    expect(selectCategorizationReady(useSettingsStore.getState())).toBe(false);
+    useSettingsStore.getState().setDemoMode(true);
+    expect(selectCategorizationReady(useSettingsStore.getState())).toBe(true);
+    expect(selectAIReady(useSettingsStore.getState())).toBe(false);
+    useSettingsStore.getState().setDemoMode(false);
+    expect(selectCategorizationReady(useSettingsStore.getState())).toBe(false);
+  });
+});
+
 describe('TypeSafe config', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -299,13 +357,12 @@ describe('TypeSafe config', () => {
     expect(getTypesafeApiKey(useSettingsStore.getState())).toBe('');
   });
 
-  it('makes analysis unlimited with a TypeSafe key while chat limits stay', () => {
+  it('makes categorization ready without touching assistant readiness', () => {
+    useSettingsStore.getState().setAiMode('cloud');
     useSettingsStore.getState().setTypesafeConfig({ apiKey: 'ts-secret' });
-    useSettingsStore.getState().incrementUsage('analysis', 500);
-    expect(useSettingsStore.getState().checkUsageLimit('analysis', 10)).toBe(true);
 
-    useSettingsStore.getState().incrementUsage('chat', 10);
-    expect(useSettingsStore.getState().checkUsageLimit('chat')).toBe(false);
+    expect(selectCategorizationReady(useSettingsStore.getState())).toBe(true);
+    expect(selectAIReady(useSettingsStore.getState())).toBe(false);
   });
 
   it('is categorization-ready but not chat-ready with only a TypeSafe key', () => {

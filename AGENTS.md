@@ -2,7 +2,7 @@
 
 Instructions for any coding agent working in this repo. Self-contained by design: `CLAUDE.md` carries the same guidance for Claude Code, so **keep the two in sync when either changes.**
 
-MoneyMind is a client-side React 19 + TypeScript + Vite app that categorizes bank CSVs with LLMs (Gemini, Groq, Ollama). There is no backend and no database.
+MoneyMind is a client-side React 19 + TypeScript + Vite app that turns bank CSVs into a private financial-health report. A deterministic engine in `lib/finance/` computes every figure. AI is used for two jobs only: TypeSafe Jev categorizes transactions (typed judgments, not generated text), and language models (Gemini, Groq, Ollama, custom endpoints) are the categorization fallback and write the Assistant's answers. There is no backend and no database.
 
 ## Setup & commands
 
@@ -25,9 +25,10 @@ Gates run locally via `pre-commit`; config is `.pre-commit-config.yaml`.
 
 ## Layout
 
-- `App.tsx` — **no router.** Navigation is a `View` string union + `useState`. A new page means editing `App.tsx` *and* `components/Layout.tsx`.
-- `stores/` — Zustand with `persist` middleware · `services/` — AI dispatch, TypeSafe categorization, scoring, alerts
-- `lib/` — CSV parsing, learned-pattern localStorage, `cn` helper · `pages/`, `components/`
+- `App.tsx` — **no router.** Navigation is a `View` union (`'overview' | 'transactions' | 'upload' | 'settings' | 'privacy'`) + `useState`. A new page means editing `App.tsx` *and* `components/Layout.tsx`. The Overview page is lazy-loaded — it's the only Recharts consumer, keep it that way.
+- `stores/` — Zustand with `persist` middleware; `stores/useViewStore.ts` is deliberately *not* persisted and holds the shared period selection (`granularity` + `anchor`) for Overview and Transactions.
+- `lib/finance/` — the deterministic finance engine and **the single source of every figure the UI shows**. Never compute financial figures in components; if the engine doesn't expose a value, add an engine function + test instead. Do not edit it unless the task is explicitly engine work.
+- `lib/` — CSV parsing, learned-pattern localStorage, `cn` helper, `useFinance` hooks · `services/` — AI dispatch, TypeSafe categorization, model catalog · `pages/`, `components/`
 - There is no `api/` directory — the app is a static SPA. `vercel.json` sets security headers plus one rewrite, `/typesafe-api/:path*` → `https://api.typesafe.ai/:path*`, because TypeSafe's API rejects browser CORS; `vite.config.ts` proxies the same path for `npm run dev`/`preview`. Do not reintroduce serverless functions.
 - `constants.ts` — shared app constants imported by the frontend as `../constants` (`components/`, `lib/csvParser.ts`, `services/aiService.ts`). Keep it at repo root.
 - Tests are `*.test.{ts,tsx}` beside their source (a few live in `tests/`); `tests/setup.ts` is the Vitest setup file.
@@ -35,7 +36,11 @@ Gates run locally via `pre-commit`; config is `.pre-commit-config.yaml`.
 ## Hard rules
 
 - **Dependencies live only in `package.json`.** The old esm.sh `importmap` in `index.html` was deleted (issue #32); do not reintroduce it.
-- **Tailwind v4 ships from a local PostCSS build.** `postcss.config.js` wires `@tailwindcss/postcss`; the config is CSS-first in `src/index.css` (`@import 'tailwindcss'`, `@theme` tokens, `@source` globs); `index.html` loads no CDN — there is no `tailwind.config.js`. Edit custom tokens (`accent`, `accent-light`, `secondary`) in the `@theme` block of `src/index.css` — its `@source` globs must cover every source file or utilities silently drop out.
+- **Tailwind v4 ships from a local PostCSS build.** `postcss.config.js` wires `@tailwindcss/postcss`; the config is CSS-first in `src/index.css` (`@import 'tailwindcss'`, `@theme` tokens, `@source` globs); `index.html` loads no CDN — there is no `tailwind.config.js`. Design tokens (`paper`, `surface`, `line`, `ink`, `ink-soft`, `muted`, `accent`, `brass`, `positive`, `negative`, `warning`, `info`) live in the `@theme` block of `src/index.css` — its `@source` globs must cover every source file or utilities silently drop out.
+- **Fonts are self-hosted** via `@fontsource-variable/fraunces` (display) and `@fontsource-variable/geist` (body), imported in `index.tsx` — the CSP `font-src` is `'self'`, so CDN font links are forbidden.
+- Demo data is **deterministic** (`lib/demoData.ts`, fixed-seed PRNG, local dates, never future-dated); the same `demoCategoryFor` mapping drives both pre-categorization and the demo `simulateCategorization` fallback.
+- There are **no usage caps** — the old 150-analyses/10-chats limits are gone.
+- **Categorization order:** learned rules → TypeSafe Jev (when a key is set) → the configured language model → demo simulation (demo mode only). Identical transactions are sent once; LLM output is validated against the category hierarchy (`services/normalizeCategorization.ts`) and never overwrites learned rules on re-analyze.
 - **A single `any` fails lint** — `no-explicit-any` is warn-level and lint runs at zero warnings.
 - **Keep Vitest aligned with the installed Vite major** (currently Vitest 4 for Vite 8; Vitest 3 does not accept Vite 8 as a peer). Never pin Vitest to a major that rejects the installed Vite — mismatched peers break module resolution and make `tsc` fail on `vite.config.ts`.
 - **Do not delete `tests/setup.ts`.** Node 26 defines an inert global `localStorage` that shadows jsdom's; the setup file installs a working one.
@@ -49,6 +54,7 @@ Gates run locally via `pre-commit`; config is `.pre-commit-config.yaml`.
 - Prettier owns formatting — do not hand-format. `.prettierignore` deliberately skips `*.md` and `migrated_prompt_history/`.
 - Ask before adding a dependency, a router, or a build-tool config file.
 - Transaction categorization uses TypeSafe (Jev) via `services/typesafeService.ts` whenever a TypeSafe key is set; the LLM categorizers are the fallback. Read the live docs (https://docs.typesafe.ai/llms.txt) before changing its questions.
+- The Assistant (`components/AssistantChat.tsx`) answers only from engine figures — `buildAssistantContext` in `lib/finance` produces the context; the system prompt forbids invented numbers.
 - `MODERNIZATION_PLAN.md`, `MODERNIZATION_REPORT.md`, and `CODE_REVIEW.md` are one-off audit artifacts, not specifications.
 - Subagent definitions do **not** belong here — put them in `.claude/agents/*.md`.
 

@@ -33,7 +33,7 @@ const render = (autoDetected: boolean) => {
   return {
     container,
     root,
-    heading: container.querySelector('.text-sm.text-gray-500')?.textContent ?? '',
+    heading: container.querySelector('p.text-muted')?.textContent ?? '',
   };
 };
 

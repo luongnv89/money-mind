@@ -8,6 +8,7 @@ import {
   fetchOllamaModels,
   fetchCustomModels,
   loadModelCatalog,
+  describeModel,
 } from './modelCatalog';
 import { useSettingsStore } from '../stores/useSettingsStore';
 import { FALLBACK_MODEL_CATALOG } from '../constants';
@@ -371,5 +372,23 @@ describe('loadModelCatalog — custom endpoint (issue #82)', () => {
     const result = await loadModelCatalog('custom');
     expect(result.status).toBe('fallback');
     expect(result.models).toBe(FALLBACK_MODEL_CATALOG.custom);
+  });
+});
+
+describe('describeModel — tier estimate from the model id (Phase A4)', () => {
+  it.each([
+    ['models/gemini-flash-latest', 'balanced'],
+    ['models/gemini-flash-lite-latest', 'fast'],
+    ['models/gemini-3-pro-preview', 'capable'],
+    ['llama-3.1-8b-instant', 'fast'],
+    ['openai/gpt-oss-20b', 'balanced'],
+    ['openai/gpt-oss-120b', 'capable'],
+    ['gpt-4o-mini', 'fast'],
+  ])('%s → %s', (id, tier) => {
+    expect(describeModel(id)?.tier).toBe(tier);
+  });
+
+  it('returns null when the name gives no signal', () => {
+    expect(describeModel('llama3.2')).toBeNull();
   });
 });

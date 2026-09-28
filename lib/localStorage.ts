@@ -1,4 +1,5 @@
 import { Transaction, LocalPattern, TransactionCategory } from '../types';
+import { CATEGORY_HIERARCHY } from '../constants';
 import { logger } from './logger';
 
 const STORAGE_KEY = 'financePatterns';
@@ -25,26 +26,58 @@ const savePatterns = (patterns: LocalPattern[]) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(patterns));
 };
 
+const VALID_CATEGORIES = new Set<string>(Object.values(TransactionCategory));
+
+/**
+ * Only a real TransactionCategory may become a learned rule: imported rows
+ * stamp `isLearned: true`, which excludes them from every AI re-analysis
+ * path, so an unchecked cast would make bogus categories un-repairable.
+ * A subCategory is kept only when it exists under the imported category's
+ * hierarchy entry.
+ */
+const isValidCategory = (value: unknown): value is TransactionCategory =>
+  typeof value === 'string' && VALID_CATEGORIES.has(value);
+
+const validSubCategoryFor = (
+  category: TransactionCategory,
+  subCategory: unknown
+): string | undefined =>
+  typeof subCategory === 'string' && CATEGORY_HIERARCHY[category].includes(subCategory)
+    ? subCategory
+    : undefined;
+
 export const importPatterns = (
   json: string
-): { success: boolean; count: number; error?: string } => {
+): { success: boolean; count: number; skipped: number; error?: string } => {
   try {
     const imported = JSON.parse(json);
     if (!Array.isArray(imported)) {
-      return { success: false, count: 0, error: 'Invalid file format: Root must be an array.' };
+      return {
+        success: false,
+        count: 0,
+        skipped: 0,
+        error: 'Invalid file format: Root must be an array.',
+      };
     }
 
     const currentPatterns = getPatterns();
     const map = new Map(currentPatterns.map((p) => [p.keyword, p]));
     let newCount = 0;
+    let skipped = 0;
 
-    imported.forEach((p: Partial<LocalPattern>) => {
-      // Basic validation ensuring required fields exist
-      if (typeof p.keyword === 'string' && typeof p.category === 'string') {
+    imported.forEach((p: Partial<LocalPattern> | null) => {
+      // Skip entries missing a keyword or carrying an unrecognized category —
+      // they must never become irreversible learned rules.
+      if (
+        p !== null &&
+        typeof p === 'object' &&
+        typeof p.keyword === 'string' &&
+        isValidCategory(p.category)
+      ) {
         const validPattern: LocalPattern = {
           keyword: p.keyword,
-          category: p.category as TransactionCategory,
-          subCategory: p.subCategory,
+          category: p.category,
+          subCategory: validSubCategoryFor(p.category, p.subCategory),
           // Use imported confidence or default to high confidence if manually imported
           confidence: typeof p.confidence === 'number' ? p.confidence : 1.0,
           timesApplied: typeof p.timesApplied === 'number' ? p.timesApplied : 1,
@@ -55,13 +88,20 @@ export const importPatterns = (
         // Overwrite existing pattern for this keyword
         map.set(p.keyword, validPattern);
         newCount++;
+      } else {
+        skipped++;
       }
     });
 
     savePatterns(Array.from(map.values()));
-    return { success: true, count: newCount };
+    return { success: true, count: newCount, skipped };
   } catch (e: unknown) {
-    return { success: false, count: 0, error: e instanceof Error ? e.message : 'Unknown error' };
+    return {
+      success: false,
+      count: 0,
+      skipped: 0,
+      error: e instanceof Error ? e.message : 'Unknown error',
+    };
   }
 };
 

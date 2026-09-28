@@ -24,30 +24,32 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({
   duplicateCount,
   onSelect,
 }) => (
-  <div className="flex space-x-2 bg-white/50 p-1 rounded-lg border border-gray-200 w-fit">
+  <div className="flex w-fit space-x-2 rounded-lg border border-line bg-surface-muted p-1">
     <button
+      aria-pressed={activeTab === 'new'}
       onClick={() => onSelect('new')}
       className={cn(
         'px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2',
-        activeTab === 'new' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-900'
+        activeTab === 'new' ? 'bg-surface text-ink shadow-xs' : 'text-muted hover:text-ink'
       )}
     >
       New Transactions
-      <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full text-xs">{newCount}</span>
+      <span className="rounded-full bg-line/60 px-2 py-0.5 text-xs text-ink-soft">{newCount}</span>
     </button>
 
     <button
+      aria-pressed={activeTab === 'duplicates'}
       onClick={() => onSelect('duplicates')}
       disabled={duplicateCount === 0}
       className={cn(
         'px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2',
-        activeTab === 'duplicates' ? 'bg-white shadow text-gray-900' : 'text-gray-500',
+        activeTab === 'duplicates' ? 'bg-surface text-ink shadow-xs' : 'text-muted',
         duplicateCount === 0 && 'opacity-50 cursor-not-allowed'
       )}
     >
       Duplicates
       {duplicateCount > 0 && (
-        <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-xs">
+        <span className="rounded-full bg-warning/10 px-2 py-0.5 text-xs text-warning">
           {duplicateCount}
         </span>
       )}
@@ -68,8 +70,8 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
   totalItems,
   onPageChange,
 }) => (
-  <div className="p-3 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
-    <span className="text-xs text-gray-500">
+  <div className="flex items-center justify-between border-t border-line bg-surface-muted p-3">
+    <span className="num text-xs text-muted">
       Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} -{' '}
       {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} of {totalItems}
     </span>
@@ -77,18 +79,20 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
       <Button
         variant="outline"
         size="sm"
+        aria-label="Previous page"
         disabled={currentPage === 1}
         onClick={() => onPageChange(Math.max(1, currentPage - 1))}
         className="h-7 w-7 p-0"
       >
         <ChevronLeft className="w-4 h-4" />
       </Button>
-      <div className="flex items-center px-2 text-xs font-medium text-gray-600">
+      <div className="num flex items-center px-2 text-xs font-medium text-ink-soft">
         {currentPage} / {totalPages || 1}
       </div>
       <Button
         variant="outline"
         size="sm"
+        aria-label="Next page"
         disabled={currentPage === totalPages || totalPages === 0}
         onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
         className="h-7 w-7 p-0"
@@ -139,6 +143,12 @@ export const PreviewView: React.FC<PreviewViewProps> = ({
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedData = displayData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
+  // Credit-card exports (e.g. AmEx, Discover) list charges as positive; warn
+  // before import when nearly everything looks like money in.
+  const positiveCount = stagedTransactions.filter((t) => t.amount > 0).length;
+  const mostlyPositive =
+    stagedTransactions.length >= 5 && positiveCount / stagedTransactions.length >= 0.8;
+
   return (
     <>
       {/* Modal Overlay for Duplicate Details */}
@@ -158,7 +168,7 @@ export const PreviewView: React.FC<PreviewViewProps> = ({
         />
       )}
 
-      <Card className="w-full max-w-2xl mx-auto mt-10 border-accent/20 bg-accent/5 relative">
+      <Card className="relative mx-auto w-full max-w-2xl">
         <CardHeader className="pb-4">
           <div className="flex justify-between items-center mb-4">
             <CardTitle className="flex items-center gap-2">
@@ -166,10 +176,7 @@ export const PreviewView: React.FC<PreviewViewProps> = ({
               Validate Data
             </CardTitle>
             {rejectedCount > 0 && (
-              <Badge
-                variant="accent"
-                className="flex items-center gap-1 bg-red-50 text-red-600 hover:bg-red-100"
-              >
+              <Badge variant="negative" className="flex items-center gap-1">
                 <AlertTriangle className="w-4 h-4" />
                 {rejectedCount} rejected row{rejectedCount !== 1 ? 's' : ''}
               </Badge>
@@ -185,8 +192,17 @@ export const PreviewView: React.FC<PreviewViewProps> = ({
         </CardHeader>
 
         <CardContent className="space-y-4">
+          {mostlyPositive && (
+            <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <p>
+                Most amounts are positive (money in). If this is a credit-card statement, go back to
+                mapping and turn on &quot;Flip amount signs&quot;.
+              </p>
+            </div>
+          )}
           {/* Table Area */}
-          <div className="bg-white rounded-lg border border-gray-200 min-h-[300px] flex flex-col">
+          <div className="flex min-h-[300px] flex-col rounded-lg border border-line bg-surface">
             <PreviewTable
               paginatedData={paginatedData}
               activeTab={activeTab}
@@ -209,7 +225,7 @@ export const PreviewView: React.FC<PreviewViewProps> = ({
             <Button
               variant="ghost"
               onClick={onCancel}
-              className="text-red-500 hover:bg-red-50 hover:text-red-600"
+              className="text-muted hover:bg-surface-muted hover:text-ink"
             >
               Cancel
             </Button>

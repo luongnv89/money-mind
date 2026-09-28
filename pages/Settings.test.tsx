@@ -3,13 +3,15 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SettingsPage } from './Settings';
 import { useSettingsStore } from '../stores/useSettingsStore';
+import { useTransactionStore } from '../stores/useTransactionStore';
 import { loadModelCatalog } from '../services/modelCatalog';
 import { testTypesafeConnection } from '../services/typesafeService';
 import { ModelInfo } from '../types';
 
-vi.mock('../services/modelCatalog', () => ({
-  loadModelCatalog: vi.fn(),
-}));
+vi.mock('../services/modelCatalog', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/modelCatalog')>();
+  return { ...actual, loadModelCatalog: vi.fn() };
+});
 
 vi.mock('../services/typesafeService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/typesafeService')>();
@@ -59,7 +61,9 @@ describe('Settings stale-model reset announcements (issue #79, review ui-1)', ()
 
     await render();
 
-    const liveRegion = container.querySelector('div[role="status"]');
+    const liveRegion = container.querySelector(
+      'div[role="status"][aria-label="Model catalog status"]'
+    );
     expect(liveRegion).not.toBeNull();
     expect(liveRegion?.getAttribute('aria-live')).toBe('polite');
     // The toast container is not a live region, so the reset must be echoed
@@ -79,7 +83,9 @@ describe('Settings stale-model reset announcements (issue #79, review ui-1)', ()
 
     await render();
 
-    const liveRegion = container.querySelector('div[role="status"]');
+    const liveRegion = container.querySelector(
+      'div[role="status"][aria-label="Model catalog status"]'
+    );
     expect(liveRegion?.textContent).not.toContain('no longer available');
   });
 });
@@ -302,5 +308,158 @@ describe('Settings — TypeSafe card', () => {
 
     expect(testTypesafeConnection).toHaveBeenCalled();
     expect(container.textContent).toContain('TypeSafe connection successful!');
+  });
+});
+
+describe('Settings — danger zone & AI status rows (Phase A4)', () => {
+  let container: HTMLDivElement;
+  let root: ReturnType<typeof createRoot>;
+
+  const render = async () => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await React.act(async () => {
+      root.render(<SettingsPage onBack={() => {}} />);
+    });
+    await React.act(async () => {});
+  };
+
+  beforeEach(() => {
+    window.localStorage.clear();
+    useSettingsStore.getState().resetSettings();
+    useTransactionStore.setState({ transactions: [], error: null });
+    vi.mocked(loadModelCatalog).mockReset();
+    vi.mocked(loadModelCatalog).mockResolvedValue({
+      provider: 'cloud',
+      status: 'live',
+      models: liveModels,
+    });
+  });
+
+  afterEach(() => {
+    React.act(() => root?.unmount());
+    container?.remove();
+    vi.clearAllMocks();
+  });
+
+  it('renders the danger zone collapsed by default', async () => {
+    await render();
+
+    const details = Array.from(container.querySelectorAll('details')).find((d) =>
+      d.textContent?.includes('Delete data')
+    );
+    expect(details).toBeDefined();
+    expect(details!.hasAttribute('open')).toBe(false);
+    expect(details!.textContent).toContain('Hidden to prevent accidents');
+
+    await React.act(async () => {
+      details!.querySelector('summary')!.click();
+    });
+    expect(details!.hasAttribute('open')).toBe(true);
+    expect(details!.textContent).toContain('Delete all transactions');
+  });
+
+  it('deletes all transactions only after confirmation', async () => {
+    useTransactionStore.setState({
+      transactions: [
+        {
+          id: 't1',
+          date: '2024-01-01',
+          description: 'Coffee',
+          amount: -4,
+          category: 'Waste',
+          confidence: 1,
+        } as never,
+      ],
+      error: null,
+    });
+    await render();
+
+    const details = Array.from(container.querySelectorAll('details')).find((d) =>
+      d.textContent?.includes('Delete data')
+    )!;
+    await React.act(async () => {
+      details.querySelector('summary')!.click();
+    });
+
+    const deleteBtn = Array.from(details.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Delete all transactions')
+    )!;
+    await React.act(async () => {
+      deleteBtn.click();
+    });
+    // Nothing deleted until the dialog is confirmed.
+    expect(useTransactionStore.getState().transactions).toHaveLength(1);
+    expect(document.body.textContent).toContain('Delete all transactions?');
+
+    const confirm = Array.from(document.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'Delete'
+    )!;
+    await React.act(async () => {
+      confirm.click();
+    });
+    expect(useTransactionStore.getState().transactions).toHaveLength(0);
+  });
+
+  it('clears learned rules after confirmation and closes the dialog', async () => {
+    window.localStorage.setItem(
+      'financePatterns',
+      JSON.stringify([
+        {
+          keyword: 'COFFEE',
+          category: 'Waste',
+          confidence: 0.8,
+          learnedFrom: 'Coffee shop',
+          correctedAt: '2026-01-01T00:00:00.000Z',
+          timesApplied: 1,
+        },
+      ])
+    );
+    await render();
+
+    const details = Array.from(container.querySelectorAll('details')).find((d) =>
+      d.textContent?.includes('Delete data')
+    )!;
+    await React.act(async () => {
+      details.querySelector('summary')!.click();
+    });
+
+    const clearButton = Array.from(details.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Clear learned rules'
+    )!;
+    await React.act(async () => {
+      clearButton.click();
+    });
+    expect(window.localStorage.getItem('financePatterns')).not.toBeNull();
+    expect(document.body.textContent).toContain('Clear learned rules?');
+
+    const confirm = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Clear rules'
+    )!;
+    await React.act(async () => {
+      confirm.click();
+    });
+
+    expect(window.localStorage.getItem('financePatterns')).toBeNull();
+    expect(document.body.textContent).not.toContain('Clear learned rules?');
+  });
+
+  it('shows TypeSafe Jev as the categorization engine when a key is set', async () => {
+    useSettingsStore.getState().setTypesafeConfig({ apiKey: 'ts-k' });
+    await render();
+    expect(container.textContent).toContain('TypeSafe Jev');
+  });
+
+  it('shows the language-model fallback row when only an LLM is configured', async () => {
+    useSettingsStore.getState().setGeminiConfig({ apiKey: 'g-key' });
+    await render();
+    expect(container.textContent).toContain('Language model fallback');
+    expect(container.textContent).toContain('Gemini');
+  });
+
+  it('shows "Not set up" rows when nothing is configured', async () => {
+    await render();
+    expect(container.textContent).toContain('Not set up — you can still categorize manually.');
   });
 });

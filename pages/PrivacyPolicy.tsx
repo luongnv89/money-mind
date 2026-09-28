@@ -1,134 +1,94 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle, Button } from '../components/UI';
-import { Shield, Lock, Server } from 'lucide-react';
+import { Button, Card, CardContent, Eyebrow } from '../components/UI';
 
-export const PrivacyPolicy: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Privacy Policy</h1>
-        <Button variant="outline" onClick={onBack}>
-          Back to Dashboard
-        </Button>
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <Card>
+    <CardContent className="p-6">
+      <h2 className="font-display text-lg text-ink">{title}</h2>
+      <div className="mt-3 text-sm leading-relaxed text-ink-soft">{children}</div>
+    </CardContent>
+  </Card>
+);
+
+const BulletList: React.FC<{ items: React.ReactNode[] }> = ({ items }) => (
+  <ul className="list-disc space-y-2 pl-5">
+    {items.map((item, i) => (
+      <li key={i}>{item}</li>
+    ))}
+  </ul>
+);
+
+export const PrivacyPolicy: React.FC<{ onBack: () => void }> = ({ onBack }) => (
+  <div className="mx-auto max-w-3xl space-y-6">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <Eyebrow>MoneyMind</Eyebrow>
+        <h1 className="mt-1 font-display text-3xl text-ink">Privacy</h1>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="w-5 h-5 text-accent" />
-            Privacy First Architecture
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 leading-relaxed">
-          <p>
-            MoneyMind is designed with a "Local-First" architecture. We believe your financial data
-            belongs to you, and strictly you. Unlike traditional finance apps, we do not have a
-            backend database that stores your transaction history, account details, or personal
-            identifiers.
-          </p>
-          <div className="grid md:grid-cols-2 gap-4 mt-4">
-            <div className="bg-green-50 p-4 rounded-lg border border-green-100">
-              <h3 className="font-semibold text-green-900 flex items-center gap-2">
-                <Lock className="w-4 h-4" /> Data Storage
-              </h3>
-              <p className="text-sm mt-2 text-green-800">
-                All transaction data is stored inside your browser's <strong>LocalStorage</strong>.
-                Clearing your browser cache deletes all data permanently.
-              </p>
-            </div>
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-              <h3 className="font-semibold text-blue-900 flex items-center gap-2">
-                <Server className="w-4 h-4" /> No Remote Database
-              </h3>
-              <p className="text-sm mt-2 text-blue-800">
-                We do not maintain user accounts, passwords, or cloud databases. We cannot see,
-                sell, or lose your data because we never have it.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="prose prose-gray max-w-none bg-white p-8 rounded-lg border border-gray-200 shadow-xs">
-        <h3>1. Data Collection & Usage</h3>
-        <p>
-          We process the CSV files you upload directly in your browser using JavaScript. The data is
-          parsed to categorize expenses and generate insights.
-        </p>
-        <ul>
-          <li>
-            <strong>Financial Data:</strong> Transactions, dates, amounts, and descriptions from
-            your uploaded files.
-          </li>
-          <li>
-            <strong>API Keys:</strong> If you use Cloud AI (Google/Groq) or TypeSafe, your API keys
-            are obfuscated and stored locally in your browser's LocalStorage (not encrypted).
-          </li>
-          <li>
-            <strong>Usage Data:</strong> We do not track user behavior or analytics.
-          </li>
-        </ul>
-
-        <h3>2. AI Processing</h3>
-        <p>
-          To provide categorization and "MonkeySmile" chat features, specific data snippets are sent
-          to AI providers only when you explicitly trigger an action.
-        </p>
-        <ul>
-          <li>
-            <strong>Google Gemini / Groq:</strong> If configured, transaction descriptions are sent
-            to these APIs for categorization.
-          </li>
-          <li>
-            <strong>TypeSafe (Jev):</strong> If you add a TypeSafe key, each transaction's
-            description, amount and bank category are sent to TypeSafe for categorization, relayed
-            through this app's /typesafe-api pass-through.
-          </li>
-          <li>
-            <strong>Local LLM (Ollama):</strong> If configured, data never leaves your machine.
-          </li>
-        </ul>
-
-        <h3>3. GDPR & User Rights</h3>
-        <p>Since we do not identify users or store data on servers, you have full control:</p>
-        <ul>
-          <li>
-            <strong>Right to Access:</strong> You can view all your stored data on the Dashboard.
-          </li>
-          <li>
-            <strong>Right to Erasure:</strong> Click the "Clear" button in the top navigation to
-            instantly wipe all data from your browser.
-          </li>
-          <li>
-            <strong>Right to Portability:</strong> You can export your processed data as CSV from
-            the Dashboard.
-          </li>
-        </ul>
-
-        <h3>4. Contact Us</h3>
-        <p>
-          For privacy concerns or code audit requests, please contact the developer:
-          <br />
-          <strong>Email:</strong>{' '}
-          <a href="mailto:luongnv89@gmail.com" className="text-accent hover:underline">
-            luongnv89@gmail.com
-          </a>
-          <br />
-          <strong>GitHub:</strong>{' '}
-          <a
-            href="https://github.com/luongnv89/money-mind"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent hover:underline"
-          >
-            luongnv89/money-mind
-          </a>
-        </p>
-
-        <p className="text-sm text-gray-500 mt-8 pt-4 border-t">
-          Last Updated: {new Date().toLocaleDateString()}
-        </p>
-      </div>
+      <Button variant="outline" size="sm" onClick={onBack}>
+        Back
+      </Button>
     </div>
-  );
-};
+
+    <p className="text-base leading-relaxed text-ink-soft">
+      MoneyMind is local-first. There is no account, no server database and no analytics. Your
+      statements are parsed and analysed in your browser.
+    </p>
+
+    <Section title="What stays on your device">
+      <BulletList
+        items={[
+          "Transactions, learned rules and settings are stored in this browser's local storage.",
+          'Metrics, the health score and advice are calculated on this device with fixed formulas.',
+          'API keys are stored in this browser, obfuscated but not encrypted. Anyone with access to this browser profile could read them.',
+        ]}
+      />
+    </Section>
+
+    <Section title="What leaves your device — only for the services you set up">
+      <BulletList
+        items={[
+          "TypeSafe Jev (categorization): each transaction's description, direction (in or out), amount and your bank's category label, relayed through this app's /typesafe-api pass-through.",
+          'Gemini, Groq or a custom endpoint (fallback categorization): transaction descriptions, amounts and bank category labels.',
+          'Gemini, Groq or a custom endpoint (Assistant): your question plus a summary of the selected period — totals, category breakdown, top merchants, recurring charges and findings. Never your full transaction list.',
+          'Ollama: requests go to the Ollama server you configured, usually on your own computer.',
+          "Each provider's own privacy terms apply to what it receives. On Google's free tier, prompts may be used to improve Google's products.",
+        ]}
+      />
+    </Section>
+
+    <Section title="Your control">
+      <BulletList
+        items={[
+          'See everything: the Transactions page lists every stored transaction.',
+          'Export: download your categorized transactions as CSV from the Transactions page, and your rules from Settings.',
+          'Delete: Settings → Delete data & reset removes transactions, rules or settings from this browser.',
+        ]}
+      />
+    </Section>
+
+    <Section title="Contact">
+      <p>
+        For privacy concerns or code audit requests, contact the developer:
+        <br />
+        <strong className="text-ink">Email:</strong>{' '}
+        <a href="mailto:luongnv89@gmail.com" className="text-accent hover:underline">
+          luongnv89@gmail.com
+        </a>
+        <br />
+        <strong className="text-ink">GitHub:</strong>{' '}
+        <a
+          href="https://github.com/luongnv89/money-mind"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-accent hover:underline"
+        >
+          luongnv89/money-mind
+        </a>
+      </p>
+      <p className="mt-6 border-t border-line pt-4 text-xs text-muted">
+        Last updated: September 27, 2026
+      </p>
+    </Section>
+  </div>
+);

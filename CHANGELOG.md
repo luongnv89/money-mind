@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Deterministic finance engine (`lib/finance`): week/month/quarter/year/all periods, coverage-aware baselines, standard ratios with definitions and benchmarks, a transparent health score, rule-based insights with the money at stake, and recurring-charge detection.
+- Overview and Transactions pages with a shared period navigator.
+- Professional Assistant grounded in engine figures.
+- Currency setting.
+- "Flip amount signs" mapping option and an AmEx preset that inverts charges.
+- Settings guidance for every AI service and model tier.
+- Private Wealth design with self-hosted Fraunces and Geist.
+
+### Changed
+
+- Categorization runs learned rules first, sends identical transactions once, validates language-model output and never overwrites learned rules on re-analyze.
+- Demo mode simulates only when no service is configured.
+- Deleting data moved to Settings → Delete data & reset.
+- Spending alerts are deterministic.
+- Demo data is deterministic and realistic.
+
+### Fixed
+
+- Savings rate was never scored.
+- Savings and investments counted as spending.
+- Scores of A+ without income.
+- Partial months compared with full-month averages.
+- Refunds added to spending.
+- Dates shown one day early west of UTC.
+- AmEx charges imported as income.
+- Assistant context counted transfers as income.
+
+### Removed
+
+- Usage caps (150 analyses / 10 chats).
+- The MonkeySmile persona and random alert jokes.
+- Legacy score, budget and alert modules.
+
 ## [1.0.0] - 2026-08-22
 
 This is the first tagged release of MoneyMind, a client-side React 19 + TypeScript + Vite
