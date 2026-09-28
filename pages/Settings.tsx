@@ -152,7 +152,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
     !catalog.models.some((m) => m.id === selectedModel);
 
   const catalogStatus = (
-    <div role="status" aria-live="polite">
+    <div role="status" aria-live="polite" aria-label="Model catalog status">
       {isLoadingCatalog ? (
         <p className="text-xs text-muted">Loading available models…</p>
       ) : catalog?.status === 'fallback' ? (

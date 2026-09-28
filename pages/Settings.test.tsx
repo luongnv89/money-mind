@@ -61,7 +61,9 @@ describe('Settings stale-model reset announcements (issue #79, review ui-1)', ()
 
     await render();
 
-    const liveRegion = container.querySelector('div[role="status"]');
+    const liveRegion = container.querySelector(
+      'div[role="status"][aria-label="Model catalog status"]'
+    );
     expect(liveRegion).not.toBeNull();
     expect(liveRegion?.getAttribute('aria-live')).toBe('polite');
     // The toast container is not a live region, so the reset must be echoed
@@ -81,7 +83,9 @@ describe('Settings stale-model reset announcements (issue #79, review ui-1)', ()
 
     await render();
 
-    const liveRegion = container.querySelector('div[role="status"]');
+    const liveRegion = container.querySelector(
+      'div[role="status"][aria-label="Model catalog status"]'
+    );
     expect(liveRegion?.textContent).not.toContain('no longer available');
   });
 });
