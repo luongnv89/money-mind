@@ -1,50 +1,38 @@
 import { useToastStore } from '../stores/useToastStore';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { ToastType } from '../stores/useToastStore';
+
+const TOAST_STYLE: Record<ToastType, { Icon: typeof Info; icon: string; border: string }> = {
+  success: { Icon: CheckCircle, icon: 'text-positive', border: 'border-l-positive' },
+  error: { Icon: AlertCircle, icon: 'text-negative', border: 'border-l-negative' },
+  warning: { Icon: AlertTriangle, icon: 'text-warning', border: 'border-l-warning' },
+  info: { Icon: Info, icon: 'text-info', border: 'border-l-info' },
+};
 
 export const ToastContainer = () => {
   const { toasts, removeToast } = useToastStore();
 
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={cn(
-            'pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-lg shadow-lg border animate-in slide-in-from-right-full duration-300 min-w-[320px] max-w-sm backdrop-blur-xs',
-            toast.type === 'success' && 'bg-green-50/95 border-green-200 text-green-900',
-            toast.type === 'error' && 'bg-red-50/95 border-red-200 text-red-900',
-            toast.type === 'warning' && 'bg-amber-50/95 border-amber-200 text-amber-900',
-            toast.type === 'info' && 'bg-blue-50/95 border-blue-200 text-blue-900'
-          )}
-        >
-          {toast.type === 'success' && (
-            <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-          )}
-          {toast.type === 'error' && (
-            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          )}
-          {toast.type === 'warning' && (
-            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          )}
-          {toast.type === 'info' && <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />}
-
-          <p className="text-sm font-medium flex-1 leading-snug pt-0.5">{toast.message}</p>
-
-          <button
-            onClick={() => removeToast(toast.id)}
-            className={cn(
-              'transition-colors -mr-1 -mt-0.5 p-1 rounded-md',
-              toast.type === 'success' && 'text-green-600 hover:bg-green-100',
-              toast.type === 'error' && 'text-red-600 hover:bg-red-100',
-              toast.type === 'warning' && 'text-amber-600 hover:bg-amber-100',
-              toast.type === 'info' && 'text-blue-600 hover:bg-blue-100'
-            )}
+    <div className="pointer-events-none fixed inset-x-3 top-20 z-[100] flex flex-col gap-2 sm:inset-x-auto sm:right-4 sm:w-[380px]">
+      {toasts.map((toast) => {
+        const { Icon, icon, border } = TOAST_STYLE[toast.type];
+        return (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto flex items-start gap-3 rounded-xl border border-line ${border} border-l-[3px] bg-surface px-4 py-3 text-ink shadow-[0_1px_2px_rgba(15,27,45,.04),0_8px_24px_-12px_rgba(15,27,45,.16)] animate-rise`}
           >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      ))}
+            <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${icon}`} />
+            <p className="flex-1 pt-0.5 text-sm font-medium leading-snug">{toast.message}</p>
+            <button
+              onClick={() => removeToast(toast.id)}
+              aria-label="Dismiss notification"
+              className="-mr-1 -mt-0.5 rounded-md p-1 text-muted transition-colors hover:bg-ink/5 hover:text-ink"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 };

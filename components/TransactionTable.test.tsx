@@ -79,6 +79,21 @@ describe('TransactionTable (issues #40 and #41)', () => {
       );
       expect(deleteButton().getAttribute('aria-label')).toBe('Delete transaction STARBUCKS STORE');
     });
+
+    it('renders the date as a second line inside the description cell for mobile', () => {
+      render([tx({ date: '2026-01-15' })]);
+
+      const descTd = categoryButton().closest('tr')!.querySelectorAll('td')[1] as HTMLElement;
+      const dateLine = descTd.querySelector(
+        'button[aria-label="Sort by date"]'
+      ) as HTMLButtonElement;
+      expect(dateLine).not.toBeNull();
+      expect(dateLine.textContent).toContain('Jan 15, 2026');
+      expect(dateLine.className).toContain('sm:hidden');
+      // The standalone Date column is hidden below sm.
+      const dateTd = descTd.previousElementSibling as HTMLElement;
+      expect(dateTd.className).toContain('hidden sm:table-cell');
+    });
   });
 
   describe('search debounce (F-PERF-008)', () => {

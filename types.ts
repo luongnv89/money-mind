@@ -37,6 +37,9 @@ export interface LocalPattern {
 
 export type AIMode = 'cloud' | 'local' | 'groq' | 'custom';
 
+/** Top-level navigation views (no router — App.tsx switches on this union). */
+export type View = 'overview' | 'transactions' | 'upload' | 'settings' | 'privacy';
+
 export interface GeminiConfig {
   apiKey: string; // Stored obfuscated
   model: string;
@@ -85,23 +88,17 @@ export interface ModelCatalog {
   notice?: string;
 }
 
-export interface UsageStats {
-  txAnalyzed: number;
-  chatMessages: number;
-  lastReset: string;
-}
-
 export interface AppSettings {
   aiMode: AIMode;
   isDemoMode: boolean;
   applyPatterns: boolean;
-  enableFunnyAlerts: boolean; // New setting
+  enableSpendingAlerts: boolean;
+  currency: string; // ISO 4217 display currency — no conversion is performed
   geminiConfig: GeminiConfig;
   groqConfig: GroqConfig;
   ollamaConfig: OllamaConfig;
   customConfig: CustomOpenAIConfig;
   typesafeConfig: TypeSafeConfig;
-  usage: UsageStats; // Budget control
 }
 
 export interface BankFormat {
@@ -110,6 +107,10 @@ export interface BankFormat {
   descCol: string;
   amountCol: string;
   categoryCol?: string;
+  /** Additional header columns the file must contain for this format to match. */
+  requiredCols?: string[];
+  /** Negate single-column amounts (credit-card exports where charges are positive). */
+  invertAmounts?: boolean;
   debitCreditCols?: boolean; // For Citi/Capital One style split columns
   debitCol?: string; // Column holding money-out values when debitCreditCols is set
   creditCol?: string; // Column holding money-in values when debitCreditCols is set
@@ -122,6 +123,8 @@ export interface CsvMapping {
   categoryCol?: string;
   hasHeader: boolean;
   delimiter?: string;
+  /** Negate single-column amounts (credit-card exports where charges are positive). */
+  invertAmounts?: boolean;
   debitCreditCols?: boolean; // Amount lives in separate debit/credit columns
   debitCol?: string;
   creditCol?: string;

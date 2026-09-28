@@ -27,7 +27,7 @@ describe('Layout chrome (issue #41, F-UX-008/011/012/013)', () => {
     root = createRoot(container);
     React.act(() => {
       root.render(
-        <Layout currentView="dashboard" onViewChange={onViewChange}>
+        <Layout currentView="overview" onViewChange={onViewChange}>
           <p>content</p>
         </Layout>
       );
@@ -46,18 +46,36 @@ describe('Layout chrome (issue #41, F-UX-008/011/012/013)', () => {
     vi.clearAllMocks();
   });
 
-  it('keeps Clear reachable at every breakpoint (label collapses, button stays)', () => {
+  it('keeps destructive actions out of the header (Phase A3)', () => {
     render();
 
-    const clear = container.querySelector('button[aria-label="Clear all transactions"]');
-    expect(clear).not.toBeNull();
-    // The button itself must not be display:none on mobile — only its label
-    // collapses (token check: 'focus-visible:outline-hidden' also contains
-    // the substring 'hidden').
-    expect(clear?.classList.contains('hidden')).toBe(false);
-    const label = clear?.querySelector('span');
-    expect(label?.className).toContain('hidden');
-    expect(label?.className).toContain('sm:inline');
+    // Deletion moved to Settings → Danger zone; nothing destructive in chrome.
+    expect(container.querySelector('button[aria-label="Clear all transactions"]')).toBeNull();
+    const headerButtons = Array.from(container.querySelectorAll('header button'));
+    expect(headerButtons.some((b) => b.textContent?.match(/clear|delete/i))).toBe(false);
+  });
+
+  it('offers an Exit demo button that clears sample data and goes to upload', () => {
+    useSettingsStore.setState({ isDemoMode: true });
+    render();
+
+    const banner = Array.from(container.querySelectorAll('div')).find((d) =>
+      d.textContent?.includes("You're exploring sample data")
+    );
+    expect(banner).toBeDefined();
+
+    const exit = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Exit demo')
+    ) as HTMLButtonElement;
+    expect(exit).toBeDefined();
+
+    React.act(() => {
+      exit.click();
+    });
+
+    expect(useTransactionStore.getState().transactions).toHaveLength(0);
+    expect(useSettingsStore.getState().isDemoMode).toBe(false);
+    expect(onViewChange).toHaveBeenCalledWith('upload');
   });
 
   it('labels the Settings icon button and navigates on click', () => {
@@ -66,7 +84,6 @@ describe('Layout chrome (issue #41, F-UX-008/011/012/013)', () => {
     const settings = container.querySelector('button[aria-label="Settings"]') as HTMLButtonElement;
     expect(settings).not.toBeNull();
     expect(settings?.getAttribute('title')).toBe('Settings');
-    expect(settings?.textContent).toContain('Settings');
 
     React.act(() => {
       settings!.click();
@@ -83,17 +100,16 @@ describe('Layout chrome (issue #41, F-UX-008/011/012/013)', () => {
     expect(version?.textContent).toBe(`v${pkg.version}`);
   });
 
-  it('announces the chat FAB to assistive tech (F-UX-012)', () => {
+  it('announces the assistant FAB to assistive tech (F-UX-012)', () => {
     render();
 
-    // Rendered by Layout via MonkeySmileChat once transactions exist.
+    // Rendered by Layout via AssistantChat once transactions exist.
     const announcement = container.querySelector('p[role="status"]');
-    expect(announcement?.textContent).toMatch(/MonkeySmile budget chat is available/i);
+    expect(announcement?.textContent).toMatch(/MoneyMind Assistant chat is available/i);
 
     const fab = container.querySelector(
-      'button[aria-label="Toggle MonkeySmile Chat"]'
+      'button[aria-label="Open MoneyMind Assistant"]'
     ) as HTMLButtonElement;
     expect(fab).not.toBeNull();
-    expect(fab.getAttribute('aria-expanded')).toBe('false');
   });
 });

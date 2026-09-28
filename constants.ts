@@ -1,46 +1,74 @@
 import { TransactionCategory, BankFormat, AIMode, ModelInfo } from './types';
 
+/**
+ * Chart/swatch colors per category — the Private Wealth palette. Also the
+ * source of truth for pill tints below (muted washes of the same hues).
+ */
+export const CATEGORY_CHART_COLORS: Record<TransactionCategory, string> = {
+  [TransactionCategory.MustHave]: '#1F3A5F',
+  [TransactionCategory.NiceToHave]: '#B08D57',
+  [TransactionCategory.Waste]: '#A23B3B',
+  [TransactionCategory.Save]: '#0E7A5A',
+  [TransactionCategory.Invest]: '#3B7C8C',
+  [TransactionCategory.Income]: '#0E6B55',
+  [TransactionCategory.InternalTransfer]: '#9AA0A6',
+  [TransactionCategory.Uncategorized]: '#BDB6A8',
+};
+
+/**
+ * Category pill styling — muted tints of CATEGORY_CHART_COLORS with text
+ * dark enough for ≥4.5:1 contrast. Literal class strings only (Tailwind
+ * scans this file via the @source glob in src/index.css).
+ */
 export const CATEGORY_COLORS = {
   [TransactionCategory.Income]: {
-    bg: 'bg-green-50',
-    text: 'text-green-700',
-    border: 'border-green-200',
-  }, // #22c55e
-  [TransactionCategory.InternalTransfer]: {
-    bg: 'bg-gray-50',
-    text: 'text-gray-700',
-    border: 'border-gray-200',
-  }, // #6b7280
-  [TransactionCategory.MustHave]: {
-    bg: 'bg-red-50',
-    text: 'text-red-700',
-    border: 'border-red-200',
-  }, // #ef4444
-  [TransactionCategory.NiceToHave]: {
-    bg: 'bg-blue-50',
-    text: 'text-blue-700',
-    border: 'border-blue-200',
-  }, // #3b82f6
-  [TransactionCategory.Waste]: {
-    bg: 'bg-amber-50',
-    text: 'text-amber-700',
-    border: 'border-amber-200',
-  }, // #f59e0b
-  [TransactionCategory.Save]: {
-    bg: 'bg-emerald-50',
-    text: 'text-emerald-700',
-    border: 'border-emerald-200',
-  }, // #10b981
-  [TransactionCategory.Invest]: {
-    bg: 'bg-violet-50',
-    text: 'text-violet-700',
-    border: 'border-violet-200',
-  }, // #8b5cf6
-  [TransactionCategory.Uncategorized]: {
-    bg: 'bg-white',
-    text: 'text-gray-500',
-    border: 'border-dashed border-gray-300',
+    bg: 'bg-[#E0EEE9]',
+    text: 'text-[#0E6B55]',
+    border: 'border-[#C2DCD3]',
   },
+  [TransactionCategory.InternalTransfer]: {
+    bg: 'bg-[#F0F1F2]',
+    text: 'text-[#5E6673]',
+    border: 'border-[#DDE0E3]',
+  },
+  [TransactionCategory.MustHave]: {
+    bg: 'bg-[#E9EEF5]',
+    text: 'text-[#1F3A5F]',
+    border: 'border-[#C9D4E4]',
+  },
+  [TransactionCategory.NiceToHave]: {
+    bg: 'bg-[#F3EBDD]',
+    text: 'text-[#7A5E33]',
+    border: 'border-[#E3D4BB]',
+  },
+  [TransactionCategory.Waste]: {
+    bg: 'bg-[#F5E4E4]',
+    text: 'text-[#A23B3B]',
+    border: 'border-[#E8C9C9]',
+  },
+  [TransactionCategory.Save]: {
+    bg: 'bg-[#E2F0EA]',
+    text: 'text-[#0E7A5A]',
+    border: 'border-[#C4E0D4]',
+  },
+  [TransactionCategory.Invest]: {
+    bg: 'bg-[#E4EFF2]',
+    text: 'text-[#2E6472]',
+    border: 'border-[#C8DEE4]',
+  },
+  [TransactionCategory.Uncategorized]: {
+    bg: 'bg-surface-muted',
+    text: 'text-muted',
+    border: 'border-dashed border-line-strong',
+  },
+};
+
+/** User-facing provider names, shared by Settings, Transactions and the Assistant. */
+export const AI_PROVIDER_LABELS: Record<AIMode, string> = {
+  cloud: 'Gemini',
+  groq: 'Groq',
+  local: 'Ollama',
+  custom: 'Custom endpoint',
 };
 
 export const CATEGORY_HIERARCHY: Record<TransactionCategory, string[]> = {
@@ -137,6 +165,19 @@ export const SUPPORTED_BANKS: BankFormat[] = [
     categoryCol: 'Category',
   },
   {
+    // AmEx must precede Bank of America: both share Date/Description/Amount/
+    // Category headers, so AmEx is distinguished by its extra 'Card Member'
+    // column. AmEx exports charges as positive and payments as negative, so
+    // amounts are inverted on import.
+    name: 'AmEx',
+    dateCol: 'Date',
+    descCol: 'Description',
+    amountCol: 'Amount',
+    categoryCol: 'Category',
+    requiredCols: ['Card Member'],
+    invertAmounts: true,
+  },
+  {
     name: 'Bank of America',
     dateCol: 'Date',
     descCol: 'Description',
@@ -150,13 +191,6 @@ export const SUPPORTED_BANKS: BankFormat[] = [
     amountCol: 'Amount',
     categoryCol: 'Category',
   }, // Often 'Category' or 'Type'
-  {
-    name: 'AmEx',
-    dateCol: 'Date',
-    descCol: 'Description',
-    amountCol: 'Amount',
-    categoryCol: 'Category',
-  },
   {
     name: 'Citi',
     dateCol: 'Date',

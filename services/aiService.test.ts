@@ -12,7 +12,7 @@ vi.mock('@google/genai', () => ({
 
 import { categorizeWithAI, chatWithFinancialAgent, testAiConnection } from './aiService';
 import { useSettingsStore } from '../stores/useSettingsStore';
-import { Transaction, TransactionCategory } from '../types';
+import { CategorizationResult, Transaction, TransactionCategory } from '../types';
 
 const fetchMock = vi.fn();
 
@@ -37,7 +37,6 @@ const resetSettings = (overrides: Record<string, unknown> = {}) => {
     ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: 'llama3.2' },
     customConfig: { baseUrl: '', apiKey: '', model: 'gpt-3.5-turbo' },
     typesafeConfig: { apiKey: '' },
-    usage: { txAnalyzed: 0, chatMessages: 0, lastReset: '2024-01-01T00:00:00.000Z' },
     ...overrides,
   });
 };
@@ -142,26 +141,22 @@ describe('testAiConnection — ollama', () => {
 });
 
 describe('chatWithFinancialAgent', () => {
-  it('throws when the chat usage limit is exhausted', async () => {
-    resetSettings({ usage: { txAnalyzed: 0, chatMessages: 10, lastReset: '' } });
-    await expect(chatWithFinancialAgent('hi', 'ctx')).rejects.toThrow(/Budget Exceeded/);
-  });
-
   it('throws when no Gemini key is configured in cloud mode', async () => {
     await expect(chatWithFinancialAgent('hi', 'ctx')).rejects.toThrow(/No API Key set/i);
   });
 
-  it('returns the Gemini text and increments chat usage', async () => {
+  it('returns the Gemini text', async () => {
     resetSettings({ geminiConfig: { apiKey: btoa('k'), model: 'm' } });
     generateContentMock.mockResolvedValue({ text: 'banana wisdom' });
     await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe('banana wisdom');
-    expect(useSettingsStore.getState().usage.chatMessages).toBe(1);
   });
 
   it('returns a fallback line when Gemini replies with empty text', async () => {
     resetSettings({ geminiConfig: { apiKey: btoa('k'), model: 'm' } });
     generateContentMock.mockResolvedValue({ text: '' });
-    await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toMatch(/speechless/);
+    await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe(
+      'The model returned an empty answer. Try rephrasing your question.'
+    );
   });
 
   it('throws when the Groq key is missing', async () => {
@@ -169,13 +164,12 @@ describe('chatWithFinancialAgent', () => {
     await expect(chatWithFinancialAgent('hi', 'ctx')).rejects.toThrow('Missing API Key');
   });
 
-  it('returns Groq reply content and increments usage', async () => {
+  it('returns Groq reply content', async () => {
     resetSettings({ aiMode: 'groq', groqConfig: { apiKey: btoa('k'), model: 'm' } });
     fetchMock.mockResolvedValue(
       jsonResponse({ choices: [{ message: { content: 'groq says hi' } }] })
     );
     await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe('groq says hi');
-    expect(useSettingsStore.getState().usage.chatMessages).toBe(1);
   });
 
   it('surfaces Groq API errors', async () => {
@@ -193,7 +187,9 @@ describe('chatWithFinancialAgent', () => {
   it('has a fallback line when Groq returns empty content', async () => {
     resetSettings({ aiMode: 'groq', groqConfig: { apiKey: btoa('k'), model: 'm' } });
     fetchMock.mockResolvedValue(jsonResponse({ choices: [{ message: { content: '' } }] }));
-    await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe('Groq is silent 🐵');
+    await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe(
+      'The model returned an empty answer. Try rephrasing your question.'
+    );
   });
 
   it('returns the Ollama response text', async () => {
@@ -211,38 +207,87 @@ describe('chatWithFinancialAgent', () => {
   it('falls back when Ollama chat returns an empty response', async () => {
     resetSettings({ aiMode: 'local' });
     fetchMock.mockResolvedValue(jsonResponse({ response: '' }));
-    await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe('Thinking... 🐵');
+    await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe(
+      'The model returned an empty answer. Try rephrasing your question.'
+    );
+  });
+
+  it('Gemini puts the FINANCIAL CONTEXT prompt in systemInstruction (no emojis)', async () => {
+    resetSettings({ geminiConfig: { apiKey: btoa('k'), model: 'm' } });
+    generateContentMock.mockResolvedValue({ text: 'ok' });
+    await chatWithFinancialAgent('hi', 'ctx-body');
+
+    const arg = generateContentMock.mock.calls[0][0];
+    expect(arg.contents).toBe('hi');
+    expect(arg.config.systemInstruction).toContain('FINANCIAL CONTEXT');
+    expect(arg.config.systemInstruction).toContain('ctx-body');
+    expect(arg.config.systemInstruction).not.toMatch(/\p{Extended_Pictographic}/u);
+    expect(arg.config.temperature).toBe(0.2);
+  });
+
+  it('Groq sends the prompt as a system message', async () => {
+    resetSettings({ aiMode: 'groq', groqConfig: { apiKey: btoa('k'), model: 'm' } });
+    fetchMock.mockResolvedValue(jsonResponse({ choices: [{ message: { content: 'ok' } }] }));
+    await chatWithFinancialAgent('hi', 'ctx-body');
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.messages[0].role).toBe('system');
+    expect(body.messages[0].content).toContain('FINANCIAL CONTEXT');
+    expect(body.messages[1]).toEqual({ role: 'user', content: 'hi' });
+    expect(body.temperature).toBe(0.2);
+  });
+
+  it('Ollama sends the prompt as `system`', async () => {
+    resetSettings({ aiMode: 'local' });
+    fetchMock.mockResolvedValue(jsonResponse({ response: 'ok' }));
+    await chatWithFinancialAgent('hi', 'ctx-body');
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.system).toContain('FINANCIAL CONTEXT');
+    expect(body.prompt).toBe('hi');
+    expect(body.stream).toBe(false);
+    expect(body.options.temperature).toBe(0.2);
   });
 });
 
-describe('categorizeWithAI — guards', () => {
-  it('throws when the analysis budget would be exceeded', async () => {
-    resetSettings({ usage: { txAnalyzed: 150, chatMessages: 0, lastReset: '' } });
-    await expect(categorizeWithAI([tx()], 'cloud')).rejects.toThrow(/Budget Exceeded/);
-  });
-
+describe('categorizeWithAI — routing guards (Phase A5)', () => {
   it('resolves immediately for an empty transaction list', async () => {
     const onChunk = vi.fn();
     await categorizeWithAI([], 'cloud', onChunk);
     expect(onChunk).not.toHaveBeenCalled();
   });
 
-  it('routes demo mode through the simulator without consuming budget', async () => {
+  it('throws a Settings-oriented error when nothing is configured and not demo', async () => {
+    await expect(categorizeWithAI([tx()], 'cloud')).rejects.toThrow(
+      /No categorization service is set up\. Add a TypeSafe key or a language model in Settings\./
+    );
+  });
+
+  it('routes demo mode through the simulator when nothing else is configured', async () => {
     resetSettings({ isDemoMode: true });
     const onChunk = vi.fn();
     await categorizeWithAI([tx({ originalCategory: 'rent' })], 'cloud', onChunk);
     expect(onChunk).toHaveBeenCalledTimes(1);
     expect(onChunk.mock.calls[0][0][0].category).toBe(TransactionCategory.MustHave);
-    expect(useSettingsStore.getState().usage.txAnalyzed).toBe(0);
+  });
+
+  it('demo mode does not fake results when a language model is configured', async () => {
+    resetSettings({ isDemoMode: true, geminiConfig: { apiKey: btoa('k'), model: 'm' } });
+    generateContentMock.mockResolvedValue({
+      text: JSON.stringify([{ id: 't1', category: 'Waste', confidence: 0.9, reason: 'fee' }]),
+    });
+    const onChunk = vi.fn();
+    await categorizeWithAI([tx()], 'cloud', onChunk);
+    expect(generateContentMock).toHaveBeenCalled();
+    expect(onChunk.mock.calls[0][0][0]).toMatchObject({ category: 'Waste' });
   });
 });
 
 describe('categorizeWithAI — gemini', () => {
-  it('simulates when no API key is set', async () => {
-    const onChunk = vi.fn();
-    await categorizeWithAI([tx({ originalCategory: 'groceries' })], 'cloud', onChunk);
-    expect(generateContentMock).not.toHaveBeenCalled();
-    expect(onChunk.mock.calls[0][0][0].subCategory).toBe('Food & Groceries');
+  it('throws when no API key is set instead of silently simulating', async () => {
+    await expect(categorizeWithAI([tx()], 'cloud')).rejects.toThrow(
+      /No categorization service is set up/
+    );
   }, 10000);
 
   it('emits parsed results on success', async () => {
@@ -254,7 +299,6 @@ describe('categorizeWithAI — gemini', () => {
     await categorizeWithAI([tx()], 'cloud', onChunk);
     expect(onChunk).toHaveBeenCalledTimes(1);
     expect(onChunk.mock.calls[0][0][0]).toMatchObject({ id: 't1', category: 'Waste' });
-    expect(useSettingsStore.getState().usage.txAnalyzed).toBe(1);
   }, 10000);
 
   it('skips the chunk callback when Gemini returns empty text', async () => {
@@ -308,7 +352,7 @@ describe('categorizeWithAI — groq', () => {
     expect(onChunk.mock.calls[0][0][0]).toMatchObject({ id: 't1', category: 'Waste' });
   }, 10000);
 
-  it('accepts a bare JSON array payload and applies field defaults', async () => {
+  it('degrades entries without a category to zero-confidence Uncategorized', async () => {
     resetSettings(groqKey);
     fetchMock.mockResolvedValue(
       jsonResponse({
@@ -319,8 +363,8 @@ describe('categorizeWithAI — groq', () => {
     await categorizeWithAI([tx()], 'groq', onChunk);
     expect(onChunk.mock.calls[0][0][0]).toMatchObject({
       category: TransactionCategory.Uncategorized,
-      confidence: 0.8,
-      reason: 'Groq AI',
+      confidence: 0,
+      reason: 'AI returned an unrecognized category ""',
     });
   }, 10000);
 
@@ -388,7 +432,11 @@ describe('categorizeWithAI — ollama', () => {
     resetSettings(local);
     fetchMock.mockResolvedValue(
       jsonResponse({
-        response: JSON.stringify({ category: 'Waste', subCategory: 'Fees', confidence: 0.6 }),
+        response: JSON.stringify({
+          category: 'Waste',
+          subCategory: 'Late Fees & Penalties',
+          confidence: 0.6,
+        }),
       })
     );
     const onChunk = vi.fn();
@@ -396,7 +444,7 @@ describe('categorizeWithAI — ollama', () => {
     expect(onChunk.mock.calls[0][0][0]).toMatchObject({
       id: 't1',
       category: 'Waste',
-      subCategory: 'Fees',
+      subCategory: 'Late Fees & Penalties',
     });
   });
 
@@ -440,8 +488,12 @@ describe('categorizeWithAI — rate-limit sleeps (F-PERF-002)', () => {
 
   it('sleeps exactly twice for a 3-batch Gemini run (25 per batch)', async () => {
     resetSettings({ geminiConfig: { apiKey: btoa('k'), model: 'm' } });
+    // Results for unrequested ids are dropped — echo every requested id so
+    // each batch produces output and the next batch (and its sleep) fires.
     generateContentMock.mockImplementation(async () => ({
-      text: JSON.stringify([{ id: 'x', category: 'Waste', confidence: 0.9, reason: 'r' }]),
+      text: JSON.stringify(
+        Array.from({ length: 75 }, (_, i) => ({ id: `t${i}`, category: 'Waste' }))
+      ),
     }));
 
     vi.useFakeTimers();
@@ -462,7 +514,16 @@ describe('categorizeWithAI — rate-limit sleeps (F-PERF-002)', () => {
     fetchMock.mockImplementation(async () =>
       jsonResponse({
         choices: [
-          { message: { content: JSON.stringify({ results: [{ id: 'x', category: 'Waste' }] }) } },
+          {
+            message: {
+              content: JSON.stringify({
+                results: Array.from({ length: 30 }, (_, i) => ({
+                  id: `t${i}`,
+                  category: 'Waste',
+                })),
+              }),
+            },
+          },
         ],
       })
     );
@@ -712,19 +773,20 @@ describe('chatWithFinancialAgent — custom endpoint (issue #82)', () => {
     expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
   });
 
-  it('returns reply content and increments usage', async () => {
+  it('returns reply content', async () => {
     resetSettings(customReady);
     fetchMock.mockResolvedValue(
       jsonResponse({ choices: [{ message: { content: 'endpoint says hi' } }] })
     );
     await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe('endpoint says hi');
-    expect(useSettingsStore.getState().usage.chatMessages).toBe(1);
   });
 
   it('falls back to a silent line on empty content', async () => {
     resetSettings(customReady);
     fetchMock.mockResolvedValue(jsonResponse({ choices: [{ message: { content: '' } }] }));
-    await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe('Your endpoint is silent 🐵');
+    await expect(chatWithFinancialAgent('hi', 'ctx')).resolves.toBe(
+      'The model returned an empty answer. Try rephrasing your question.'
+    );
   });
 
   it('surfaces API errors from the endpoint', async () => {
@@ -776,7 +838,7 @@ describe('categorizeWithAI — custom endpoint (issue #82)', () => {
     expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer sk-k');
   }, 10000);
 
-  it('normalizes wrapped and bare payloads with field defaults', async () => {
+  it('normalizes bare payloads and rejects unrecognized categories', async () => {
     resetSettings(customReady);
     fetchMock.mockResolvedValue(okBody(JSON.stringify([{ id: 't1' }])));
     const onChunk = vi.fn();
@@ -784,8 +846,7 @@ describe('categorizeWithAI — custom endpoint (issue #82)', () => {
     expect(onChunk.mock.calls[0][0][0]).toMatchObject({
       id: 't1',
       category: TransactionCategory.Uncategorized,
-      confidence: 0.8,
-      reason: 'Custom endpoint AI',
+      confidence: 0,
     });
   }, 10000);
 
@@ -813,7 +874,7 @@ describe('categorizeWithAI — custom endpoint (issue #82)', () => {
   }, 10000);
 });
 
-describe('simulateCategorization heuristics (via demo mode)', () => {
+describe('simulateCategorization — demo rules (via demo mode)', () => {
   const simulate = async (t: Transaction) => {
     resetSettings({ isDemoMode: true });
     const onChunk = vi.fn();
@@ -821,45 +882,30 @@ describe('simulateCategorization heuristics (via demo mode)', () => {
     return onChunk.mock.calls[0][0][0];
   };
 
-  it('maps known bank categories', async () => {
-    expect(await simulate(tx({ originalCategory: 'bills' }))).toMatchObject({
-      subCategory: 'Utilities',
+  it('maps bank labels through the shared demo category map', async () => {
+    expect(await simulate(tx({ originalCategory: 'Rent' }))).toMatchObject({
+      category: TransactionCategory.MustHave,
+      subCategory: 'Housing',
+      confidence: 0.85,
     });
-    expect(await simulate(tx({ originalCategory: 'dining' }))).toMatchObject({
-      subCategory: 'Dining Out',
+    expect(await simulate(tx({ originalCategory: 'Subscription' }))).toMatchObject({
+      category: TransactionCategory.NiceToHave,
+      subCategory: 'Entertainment',
+    });
+    expect(await simulate(tx({ originalCategory: 'Payroll' }))).toMatchObject({
+      category: TransactionCategory.Income,
+      subCategory: 'Salary',
     });
   }, 20000);
 
-  it('falls back to income for positive amounts and deposits', async () => {
-    const salary = await simulate(tx({ amount: 100, description: 'monthly salary' }));
-    expect(salary.subCategory).toBe('Salary');
-    const generic = await simulate(tx({ amount: 100, description: 'odd deposit' }));
-    expect(generic.subCategory).toBe('Other Income');
-    const deposit = await simulate(
-      tx({ description: 'wire deposit', originalCategory: 'misc income' })
-    );
-    expect(deposit.category).toBe(TransactionCategory.Income);
+  it('leaves unmapped labels Uncategorized with zero confidence', async () => {
+    const res = await simulate(tx({ originalCategory: 'Check', description: 'CHECK 1043' }));
+    expect(res).toMatchObject({
+      category: TransactionCategory.Uncategorized,
+      confidence: 0,
+      reason: 'Demo: no matching rule',
+    });
   }, 20000);
-
-  it('detects transfers, coffee, subscriptions, fees and savings by keyword', async () => {
-    expect((await simulate(tx({ description: 'CARD PAYMENT' }))).category).toBe(
-      TransactionCategory.InternalTransfer
-    );
-    expect((await simulate(tx({ description: 'STARBUCKS' }))).subCategory).toBe('Dining Out');
-    expect((await simulate(tx({ description: 'NETFLIX' }))).subCategory).toBe('Entertainment');
-    expect((await simulate(tx({ description: 'late fee' }))).category).toBe(
-      TransactionCategory.Waste
-    );
-    expect((await simulate(tx({ description: 'auto savings' }))).subCategory).toBe(
-      'General Savings'
-    );
-    expect((await simulate(tx({ description: 'mystery shop' }))).subCategory).toBe('Shopping');
-  }, 40000);
-
-  it('treats a positive refund as non-income', async () => {
-    const refund = await simulate(tx({ amount: 20, description: 'refund' }));
-    expect(refund.category).not.toBe(TransactionCategory.Income);
-  }, 10000);
 });
 
 describe('categorizeWithAI — TypeSafe routing', () => {
@@ -903,11 +949,63 @@ describe('categorizeWithAI — TypeSafe routing', () => {
     });
   });
 
-  it('still simulates in demo mode even with a TypeSafe key', async () => {
+  it('TypeSafe wins over demo mode — configured AI is never faked', async () => {
     resetSettings({ isDemoMode: true, typesafeConfig: { apiKey: btoa('ts-key') } });
+    fetchMock.mockResolvedValue(typesafeJson(systemOneResponse));
     const onChunk = vi.fn();
-    await categorizeWithAI([tx({ originalCategory: 'rent' })], 'cloud', onChunk);
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(onChunk.mock.calls[0][0][0].category).toBe(TransactionCategory.MustHave);
+    await categorizeWithAI([tx()], 'cloud', onChunk);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe('/typesafe-api/v1/systemone');
+    expect(onChunk.mock.calls[0][0][0]).toMatchObject({ category: 'Nice-to-have' });
+  }, 10000);
+});
+
+describe('categorizeWithAI — dedup fan-out (Phase A5)', () => {
+  it('sends each unique transaction once and fans results out to every member', async () => {
+    resetSettings({ geminiConfig: { apiKey: btoa('k'), model: 'm' } });
+    // 3 identical transactions + 1 distinct → 2 representatives, 4 results.
+    const a1 = tx({ id: 'a1', description: 'COFFEE SHOP' });
+    const a2 = tx({ id: 'a2', description: '  COFFEE   SHOP ' });
+    const a3 = tx({ id: 'a3', description: 'Coffee Shop' });
+    const b1 = tx({ id: 'b1', description: 'Bookstore' });
+
+    generateContentMock.mockResolvedValue({
+      text: JSON.stringify([
+        { id: 'a1', category: 'Nice-to-have', subCategory: 'Dining Out', confidence: 0.9 },
+        { id: 'b1', category: 'Waste', confidence: 0.4 },
+      ]),
+    });
+
+    const chunks: CategorizationResult[][] = [];
+    await categorizeWithAI([a1, a2, a3, b1], 'cloud', (r) => chunks.push(r));
+
+    // One model call for a single batch; the prompt contains only the reps.
+    expect(generateContentMock).toHaveBeenCalledTimes(1);
+    const prompt = JSON.stringify(generateContentMock.mock.calls[0][0]);
+    expect(prompt).toContain('a1');
+    expect(prompt).not.toContain('a2');
+    expect(prompt).not.toContain('a3');
+
+    const flat = chunks.flat();
+    expect(flat.map((r) => r.id).sort()).toEqual(['a1', 'a2', 'a3', 'b1']);
+    for (const id of ['a1', 'a2', 'a3']) {
+      expect(flat.find((r) => r.id === id)).toMatchObject({
+        category: 'Nice-to-have',
+        subCategory: 'Dining Out',
+      });
+    }
+  }, 10000);
+
+  it('ignores results for ids that were never requested', async () => {
+    resetSettings({ geminiConfig: { apiKey: btoa('k'), model: 'm' } });
+    generateContentMock.mockResolvedValue({
+      text: JSON.stringify([
+        { id: 't1', category: 'Waste', confidence: 0.9 },
+        { id: 'ghost', category: 'Income', confidence: 1 },
+      ]),
+    });
+    const onChunk = vi.fn();
+    await categorizeWithAI([tx()], 'cloud', onChunk);
+    expect(onChunk.mock.calls[0][0].map((r: CategorizationResult) => r.id)).toEqual(['t1']);
   }, 10000);
 });

@@ -4,7 +4,7 @@ import { X, DollarSign, Calendar, Tag } from 'lucide-react';
 import { Button, Input } from './UI';
 import { Transaction, TransactionCategory } from '../types';
 import { CATEGORY_HIERARCHY } from '../constants';
-import { cn } from '../lib/utils';
+import { cn, todayLocalISO } from '../lib/utils';
 
 interface AddTransactionModalProps {
   onClose: () => void;
@@ -13,7 +13,7 @@ interface AddTransactionModalProps {
 
 export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClose, onSave }) => {
   const [type, setType] = useState<'expense' | 'income'>('expense');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(todayLocalISO());
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<TransactionCategory>(TransactionCategory.Uncategorized);
@@ -81,26 +81,30 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50/50">
-          <h3 className="text-lg font-semibold text-gray-900">Add Transaction</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4 backdrop-blur-xs">
+      <div className="w-full max-w-md animate-rise overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_8px_40px_-12px_rgba(15,27,45,.25)]">
+        <div className="flex items-center justify-between border-b border-line p-4">
+          <h3 className="font-display text-lg text-ink">Add Transaction</h3>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="text-muted transition-colors hover:text-ink"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {/* Type Toggle */}
-          <div className="flex bg-gray-100 p-1 rounded-lg">
+          <div className="flex rounded-lg border border-line bg-surface-muted p-1">
             <button
               type="button"
               onClick={() => setType('expense')}
               className={cn(
                 'flex-1 py-2 text-sm font-medium rounded-md transition-all',
                 type === 'expense'
-                  ? 'bg-white text-red-600 shadow-xs'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-surface text-negative shadow-xs'
+                  : 'text-muted hover:text-ink'
               )}
             >
               Expense
@@ -111,8 +115,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
               className={cn(
                 'flex-1 py-2 text-sm font-medium rounded-md transition-all',
                 type === 'income'
-                  ? 'bg-white text-green-600 shadow-xs'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-surface text-positive shadow-xs'
+                  : 'text-muted hover:text-ink'
               )}
             >
               Income
@@ -122,11 +126,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
           {/* Amount & Date Row */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Date
               </label>
               <div className="relative">
-                <Calendar className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
+                <Calendar className="absolute left-2.5 top-2.5 w-4 h-4 text-muted" />
                 <Input
                   type="date"
                   value={date}
@@ -137,11 +141,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Amount
               </label>
               <div className="relative">
-                <DollarSign className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
+                <DollarSign className="absolute left-2.5 top-2.5 w-4 h-4 text-muted" />
                 <Input
                   type="number"
                   step="0.01"
@@ -154,17 +158,17 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
                   }}
                   className={cn(
                     'pl-9',
-                    errors.amount ? 'border-red-300 focus-visible:ring-red-200' : ''
+                    errors.amount ? 'border-negative/60 focus-visible:ring-negative/30' : ''
                   )}
                 />
               </div>
-              {errors.amount && <p className="text-xs text-red-500">{errors.amount}</p>}
+              {errors.amount && <p className="text-xs text-negative">{errors.amount}</p>}
             </div>
           </div>
 
           {/* Description */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted">
               Description
             </label>
             <Input
@@ -174,24 +178,26 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
                 setDescription(e.target.value);
                 if (errors.description) setErrors({ ...errors, description: '' });
               }}
-              className={cn(errors.description ? 'border-red-300 focus-visible:ring-red-200' : '')}
+              className={cn(
+                errors.description ? 'border-negative/60 focus-visible:ring-negative/30' : ''
+              )}
             />
-            {errors.description && <p className="text-xs text-red-500">{errors.description}</p>}
+            {errors.description && <p className="text-xs text-negative">{errors.description}</p>}
           </div>
 
           {/* Category Selection */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted">
               Category
             </label>
             <div className="relative">
-              <Tag className="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400" />
+              <Tag className="absolute left-2.5 top-2.5 w-4 h-4 text-muted" />
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as TransactionCategory)}
                 className={cn(
-                  'flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 pl-9 text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50',
-                  errors.category ? 'border-red-300 focus-visible:ring-red-200' : ''
+                  'flex h-10 w-full rounded-md border border-line-strong bg-surface px-3 py-2 pl-9 text-sm text-ink focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-50',
+                  errors.category ? 'border-negative/60 focus-visible:ring-negative/30' : ''
                 )}
               >
                 <option value={TransactionCategory.Uncategorized} disabled>
@@ -204,13 +210,13 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
                 ))}
               </select>
             </div>
-            {errors.category && <p className="text-xs text-red-500">{errors.category}</p>}
+            {errors.category && <p className="text-xs text-negative">{errors.category}</p>}
           </div>
 
           {/* Subcategory Selection */}
           {category !== TransactionCategory.Uncategorized && (
             <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Subcategory
               </label>
               <Input

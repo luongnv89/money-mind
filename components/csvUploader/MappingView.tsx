@@ -21,10 +21,13 @@ const ColumnSelect: React.FC<ColumnSelectProps> = ({
 }) => (
   <div className="space-y-2">
     <label className="text-sm font-medium flex items-center gap-1">
-      {label} {optional && <span className="text-gray-400 font-normal">(Optional)</span>}
+      {label} {optional && <span className="text-muted font-normal">(Optional)</span>}
     </label>
     <select
-      className={cn('w-full p-2 border rounded-md', optional && 'bg-gray-50')}
+      className={cn(
+        'w-full rounded-md border border-line bg-surface p-2 text-sm text-ink',
+        optional && 'bg-surface-muted'
+      )}
       value={value}
       onChange={(e) => onChange(e.target.value)}
     >
@@ -39,20 +42,20 @@ const ColumnSelect: React.FC<ColumnSelectProps> = ({
 );
 
 const PreviewRow: React.FC<{ row: Transaction }> = ({ row }) => (
-  <tr className="hover:bg-gray-50/50">
-    <td className="px-4 py-2 text-gray-600 whitespace-nowrap text-xs">
-      {row.date ? row.date : <span className="text-red-300 italic">Empty</span>}
+  <tr className="hover:bg-surface-muted/60">
+    <td className="px-4 py-2 text-muted whitespace-nowrap text-xs">
+      {row.date ? row.date : <span className="text-negative/60 italic">Empty</span>}
     </td>
-    <td className="px-4 py-2 text-gray-900 truncate max-w-[200px] text-xs">
-      {row.description ? row.description : <span className="text-red-300 italic">Empty</span>}
+    <td className="px-4 py-2 text-ink truncate max-w-[200px] text-xs">
+      {row.description ? row.description : <span className="text-negative/60 italic">Empty</span>}
     </td>
-    <td className="px-4 py-2 text-gray-500 truncate max-w-[120px] text-xs">
-      {row.originalCategory || <span className="text-gray-300 italic">N/A</span>}
+    <td className="px-4 py-2 text-muted truncate max-w-[120px] text-xs">
+      {row.originalCategory || <span className="text-muted/60 italic">N/A</span>}
     </td>
     <td
       className={cn(
-        'px-4 py-2 text-right font-mono text-xs',
-        isNaN(row.amount) ? 'text-red-400' : 'text-gray-700'
+        'px-4 py-2 text-right num text-xs',
+        isNaN(row.amount) ? 'text-negative' : 'text-ink-soft'
       )}
     >
       {isNaN(row.amount) ? 'NaN' : formatCurrency(row.amount)}
@@ -85,7 +88,7 @@ export const MappingView: React.FC<MappingViewProps> = ({
   <Card className="w-full max-w-2xl mx-auto mt-10">
     <CardHeader>
       <CardTitle>Map Columns</CardTitle>
-      <p className="text-sm text-gray-500">
+      <p className="text-sm text-muted">
         {autoDetected
           ? 'We auto-detected your columns — review the mapping below and adjust anything that looks wrong.'
           : "We couldn't auto-detect your bank format. Please map the columns below."}
@@ -120,32 +123,47 @@ export const MappingView: React.FC<MappingViewProps> = ({
         />
       </div>
 
+      {!mapping.debitCreditCols && (
+        <div className="flex items-start gap-3 rounded-lg border border-line bg-surface-muted p-3">
+          <input
+            id="invert-amounts"
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-accent"
+            checked={!!mapping.invertAmounts}
+            onChange={(e) => onMappingChange({ ...mapping, invertAmounts: e.target.checked })}
+          />
+          <label htmlFor="invert-amounts" className="text-left text-sm text-ink-soft">
+            <span className="font-medium text-ink">Flip amount signs</span>
+            <span className="block text-xs text-muted mt-0.5">
+              Turn on when charges appear as positive numbers — typical for credit-card exports such
+              as American Express or Discover.
+            </span>
+          </label>
+        </div>
+      )}
+
       {/* Mapping Preview Table */}
-      <div className="rounded-lg border border-gray-200 overflow-hidden">
-        <div className="bg-gray-50 px-4 py-2 border-b border-gray-200 flex justify-between items-center">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Preview
-          </span>
-          <span className="text-xs text-gray-400">
-            Showing first 10 rows based on current mapping
-          </span>
+      <div className="overflow-hidden rounded-lg border border-line">
+        <div className="flex items-center justify-between border-b border-line bg-surface-muted px-4 py-2">
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted">Preview</span>
+          <span className="text-xs text-muted">Showing first 10 rows based on current mapping</span>
         </div>
         <div className="overflow-x-auto max-h-60">
           <table className="w-full text-sm text-left">
-            <thead className="bg-white text-gray-500 border-b border-gray-100 sticky top-0 shadow-xs z-10">
+            <thead className="sticky top-0 z-10 border-b border-line bg-surface text-muted">
               <tr>
-                <th className="px-4 py-2 font-medium bg-gray-50/50">Date</th>
-                <th className="px-4 py-2 font-medium bg-gray-50/50">Description</th>
-                <th className="px-4 py-2 font-medium bg-gray-50/50">Category (Raw)</th>
-                <th className="px-4 py-2 font-medium text-right bg-gray-50/50">Amount</th>
+                <th className="bg-surface-muted/60 px-4 py-2 font-medium">Date</th>
+                <th className="bg-surface-muted/60 px-4 py-2 font-medium">Description</th>
+                <th className="bg-surface-muted/60 px-4 py-2 font-medium">Category (Raw)</th>
+                <th className="bg-surface-muted/60 px-4 py-2 text-right font-medium">Amount</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-50">
+            <tbody className="divide-y divide-line bg-surface">
               {mappingPreview.length > 0 ? (
                 mappingPreview.map((row) => <PreviewRow key={row.id} row={row} />)
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-gray-400 italic">
+                  <td colSpan={4} className="px-4 py-8 text-center italic text-muted">
                     No preview available
                   </td>
                 </tr>

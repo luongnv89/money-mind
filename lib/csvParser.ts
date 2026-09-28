@@ -2,7 +2,7 @@ import Papa from 'papaparse';
 import { Transaction, TransactionCategory, CsvMapping } from '../types';
 import { SUPPORTED_BANKS } from '../constants';
 import { v4 as uuidv4 } from 'uuid';
-import { normalizeDate } from './utils';
+import { normalizeDate, todayLocalISO } from './utils';
 
 // Helper to manually detect delimiter by reading first chunk of file
 const detectBestDelimiter = (file: File): Promise<string> => {
@@ -223,11 +223,13 @@ export const getPreviewTransactions = (
               mapping.debitCreditCols && mapping.debitCol && mapping.creditCol
                 ? resolveSplitAmount(row, mapping)
                 : undefined;
-            const amount = split
+            let amount = split
               ? split.status === 'ok'
                 ? split.value
                 : NaN
               : parseAmount(row[mapping.amountCol]);
+            // Credit-card exports (AmEx, Discover) list charges as positive.
+            if (!split && mapping.invertAmounts && !isNaN(amount)) amount = -amount;
 
             const rawDate = row[mapping.dateCol];
             const desc = row[mapping.descCol];
@@ -311,10 +313,12 @@ export const parseCSVWithMapping = (
                 return;
               }
               amount = parseAmount(rawAmount);
+              // Credit-card exports (AmEx, Discover) list charges as positive.
+              if (mapping.invertAmounts && !isNaN(amount)) amount = -amount;
             }
 
             const rawDate = row[mapping.dateCol];
-            const fallbackDate = new Date().toISOString().split('T')[0];
+            const fallbackDate = todayLocalISO();
             const date = rawDate ? String(rawDate) : fallbackDate;
             const normalizedDate = normalizeDate(date);
             const originalCat = mapping.categoryCol ? row[mapping.categoryCol] : undefined;
@@ -359,7 +363,7 @@ export const parseCSVWithMapping = (
 
 export const detectBankFormat = (headers: string[]): Partial<CsvMapping> | null => {
   for (const bank of SUPPORTED_BANKS) {
-    const required = [bank.dateCol, bank.descCol];
+    const required = [bank.dateCol, bank.descCol, ...(bank.requiredCols ?? [])];
     if (bank.debitCreditCols) {
       if (!bank.debitCol || !bank.creditCol) continue;
       required.push(bank.debitCol, bank.creditCol);
@@ -374,6 +378,7 @@ export const detectBankFormat = (headers: string[]): Partial<CsvMapping> | null 
         amountCol: bank.amountCol,
         categoryCol: bank.categoryCol,
         hasHeader: true,
+        ...(bank.invertAmounts ? { invertAmounts: true } : {}),
         ...(bank.debitCreditCols
           ? {
               debitCreditCols: true,

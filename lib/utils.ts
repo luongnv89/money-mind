@@ -1,21 +1,74 @@
 import { ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
+export const formatCurrency = (
+  amount: number,
+  currency: string = useSettingsStore.getState().currency
+) => {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+    }).format(amount);
+  } catch (e) {
+    if (e instanceof RangeError) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+      }).format(amount);
+    }
+    throw e;
+  }
+};
+
+/** Compact money for chart axes: `$1.2K`, `$340`, `$2M` (current currency). */
+export const formatCompactCurrency = (
+  amount: number,
+  currency: string = useSettingsStore.getState().currency
+) => {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(amount);
+  } catch (e) {
+    if (e instanceof RangeError) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        notation: 'compact',
+        maximumFractionDigits: 1,
+      }).format(amount);
+    }
+    throw e;
+  }
+};
+
+/** Today's date as local `YYYY-MM-DD` (unlike `toISOString()`, never UTC-shifted). */
+export const todayLocalISO = (): string => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 };
 
 export const formatDate = (dateStr: string) => {
   if (!dateStr) return 'N/A';
   try {
-    const date = new Date(dateStr);
+    // A bare YYYY-MM-DD parses as UTC midnight, which formats as the previous
+    // day west of UTC — parse it as a local date instead.
+    const isoDay = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+    const date = isoDay
+      ? new Date(Number(isoDay[1]), Number(isoDay[2]) - 1, Number(isoDay[3]))
+      : new Date(dateStr);
     if (isNaN(date.getTime())) {
       return dateStr;
     }

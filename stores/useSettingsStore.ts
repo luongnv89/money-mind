@@ -15,17 +15,14 @@ interface SettingsState extends AppSettings {
   setAiMode: (mode: AIMode) => void;
   setDemoMode: (isDemo: boolean) => void;
   toggleApplyPatterns: () => void;
-  toggleFunnyAlerts: () => void;
+  toggleSpendingAlerts: () => void;
+  setCurrency: (currency: string) => void;
   setGeminiConfig: (config: Partial<GeminiConfig>) => void;
   setGroqConfig: (config: Partial<GroqConfig>) => void;
   setOllamaConfig: (config: Partial<OllamaConfig>) => void;
   setCustomConfig: (config: Partial<CustomOpenAIConfig>) => void;
   setTypesafeConfig: (config: Partial<TypeSafeConfig>) => void;
   resetSettings: () => void;
-
-  // Usage Control
-  checkUsageLimit: (type: 'analysis' | 'chat', amount?: number) => boolean;
-  incrementUsage: (type: 'analysis' | 'chat', amount?: number) => void;
 }
 
 // Simple base64 obfuscation to prevent plain-text read in local storage (not encryption)
@@ -44,54 +41,53 @@ const deobfuscate = (text: string) => {
   }
 };
 
-// Hard limits as per requirement
-const MAX_TX_ANALYSIS = 150;
-const MAX_CHAT_MESSAGES = 10;
+const defaultSettings = (): AppSettings => ({
+  aiMode: 'cloud',
+  isDemoMode: false,
+  applyPatterns: true,
+  enableSpendingAlerts: true,
+  currency: 'USD',
+  geminiConfig: {
+    apiKey: '',
+    model: DEFAULT_MODELS.cloud,
+  },
+  groqConfig: {
+    apiKey: '',
+    model: DEFAULT_MODELS.groq,
+  },
+  ollamaConfig: {
+    baseUrl: 'http://localhost',
+    port: '11434',
+    model: DEFAULT_MODELS.local,
+  },
+  customConfig: {
+    baseUrl: '',
+    apiKey: '',
+    model: DEFAULT_MODELS.custom,
+  },
+  typesafeConfig: {
+    apiKey: '',
+  },
+});
+
+/** Shape stored by version 0 of this persist entry (pre-rename/pre-currency). */
+interface PersistedSettingsV0 {
+  enableFunnyAlerts?: boolean;
+  usage?: unknown;
+  [key: string]: unknown;
+}
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set, get) => ({
-      aiMode: 'cloud',
-      isDemoMode: false,
-      applyPatterns: true,
-      enableFunnyAlerts: true, // Default to true
-
-      geminiConfig: {
-        apiKey: '',
-        model: DEFAULT_MODELS.cloud,
-      },
-
-      groqConfig: {
-        apiKey: '',
-        model: DEFAULT_MODELS.groq,
-      },
-
-      ollamaConfig: {
-        baseUrl: 'http://localhost',
-        port: '11434',
-        model: DEFAULT_MODELS.local,
-      },
-
-      customConfig: {
-        baseUrl: '',
-        apiKey: '',
-        model: DEFAULT_MODELS.custom,
-      },
-
-      typesafeConfig: {
-        apiKey: '',
-      },
-
-      usage: {
-        txAnalyzed: 0,
-        chatMessages: 0,
-        lastReset: new Date().toISOString(),
-      },
+    (set) => ({
+      ...defaultSettings(),
 
       setAiMode: (mode) => set({ aiMode: mode }),
       setDemoMode: (isDemo) => set({ isDemoMode: isDemo }),
       toggleApplyPatterns: () => set((state) => ({ applyPatterns: !state.applyPatterns })),
-      toggleFunnyAlerts: () => set((state) => ({ enableFunnyAlerts: !state.enableFunnyAlerts })),
+      toggleSpendingAlerts: () =>
+        set((state) => ({ enableSpendingAlerts: !state.enableSpendingAlerts })),
+      setCurrency: (currency) => set({ currency }),
 
       setGeminiConfig: (config) =>
         set((state) => {
@@ -134,76 +130,21 @@ export const useSettingsStore = create<SettingsState>()(
           return { typesafeConfig: newConfig };
         }),
 
-      resetSettings: () =>
-        set({
-          aiMode: 'cloud',
-          isDemoMode: false,
-          applyPatterns: true,
-          enableFunnyAlerts: true,
-          geminiConfig: {
-            apiKey: '',
-            model: DEFAULT_MODELS.cloud,
-          },
-          groqConfig: { apiKey: '', model: DEFAULT_MODELS.groq },
-          ollamaConfig: { baseUrl: 'http://localhost', port: '11434', model: DEFAULT_MODELS.local },
-          customConfig: { baseUrl: '', apiKey: '', model: DEFAULT_MODELS.custom },
-          typesafeConfig: { apiKey: '' },
-          usage: { txAnalyzed: 0, chatMessages: 0, lastReset: new Date().toISOString() },
-        }),
-
-      checkUsageLimit: (type, amount = 1) => {
-        const { usage, aiMode, geminiConfig } = get();
-
-        // Unlimited for Local
-        if (aiMode === 'local') return true;
-
-        if (type === 'analysis' && deobfuscate(get().typesafeConfig.apiKey)) {
-          return true;
-        }
-
-        // Check if Custom Key (Cloud) -> Unlimited
-        if (aiMode === 'cloud') {
-          const currentKey = deobfuscate(geminiConfig.apiKey);
-          if (currentKey) {
-            return true;
-          }
-        }
-
-        // Check if Groq Key present -> Unlimited
-        if (aiMode === 'groq') {
-          const key = deobfuscate(get().groqConfig.apiKey);
-          if (key) return true;
-        }
-
-        // Check if Custom endpoint key present -> Unlimited
-        if (aiMode === 'custom') {
-          const key = deobfuscate(get().customConfig.apiKey);
-          if (key) return true;
-        }
-
-        // Otherwise, enforce limits (no key supplied)
-        if (type === 'analysis') {
-          return usage.txAnalyzed + amount <= MAX_TX_ANALYSIS;
-        }
-        if (type === 'chat') {
-          return usage.chatMessages + amount <= MAX_CHAT_MESSAGES;
-        }
-        return true;
-      },
-
-      incrementUsage: (type, amount = 1) =>
-        set((state) => {
-          const newUsage = { ...state.usage };
-          if (type === 'analysis') {
-            newUsage.txAnalyzed += amount;
-          } else {
-            newUsage.chatMessages += amount;
-          }
-          return { usage: newUsage };
-        }),
+      resetSettings: () => set(defaultSettings()),
     }),
     {
       name: 'moneymind-settings',
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = persisted as PersistedSettingsV0 | undefined;
+        if (!state || version !== 0) return state as Partial<SettingsState>;
+        const { usage: _usage, enableFunnyAlerts, ...rest } = state;
+        return {
+          ...rest,
+          enableSpendingAlerts: enableFunnyAlerts ?? true,
+          currency: typeof state.currency === 'string' ? state.currency : 'USD',
+        } as Partial<SettingsState>;
+      },
     }
   )
 );
@@ -280,7 +221,7 @@ export const validatePersistedModel = (
 /**
  * The single definition of "an AI backend is ready" (F-UX-007): local mode is
  * always ready; cloud needs the stored Gemini key and groq needs the stored
- * Groq key. Every consumer — Layout, MonkeySmileChat, the Dashboard — reads
+ * Groq key. Every consumer — Layout, AssistantChat, the Overview — reads
  * this selector instead of re-deriving its own.
  */
 export const selectAIReady = (state: SettingsState): boolean => {

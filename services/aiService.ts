@@ -4,12 +4,16 @@ import {
   getDeobfuscatedApiKey,
   getDeobfuscatedProviderKey,
   getTypesafeApiKey,
+  selectAIReady,
 } from '../stores/useSettingsStore';
 import { GoogleGenAI, Type } from '@google/genai';
 import { CATEGORY_HIERARCHY } from '../constants';
 import { logger } from '../lib/logger';
 import { normalizeCustomBaseUrl } from './modelCatalog';
 import { categorizeWithTypeSafe } from './typesafeService';
+import { groupForCategorization } from './categorizationPlan';
+import { normalizeCategorization } from './normalizeCategorization';
+import { demoCategoryFor } from '../lib/demoData';
 
 // --- Model availability errors (issue #79) ---
 
@@ -202,7 +206,25 @@ export const testAiConnection = async (): Promise<boolean> => {
   }
 };
 
-// --- Chat Service (MonkeySmile) ---
+// --- Assistant chat service ---
+
+const buildAssistantSystemPrompt = (
+  context: string
+): string => `You are MoneyMind's financial assistant: a calm, precise personal-finance analyst.
+
+Answer using only the figures in FINANCIAL CONTEXT below. The app calculated them from the user's categorized transactions with fixed formulas. Quote amounts exactly as written, together with the period they belong to. Never estimate, recompute or invent a figure. If the context doesn't contain what the question needs, say so briefly and suggest where in MoneyMind to look (Overview, Transactions or Settings).
+
+How to answer:
+- Start with the direct answer in one or two sentences.
+- Then add at most three short bullet points with the supporting figures or concrete next steps tied to the user's own categories, merchants and recurring charges.
+- Prefer specific, practical actions over generic tips.
+- Plain text only: no headings, tables, bold text or emojis. Start bullets with "- ".
+- You are not a licensed financial adviser. For tax, legal or investment-product decisions, add one short sentence recommending a qualified professional.
+
+FINANCIAL CONTEXT
+${context}`;
+
+const EMPTY_ANSWER = 'The model returned an empty answer. Try rephrasing your question.';
 
 export const chatWithFinancialAgent = async (
   userQuery: string,
@@ -210,48 +232,25 @@ export const chatWithFinancialAgent = async (
 ): Promise<string> => {
   const settings = useSettingsStore.getState();
 
-  // Usage Check
-  if (!settings.checkUsageLimit('chat')) {
-    throw new Error(
-      'Budget Exceeded: You have reached the limit of 10 messages. Add your own API key in Settings for unlimited usage.'
-    );
-  }
-
   const apiKey = getDeobfuscatedApiKey(settings);
-
-  // System prompt defines the persona
-  const systemPrompt = `You are MonkeySmile 🐵, a sassy, fun, and brutally honest financial buddy.
-    You have access to the user's current financial snapshot below.
-
-    FINANCIAL DATA CONTEXT:
-    ${financialContext}
-
-    INSTRUCTIONS:
-    1. Be concise and conversational.
-    2. Use emojis (especially 🐵, 🍌, 💸).
-    3. Use the provided financial context to answer accurately.
-    4. If the user asks "Can I afford X?", check their 'Net' or 'Nice-to-Have' spending.
-    5. If 'Waste' spending is high, gently roast them.
-    6. If they are doing well (high savings, positive net), cheer them on!
-    7. Never make up numbers. If the data isn't in the context, say "I don't see that in your records."`;
-
-  let resultText = '';
+  const systemPrompt = buildAssistantSystemPrompt(financialContext);
 
   if (settings.aiMode === 'cloud') {
     // Require a valid API key — no server fallback
     if (!apiKey)
       throw new Error(
-        'No API Key set. Configure a Gemini API key in Settings to chat with MonkeySmile.'
+        'No API Key set. Configure a Gemini API key in Settings to use the Assistant.'
       );
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: settings.geminiConfig.model,
-      contents: [
-        { role: 'user', parts: [{ text: systemPrompt + '\n\nUser Question: ' + userQuery }] },
-      ],
+      contents: userQuery,
+      config: { systemInstruction: systemPrompt, temperature: 0.2 },
     });
-    resultText = response.text || "I'm speechless 🐵 (No response from AI)";
-  } else if (settings.aiMode === 'groq') {
+    return response.text || EMPTY_ANSWER;
+  }
+
+  if (settings.aiMode === 'groq') {
     if (!apiKey) throw new Error('Missing API Key');
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -265,6 +264,7 @@ export const chatWithFinancialAgent = async (
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userQuery },
         ],
+        temperature: 0.2,
       }),
     });
 
@@ -274,8 +274,10 @@ export const chatWithFinancialAgent = async (
     }
 
     const data = await response.json();
-    resultText = data.choices?.[0]?.message?.content || 'Groq is silent 🐵';
-  } else if (settings.aiMode === 'custom') {
+    return data.choices?.[0]?.message?.content || EMPTY_ANSWER;
+  }
+
+  if (settings.aiMode === 'custom') {
     const { baseUrl, model } = settings.customConfig;
     if (!baseUrl.trim() || !model.trim()) throw new Error('Missing Custom Endpoint configuration');
 
@@ -285,6 +287,7 @@ export const chatWithFinancialAgent = async (
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userQuery },
       ],
+      temperature: 0.2,
     });
 
     if (!response.ok) {
@@ -293,32 +296,33 @@ export const chatWithFinancialAgent = async (
     }
 
     const data = await response.json();
-    resultText = data.choices?.[0]?.message?.content || 'Your endpoint is silent 🐵';
-  } else {
-    // Ollama
-    const { baseUrl, port, model } = settings.ollamaConfig;
-    const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;
-    const url = `${safeBaseUrl}:${port}/api/generate`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: model,
-        prompt: `${systemPrompt}\n\nUser Question: ${userQuery}`,
-        stream: false,
-      }),
-    });
-
-    if (!response.ok) throw new Error('Ollama connection failed');
-
-    const data = await response.json();
-    resultText = data.response || 'Thinking... 🐵';
+    return data.choices?.[0]?.message?.content || EMPTY_ANSWER;
   }
 
-  // Increment Usage if successful
-  settings.incrementUsage('chat');
-  return resultText;
+  // Ollama
+  const { baseUrl, port, model } = settings.ollamaConfig;
+  const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;
+  const url = `${safeBaseUrl}:${port}/api/generate`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: model,
+      system: systemPrompt,
+      prompt: userQuery,
+      stream: false,
+      options: { temperature: 0.2 },
+    }),
+  });
+
+  if (!response.ok) {
+    if (response.status === 404) throw new Error(ollamaModelMissingMessage(model));
+    throw new Error('Ollama connection failed');
+  }
+
+  const data = await response.json();
+  return data.response || EMPTY_ANSWER;
 };
 
 // --- Main Categorization Service ---
@@ -330,41 +334,45 @@ export const categorizeWithAI = async (
 ): Promise<void> => {
   const settings = useSettingsStore.getState();
 
-  // Usage Check
-  if (!settings.checkUsageLimit('analysis', transactions.length)) {
-    throw new Error(
-      `Budget Exceeded: Analyzing ${transactions.length} transactions would exceed your limit of 150. Add your own API key in Settings for unlimited usage.`
-    );
-  }
-
-  // Demo Mode Interception
-  if (settings.isDemoMode) {
-    await simulateCategorization(transactions, onChunkProcessed);
-    // Demo mode doesn't consume budget in this simulation implementation,
-    // but conceptually you might want it to.
-    // For now, we skip decrement for pure simulation to be friendly.
-    return;
-  }
-
   // We process whatever is passed in. The caller is responsible for filtering (e.g. only Uncategorized, or Unapproved).
   const toProcess = transactions;
   if (toProcess.length === 0) return;
 
-  if (getTypesafeApiKey(settings)) {
-    await categorizeWithTypeSafe(toProcess, onChunkProcessed);
-  } else if (mode === 'cloud') {
-    await categorizeWithGemini(toProcess, onChunkProcessed);
-  } else if (mode === 'groq') {
-    await categorizeWithGroq(toProcess, onChunkProcessed);
-  } else if (mode === 'custom') {
-    await categorizeWithCustom(toProcess, onChunkProcessed);
-  } else {
-    await categorizeWithOllama(toProcess, onChunkProcessed);
-  }
+  // Identical transactions are categorized once; each result is fanned out to
+  // every member id so progress and updates count real transactions.
+  const { representatives, membersByRepId } = groupForCategorization(toProcess);
+  const fanOut = (results: CategorizationResult[]) => {
+    if (!onChunkProcessed) return;
+    const expanded: CategorizationResult[] = [];
+    for (const res of results) {
+      const members = membersByRepId.get(res.id);
+      if (!members) continue; // id we never asked for — ignore
+      for (const id of members) expanded.push({ ...res, id });
+    }
+    if (expanded.length > 0) onChunkProcessed(expanded);
+  };
 
-  // Increment Usage after attempting processing
-  // Note: In a robust system we'd count actual successes, but for budget control counting attempts is safer.
-  settings.incrementUsage('analysis', transactions.length);
+  // Jev first, then the configured language model; demo mode only simulates
+  // when no real categorization is set up.
+  if (getTypesafeApiKey(settings)) {
+    await categorizeWithTypeSafe(representatives, fanOut);
+  } else if (selectAIReady(settings)) {
+    if (mode === 'cloud') {
+      await categorizeWithGemini(representatives, fanOut);
+    } else if (mode === 'groq') {
+      await categorizeWithGroq(representatives, fanOut);
+    } else if (mode === 'custom') {
+      await categorizeWithCustom(representatives, fanOut);
+    } else {
+      await categorizeWithOllama(representatives, fanOut);
+    }
+  } else if (settings.isDemoMode) {
+    await simulateCategorization(representatives, fanOut);
+  } else {
+    throw new Error(
+      'No categorization service is set up. Add a TypeSafe key or a language model in Settings.'
+    );
+  }
 };
 
 const categorizeWithGemini = async (
@@ -376,9 +384,7 @@ const categorizeWithGemini = async (
   const model = settings.geminiConfig.model;
 
   if (!apiKey) {
-    logger.warn('No API key provided, using simulation.');
-    await simulateCategorization(transactions, onChunkProcessed);
-    return;
+    throw new Error('No API Key set. Configure a Gemini API key in Settings.');
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -417,6 +423,7 @@ const categorizeWithGemini = async (
         model: model,
         contents: prompt,
         config: {
+          temperature: 0,
           responseMimeType: 'application/json',
           responseSchema: {
             type: Type.ARRAY,
@@ -437,8 +444,14 @@ const categorizeWithGemini = async (
 
       const text = response.text;
       if (text) {
-        const results: CategorizationResult[] = JSON.parse(text);
-        if (onChunkProcessed) onChunkProcessed(results);
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) {
+          const requestedIds = new Set(batch.map((t) => t.id));
+          const results = parsed
+            .filter((item) => requestedIds.has((item as { id?: unknown })?.id as string))
+            .map((item) => normalizeCategorization(item, 'Gemini AI'));
+          if (results.length > 0 && onChunkProcessed) onChunkProcessed(results);
+        }
       }
     } catch (e: unknown) {
       logger.error('Gemini Batch Failed', e);
@@ -581,23 +594,12 @@ const categorizeWithOpenAICompatible = async (
         }
 
         if (Array.isArray(parsed)) {
-          // Normalize fields
-          const results: CategorizationResult[] = parsed.map(
-            (item: {
-              id: string;
-              category?: TransactionCategory;
-              subCategory?: string;
-              confidence?: number;
-              reason?: string;
-            }) => ({
-              id: item.id,
-              category: item.category || TransactionCategory.Uncategorized,
-              subCategory: item.subCategory,
-              confidence: item.confidence || 0.8,
-              reason: item.reason || config.defaultReason,
-            })
-          );
-          if (onChunkProcessed) onChunkProcessed(results);
+          // Normalize fields — never trust the model's own confidence/category.
+          const requestedIds = new Set(batch.map((t) => t.id));
+          const results: CategorizationResult[] = parsed
+            .filter((item) => requestedIds.has((item as { id?: unknown })?.id as string))
+            .map((item) => normalizeCategorization(item, config.defaultReason));
+          if (results.length > 0 && onChunkProcessed) onChunkProcessed(results);
         }
       }
     } catch (e: unknown) {
@@ -752,13 +754,7 @@ const categorizeWithOllama = async (
         throw new Error('Invalid JSON response');
       }
 
-      const processedResult: CategorizationResult = {
-        id: tx.id,
-        category: result.category || TransactionCategory.Uncategorized,
-        subCategory: result.subCategory,
-        confidence: result.confidence || 0.5,
-        reason: result.reason || 'Local AI',
-      };
+      const processedResult = normalizeCategorization({ ...result, id: tx.id }, 'Local AI');
 
       if (onChunkProcessed) onChunkProcessed([processedResult]);
     } catch (e: unknown) {
@@ -790,7 +786,10 @@ const categorizeWithOllama = async (
   await Promise.all(lanes);
 };
 
-// Simulation for preview environments without backend/key
+// Simulation for preview environments without backend/key. Uses the same
+// originalCategory → hierarchy map as the demo dataset (lib/demoData.ts) so
+// demo and simulated results agree; unmapped rows degrade to zero-confidence
+// Uncategorized instead of a guessed category.
 const simulateCategorization = async (
   transactions: Transaction[],
   onChunkProcessed?: (results: CategorizationResult[]) => void
@@ -802,101 +801,26 @@ const simulateCategorization = async (
 
     await new Promise((resolve) => setTimeout(resolve, 800)); // Fake network delay
 
-    const results = batch.map((t) => {
-      const desc = t.description.toLowerCase();
-      const origCat = (t.originalCategory || '').toLowerCase();
-
-      let cat = TransactionCategory.Uncategorized;
-      let subCat = undefined;
-      let reason = 'Unsure';
-
-      // Matching Demo Data Original Categories
-      if (origCat === 'rent') {
-        cat = TransactionCategory.MustHave;
-        subCat = 'Housing';
-        reason = 'Rent';
-      } else if (origCat === 'bills') {
-        cat = TransactionCategory.MustHave;
-        subCat = 'Utilities';
-        reason = 'Utility Bill';
-      } else if (origCat === 'insurance') {
-        cat = TransactionCategory.MustHave;
-        subCat = 'Insurance';
-        reason = 'Policy';
-      } else if (origCat === 'utilities') {
-        cat = TransactionCategory.MustHave;
-        subCat = 'Utilities';
-        reason = 'City/Power';
-      } else if (origCat === 'subscription') {
-        cat = TransactionCategory.NiceToHave;
-        subCat = 'Entertainment';
-        reason = 'Sub';
-      } else if (origCat === 'shopping') {
-        cat = TransactionCategory.NiceToHave;
-        subCat = 'Shopping';
-        reason = 'Retail';
-      } else if (origCat === 'groceries') {
-        cat = TransactionCategory.MustHave;
-        subCat = 'Food & Groceries';
-        reason = 'Grocery Store';
-      } else if (origCat === 'gas') {
-        cat = TransactionCategory.MustHave;
-        subCat = 'Transportation';
-        reason = 'Fuel';
-      } else if (origCat === 'travel') {
-        cat = TransactionCategory.NiceToHave;
-        subCat = 'Travel & Leisure';
-        reason = 'Trip';
-      } else if (origCat === 'dining') {
-        cat = TransactionCategory.NiceToHave;
-        subCat = 'Dining Out';
-        reason = 'Restaurant';
-      } else if (origCat === 'income') {
-        cat = TransactionCategory.Income;
-        subCat = 'Salary';
-        reason = 'Payroll';
+    const results: CategorizationResult[] = batch.map((t) => {
+      const mapped = demoCategoryFor(t.originalCategory);
+      if (!mapped) {
+        return {
+          id: t.id,
+          category: TransactionCategory.Uncategorized,
+          confidence: 0,
+          reason: 'Demo: no matching rule',
+        };
       }
-      // General fallbacks based on description keywords
-      else if (origCat.includes('income') || origCat.includes('deposit')) {
-        cat = TransactionCategory.Income;
-        subCat = 'Other Income';
-        reason = 'Based on bank category';
-      } else if (t.amount > 0 && !desc.includes('refund')) {
-        cat = TransactionCategory.Income;
-        subCat = desc.includes('salary') ? 'Salary' : 'Other Income';
-        reason = 'Positive amount';
-      } else if (desc.includes('payment') || desc.includes('transfer')) {
-        cat = TransactionCategory.InternalTransfer;
-        subCat = 'Credit Card Payment';
-        reason = 'Transfer detected';
-      } else if (desc.includes('starbucks') || desc.includes('coffee')) {
-        cat = TransactionCategory.NiceToHave;
-        subCat = 'Dining Out';
-        reason = 'Coffee';
-      } else if (desc.includes('netflix') || desc.includes('spotify')) {
-        cat = TransactionCategory.NiceToHave;
-        subCat = 'Entertainment';
-        reason = 'Subscription';
-      } else if (desc.includes('fee')) {
-        cat = TransactionCategory.Waste;
-        subCat = 'Late Fees & Penalties';
-        reason = 'Fee detected';
-      } else if (desc.includes('savings')) {
-        cat = TransactionCategory.Save;
-        subCat = 'General Savings';
-        reason = 'Saving';
-      } else {
-        cat = TransactionCategory.NiceToHave;
-        subCat = 'Shopping';
-      }
-
-      return {
-        id: t.id,
-        category: cat,
-        subCategory: subCat,
-        confidence: 0.85,
-        reason,
-      };
+      return normalizeCategorization(
+        {
+          id: t.id,
+          category: mapped[0],
+          subCategory: mapped[1],
+          confidence: 0.85,
+          reason: 'Demo data',
+        },
+        'Demo data'
+      );
     });
 
     if (onChunkProcessed) onChunkProcessed(results);

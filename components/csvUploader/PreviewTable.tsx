@@ -9,12 +9,12 @@ const DuplicateReasonCell: React.FC<{ reason: DuplicateTransaction['duplicateRea
   reason,
 }) =>
   reason === 'Already Imported' ? (
-    <div className="flex items-center gap-1.5 text-blue-600 bg-blue-50 px-2 py-1 rounded-md w-fit">
+    <div className="flex w-fit items-center gap-1.5 rounded-md bg-info/10 px-2 py-1 text-info">
       <Database className="w-3 h-3" />
       <span className="font-medium">In Database</span>
     </div>
   ) : (
-    <div className="flex items-center gap-1.5 text-orange-600 bg-orange-50 px-2 py-1 rounded-md w-fit">
+    <div className="flex w-fit items-center gap-1.5 rounded-md bg-warning/10 px-2 py-1 text-warning">
       <Copy className="w-3 h-3" />
       <span className="font-medium">File Duplicate</span>
     </div>
@@ -39,15 +39,15 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
     key={t.id}
     onClick={() => activeTab === 'duplicates' && onSelectDuplicate(t as DuplicateTransaction)}
     className={cn(
-      'hover:bg-gray-50/80 group transition-colors',
+      'group transition-colors hover:bg-surface-muted/70',
       activeTab === 'duplicates' ? 'cursor-pointer' : ''
     )}
   >
-    <td className="p-3 text-gray-500 whitespace-nowrap">{t.date}</td>
+    <td className="num whitespace-nowrap p-3 text-muted">{t.date}</td>
     <td className="p-3 truncate max-w-[200px]" title={t.description}>
       {t.description}
       {t.originalCategory && (
-        <div className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+        <div className="mt-0.5 flex items-center gap-1 text-[10px] text-muted">
           <Info className="w-3 h-3" />
           Cat: {t.originalCategory}
         </div>
@@ -60,12 +60,12 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
       </td>
     )}
 
-    <td className="p-3 text-right font-mono">{formatCurrency(t.amount)}</td>
+    <td className="num p-3 text-right">{formatCurrency(t.amount)}</td>
     <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
       {activeTab === 'new' ? (
         <button
           onClick={() => onRemove(t.id)}
-          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+          className="rounded-md p-1.5 text-muted transition-colors hover:bg-negative/10 hover:text-negative"
           title="Remove transaction"
         >
           <Trash2 className="w-4 h-4" />
@@ -73,7 +73,7 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
       ) : (
         <button
           onClick={() => onRestore(t as DuplicateTransaction)}
-          className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
+          className="rounded-md p-1.5 text-muted transition-colors hover:bg-positive/10 hover:text-positive"
           title="Add anyway (as duplicate)"
         >
           <PlusCircle className="w-4 h-4" />
@@ -101,16 +101,16 @@ export const PreviewTable: React.FC<PreviewTableProps> = ({
 }) => (
   <div className="overflow-x-auto flex-1">
     <table className="w-full text-xs text-left">
-      <thead className="bg-gray-50 border-b border-gray-100">
+      <thead className="border-b border-line bg-surface-muted">
         <tr>
-          <th className="p-3 font-medium text-gray-500">Date</th>
-          <th className="p-3 font-medium text-gray-500">Description</th>
-          {activeTab === 'duplicates' && <th className="p-3 font-medium text-gray-500">Reason</th>}
-          <th className="p-3 font-medium text-gray-500 text-right">Amount</th>
-          <th className="p-3 font-medium text-gray-500 w-16 text-center">Action</th>
+          <th className="p-3 font-medium text-muted">Date</th>
+          <th className="p-3 font-medium text-muted">Description</th>
+          {activeTab === 'duplicates' && <th className="p-3 font-medium text-muted">Reason</th>}
+          <th className="p-3 text-right font-medium text-muted">Amount</th>
+          <th className="w-16 p-3 text-center font-medium text-muted">Action</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-gray-50">
+      <tbody className="divide-y divide-line">
         {paginatedData.length > 0 ? (
           paginatedData.map((t) => (
             <PreviewRow
@@ -126,7 +126,7 @@ export const PreviewTable: React.FC<PreviewTableProps> = ({
           <tr>
             <td
               colSpan={activeTab === 'duplicates' ? 5 : 4}
-              className="p-8 text-center text-gray-400 italic"
+              className="p-8 text-center italic text-muted"
             >
               {activeTab === 'new' ? 'No transactions ready to import.' : 'No duplicates found.'}
             </td>

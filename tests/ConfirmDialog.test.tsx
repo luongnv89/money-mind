@@ -113,7 +113,7 @@ describe('ConfirmDialog', () => {
     const btns = container.querySelectorAll('button');
     expect(btns.length).toBeGreaterThanOrEqual(2);
     const confirmBtn = btns[btns.length - 1] as HTMLElement;
-    expect(confirmBtn.className).toContain('bg-red-600');
+    expect(confirmBtn.className).toContain('bg-negative');
   });
 
   it('renders custom confirm and cancel text', () => {

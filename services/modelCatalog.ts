@@ -47,6 +47,46 @@ interface CustomListResponse {
   data?: { id: string }[];
 }
 
+export interface ModelDescription {
+  tier: 'fast' | 'balanced' | 'capable';
+  label: string;
+  summary: string;
+}
+
+const CAPABLE_PATTERN = /(^|[^a-z])pro([^a-z]|$)|ultra|opus|sonnet|405b|120b|90b|72b|70b|large/;
+// `mini` is token-boundaried so provider names like "gemini" don't trip it.
+const FAST_PATTERN =
+  /lite|(^|[^a-z])mini([^a-z]|$)|nano|instant|haiku|tiny|small|(^|[^0-9])(1|3|7|8)b([^a-z0-9]|$)/;
+const BALANCED_PATTERN = /flash|gpt-oss|mixtral|gemma|medium|(^|[^0-9])(20|27|30|32)b([^a-z0-9]|$)/;
+
+const TIER_COPY: Record<ModelDescription['tier'], Omit<ModelDescription, 'tier'>> = {
+  capable: {
+    label: 'Most capable',
+    summary: 'Strongest reasoning for detailed answers; slower and costs more per request.',
+  },
+  fast: {
+    label: 'Fast & low-cost',
+    summary: 'Quickest and cheapest; fine for categorization and short answers.',
+  },
+  balanced: {
+    label: 'Balanced',
+    summary: 'Good quality at low latency — a sensible default.',
+  },
+};
+
+/**
+ * Estimate a model's speed/cost tier from its id (lowercased substring match,
+ * checked in capable → fast → balanced order). Returns null when the name
+ * gives no signal — Settings then shows "Tier unknown".
+ */
+export const describeModel = (id: string): ModelDescription | null => {
+  const name = id.toLowerCase();
+  if (CAPABLE_PATTERN.test(name)) return { tier: 'capable', ...TIER_COPY.capable };
+  if (FAST_PATTERN.test(name)) return { tier: 'fast', ...TIER_COPY.fast };
+  if (BALANCED_PATTERN.test(name)) return { tier: 'balanced', ...TIER_COPY.balanced };
+  return null;
+};
+
 /** Ensure the custom endpoint base URL is protocol-complete and slash-free. */
 export const normalizeCustomBaseUrl = (baseUrl: string): string => {
   const safeBaseUrl = baseUrl.startsWith('http') ? baseUrl : `http://${baseUrl}`;

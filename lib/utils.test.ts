@@ -1,5 +1,18 @@
-import { describe, expect, it } from 'vitest';
-import { cn, formatCurrency, formatDate, isValidDate, safeNewDate, normalizeDate } from './utils';
+// tsconfig types are limited to vite/client, so `process` isn't declared for
+// tsc — declare the slice this file uses (process.env.TZ for the A8 zone test).
+declare const process: { env: Record<string, string | undefined> };
+
+import { afterEach, describe, expect, it } from 'vitest';
+import {
+  cn,
+  formatCurrency,
+  formatDate,
+  isValidDate,
+  safeNewDate,
+  normalizeDate,
+  todayLocalISO,
+} from './utils';
+import { useSettingsStore } from '../stores/useSettingsStore';
 
 describe('cn', () => {
   it('merges conflicting tailwind classes, last one winning', () => {
@@ -12,9 +25,23 @@ describe('cn', () => {
 });
 
 describe('formatCurrency', () => {
+  afterEach(() => {
+    useSettingsStore.getState().resetSettings();
+  });
+
   it('formats positive and negative amounts as USD', () => {
     expect(formatCurrency(1234.5)).toBe('$1,234.50');
     expect(formatCurrency(-42)).toBe('-$42.00');
+  });
+
+  it('honours the currency argument and the settings default', () => {
+    expect(formatCurrency(42, 'EUR')).toBe('€42.00');
+    useSettingsStore.getState().setCurrency('JPY');
+    expect(formatCurrency(42)).toBe('¥42');
+  });
+
+  it('falls back to USD when the currency code is invalid', () => {
+    expect(formatCurrency(42, 'NOPE')).toBe('$42.00');
   });
 });
 
@@ -32,6 +59,37 @@ describe('formatDate', () => {
   // previous day west of UTC.
   it('formats an ISO date', () => {
     expect(formatDate('2025-03-09')).toBe('Mar 9, 2025');
+  });
+
+  // Bare YYYY-MM-DD strings are parsed as LOCAL dates, so they render the same
+  // calendar day in every timezone (Phase A8). TZ is switched per-test.
+  it('renders date-only strings on the correct day west of UTC', () => {
+    const previous = process.env.TZ;
+    process.env.TZ = 'America/Los_Angeles';
+    try {
+      expect(formatDate('2026-03-01')).toBe('Mar 1, 2026');
+    } finally {
+      if (previous === undefined) delete process.env.TZ;
+      else process.env.TZ = previous;
+    }
+  });
+
+  it('keeps datetime strings on their instant', () => {
+    expect(formatDate('2025-03-09T12:00:00Z')).toBe('Mar 9, 2025');
+  });
+});
+
+describe('todayLocalISO', () => {
+  it('returns local YYYY-MM-DD matching Date getters, not UTC', () => {
+    const expected = (() => {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    })();
+    expect(todayLocalISO()).toBe(expected);
+    expect(todayLocalISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });
 
