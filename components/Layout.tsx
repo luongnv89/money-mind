@@ -48,15 +48,32 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
 
       <header className="sticky top-0 z-50 w-full border-b border-line bg-surface/85 backdrop-blur-xs">
         <div className="container mx-auto max-w-7xl px-4 h-16 flex items-center justify-between">
-          <div
-            className="flex items-center gap-2.5 cursor-pointer"
+          <button
+            type="button"
+            aria-label="MoneyMind"
+            title="MoneyMind"
+            className="flex min-h-11 min-w-11 items-center gap-1 rounded-md text-left focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent sm:gap-2.5"
             onClick={() => onViewChange(transactions.length > 0 ? 'overview' : 'upload')}
           >
-            <div className="w-8 h-8 bg-ink rounded-md flex items-center justify-center font-display text-lg text-paper">
+            <span
+              aria-hidden="true"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-ink font-display text-lg text-paper"
+            >
               M
-            </div>
-            <span className="font-display text-xl tracking-tight text-ink">MoneyMind</span>
-          </div>
+            </span>
+            <span
+              aria-hidden="true"
+              className="font-display text-base tracking-tight text-ink sm:hidden"
+            >
+              Money
+            </span>
+            <span
+              aria-hidden="true"
+              className="hidden font-display text-xl tracking-tight text-ink sm:inline"
+            >
+              MoneyMind
+            </span>
+          </button>
 
           <div className="flex items-center gap-1 md:gap-3">
             <nav className="flex items-center gap-1" aria-label="Primary">
@@ -70,7 +87,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
                       aria-current={active ? 'page' : undefined}
                       aria-label={label}
                       className={cn(
-                        'px-3 py-1.5 text-sm font-medium transition-colors flex items-center gap-2 border-b-2 -mb-px',
+                        'flex min-h-11 min-w-11 items-center justify-center gap-2 border-b-2 px-2 py-1.5 text-sm font-medium transition-colors sm:px-3',
                         active
                           ? 'text-ink border-accent'
                           : 'text-ink-soft border-transparent hover:text-ink'
@@ -90,7 +107,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
               title="Settings"
               aria-current={currentView === 'settings' ? 'page' : undefined}
               className={cn(
-                'p-2 rounded-lg transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent',
+                'flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent',
                 currentView === 'settings'
                   ? 'text-accent bg-accent-light'
                   : 'text-ink-soft hover:bg-ink/5'

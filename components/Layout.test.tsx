@@ -102,6 +102,30 @@ describe('Layout chrome (issue #41, F-UX-008/011/012/013)', () => {
     ]);
   });
 
+  it('uses a compact accessible brand and 44px mobile header targets', () => {
+    render();
+
+    const brand = container.querySelector('header button[aria-label="MoneyMind"]');
+    expect(brand).not.toBeNull();
+    expect(brand?.textContent).toContain('M');
+    const wordmarks = Array.from(brand?.querySelectorAll('span') ?? []);
+    const compactBrand = wordmarks.find((span) => span.textContent === 'Money');
+    expect(compactBrand?.className).toContain('sm:hidden');
+    const fullBrand = wordmarks.find((span) => span.textContent === 'MoneyMind');
+    expect(fullBrand?.className).toContain('hidden');
+    expect(fullBrand?.className).toContain('sm:inline');
+
+    const navButtons = Array.from(container.querySelectorAll('nav[aria-label="Primary"] button'));
+    expect(navButtons).toHaveLength(3);
+    navButtons.forEach((button) => {
+      expect(button.className).toContain('min-h-11');
+      expect(button.className).toContain('min-w-11');
+    });
+    const settings = container.querySelector('header button[aria-label="Settings"]');
+    expect(settings?.className).toContain('min-h-11');
+    expect(settings?.className).toContain('min-w-11');
+  });
+
   it('injects the version string from package.json at build time', () => {
     render();
 

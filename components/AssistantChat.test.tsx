@@ -100,6 +100,72 @@ describe('AssistantChat', () => {
     );
   });
 
+  it('announces only newly completed replies in a persistent polite live region', async () => {
+    useSettingsStore.setState({ geminiConfig: { apiKey: btoa('k'), model: 'm' } });
+    let completeReply!: (reply: string) => void;
+    chatMock.mockImplementationOnce(
+      () => new Promise<string>((resolve) => (completeReply = resolve))
+    );
+    render();
+
+    const region = container.querySelector(
+      '[data-testid="assistant-reply-announcement"]'
+    ) as HTMLElement;
+    expect(region).not.toBeNull();
+    expect(region.className).toContain('sr-only');
+    expect(region.getAttribute('role')).toBe('status');
+    expect(region.getAttribute('aria-live')).toBe('polite');
+    expect(region.textContent).toBe('');
+
+    openPanel();
+    expect(container.querySelector('[role="dialog"] [aria-live]')).toBeNull();
+    const input = container.querySelector(
+      'input[aria-label="Ask the Assistant"]'
+    ) as HTMLInputElement;
+    const setNative = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
+      ?.set as (value: string) => void;
+    input.focus();
+    await React.act(async () => {
+      setNative.call(input, 'draft question');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(region.textContent).toBe('');
+
+    const form = input.closest('form')!;
+    await React.act(async () => {
+      form.requestSubmit();
+    });
+
+    expect(chatMock).toHaveBeenCalledTimes(1);
+    expect(region.textContent).toBe('');
+    await React.act(async () => {
+      completeReply('ok');
+    });
+    const firstReplyRegion = container.querySelector(
+      '[data-testid="assistant-reply-announcement"]'
+    ) as HTMLElement;
+    expect(firstReplyRegion).toBe(region);
+    expect(firstReplyRegion.textContent).toBe('ok');
+    expect(firstReplyRegion.textContent).not.toContain('draft question');
+    const firstReply = firstReplyRegion.firstElementChild;
+    expect(document.activeElement).toBe(input);
+    input.focus();
+    await React.act(async () => {
+      setNative.call(input, 'another question');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      form.requestSubmit();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const secondReplyRegion = container.querySelector(
+      '[data-testid="assistant-reply-announcement"]'
+    ) as HTMLElement;
+    expect(secondReplyRegion.textContent).toBe('ok');
+    expect(secondReplyRegion).toBe(firstReplyRegion);
+    expect(secondReplyRegion.firstElementChild).not.toBe(firstReply);
+    expect(document.activeElement).toBe(input);
+  });
+
   it('sends the engine-built context for the selected period', async () => {
     useSettingsStore.setState({ geminiConfig: { apiKey: btoa('k'), model: 'm' } });
     render();

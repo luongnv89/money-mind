@@ -55,6 +55,8 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ onNavigate }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [completedReply, setCompletedReply] = useState({ id: 0, content: '' });
+  const replyIdRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -79,6 +81,11 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ onNavigate }) => {
           ? customModel
           : ollamaModel;
   const configured = isAIReady;
+
+  const announceReply = (content: string) => {
+    replyIdRef.current += 1;
+    setCompletedReply({ id: replyIdRef.current, content });
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -113,12 +120,12 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ onNavigate }) => {
     try {
       const reply = await chatWithFinancialAgent(query, buildContext());
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      announceReply(reply);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: `The assistant couldn't answer: ${message}` },
-      ]);
+      const reply = `The assistant couldn't answer: ${message}`;
+      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      announceReply(reply);
     } finally {
       setIsLoading(false);
     }
@@ -129,6 +136,16 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ onNavigate }) => {
       <p role="status" className="sr-only">
         MoneyMind Assistant chat is available.
       </p>
+      {/* Keep this region mounted from the first render so completed replies are announced reliably. */}
+      <div
+        data-testid="assistant-reply-announcement"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        <span key={completedReply.id}>{completedReply.content}</span>
+      </div>
 
       {!isOpen && (
         <button

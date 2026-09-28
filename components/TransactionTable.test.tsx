@@ -97,6 +97,46 @@ describe('TransactionTable (issues #40 and #41)', () => {
       const dateTd = descTd.previousElementSibling as HTMLElement;
       expect(dateTd.className).toContain('hidden sm:table-cell');
     });
+
+    it('exposes selected states for quick and category filter toggles', () => {
+      render([tx()]);
+
+      const filters = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')
+      );
+      const quickFilters = filters.slice(0, 3);
+      const categoryFilters = filters.slice(3);
+
+      expect(quickFilters.map((button) => button.textContent)).toEqual([
+        'All',
+        'Needs review',
+        'Uncategorized',
+      ]);
+      expect(quickFilters.map((button) => button.getAttribute('aria-pressed'))).toEqual([
+        'true',
+        'false',
+        'false',
+      ]);
+      expect(
+        categoryFilters.filter((button) => button.getAttribute('aria-pressed') === 'true')
+      ).toHaveLength(1);
+      expect(categoryFilters[0].textContent).toBe('All');
+
+      React.act(() => {
+        quickFilters[1].click();
+      });
+      expect(quickFilters[1].getAttribute('aria-pressed')).toBe('true');
+      expect(quickFilters[0].getAttribute('aria-pressed')).toBe('false');
+
+      const uncategorized = categoryFilters.find(
+        (button) => button.textContent === TransactionCategory.Uncategorized
+      )!;
+      React.act(() => {
+        uncategorized.click();
+      });
+      expect(uncategorized.getAttribute('aria-pressed')).toBe('true');
+      expect(categoryFilters[0].getAttribute('aria-pressed')).toBe('false');
+    });
   });
 
   describe('search debounce (F-PERF-008)', () => {

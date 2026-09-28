@@ -508,6 +508,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
             <button
               key={f.value}
               onClick={() => setQuickFilter(f.value)}
+              aria-pressed={quickFilter === f.value}
               className={cn(
                 'px-3 py-1.5 rounded-full text-xs font-semibold transition-colors whitespace-nowrap border',
                 quickFilter === f.value
@@ -525,6 +526,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
             <button
               key={cat}
               onClick={() => setCategoryFilter(cat as TransactionCategory | 'All')}
+              aria-pressed={categoryFilter === cat}
               className={cn(
                 'px-3 py-1.5 rounded-full text-xs font-medium transition-colors whitespace-nowrap border',
                 categoryFilter === cat

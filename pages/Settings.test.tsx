@@ -398,6 +398,49 @@ describe('Settings — danger zone & AI status rows (Phase A4)', () => {
     expect(useTransactionStore.getState().transactions).toHaveLength(0);
   });
 
+  it('clears learned rules after confirmation and closes the dialog', async () => {
+    window.localStorage.setItem(
+      'financePatterns',
+      JSON.stringify([
+        {
+          keyword: 'COFFEE',
+          category: 'Waste',
+          confidence: 0.8,
+          learnedFrom: 'Coffee shop',
+          correctedAt: '2026-01-01T00:00:00.000Z',
+          timesApplied: 1,
+        },
+      ])
+    );
+    await render();
+
+    const details = Array.from(container.querySelectorAll('details')).find((d) =>
+      d.textContent?.includes('Delete data')
+    )!;
+    await React.act(async () => {
+      details.querySelector('summary')!.click();
+    });
+
+    const clearButton = Array.from(details.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Clear learned rules'
+    )!;
+    await React.act(async () => {
+      clearButton.click();
+    });
+    expect(window.localStorage.getItem('financePatterns')).not.toBeNull();
+    expect(document.body.textContent).toContain('Clear learned rules?');
+
+    const confirm = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Clear rules'
+    )!;
+    await React.act(async () => {
+      confirm.click();
+    });
+
+    expect(window.localStorage.getItem('financePatterns')).toBeNull();
+    expect(document.body.textContent).not.toContain('Clear learned rules?');
+  });
+
   it('shows TypeSafe Jev as the categorization engine when a key is set', async () => {
     useSettingsStore.getState().setTypesafeConfig({ apiKey: 'ts-k' });
     await render();

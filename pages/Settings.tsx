@@ -176,6 +176,7 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const handleClearPatterns = () => {
     clearPatterns();
     setPatternCount(0);
+    setShowClearPatternsConfirm(false);
     addToast('Patterns cleared successfully', 'success');
   };
 
