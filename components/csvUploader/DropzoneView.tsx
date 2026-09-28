@@ -89,16 +89,22 @@ export const DropzoneView: React.FC<DropzoneViewProps> = ({
           <p className="text-sm text-muted">Supports .csv (max {MAX_FILE_SIZE_MB}MB)</p>
         </div>
 
-        {error && (
-          <div className="mt-2 flex items-center gap-2 rounded-full bg-negative/10 px-3 py-1 text-sm text-negative">
-            <AlertCircle className="w-4 h-4" />
-            {error}
-          </div>
-        )}
-
         <SupportedBanksStrip />
       </div>
     </div>
+
+    {/* Parse errors live OUTSIDE the role="button" dropzone: descendants of a
+        button are presentational, so content inside would never reach AT.
+        role="alert" announces the failure (ErrorBanner pattern). */}
+    {error && (
+      <div
+        role="alert"
+        className="mx-auto mt-3 flex w-fit items-center gap-2 rounded-full bg-negative/10 px-3 py-1 text-sm text-negative"
+      >
+        <AlertCircle className="w-4 h-4 shrink-0" />
+        {error}
+      </div>
+    )}
 
     <div className="mt-4 flex items-start gap-2 rounded-lg border border-line bg-surface-muted p-3 text-xs text-ink-soft">
       <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-accent" />

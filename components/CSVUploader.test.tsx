@@ -137,4 +137,18 @@ describe('CSVUploader lifecycle reset (issue #21)', () => {
     });
     expect(clickSpy).toHaveBeenCalledTimes(2);
   });
+
+  it('announces parse errors via role="alert" outside the dropzone button (review F16)', () => {
+    useTransactionStore.setState({ error: 'Only .csv files are supported.' });
+    render();
+
+    const alert = container.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert).not.toBeNull();
+    expect(alert.textContent).toContain('Only .csv files are supported.');
+
+    // Descendants of role="button" are presentational — the alert must live
+    // outside the dropzone or assistive tech would never see it.
+    const dropzone = container.querySelector('[role="button"]') as HTMLElement;
+    expect(dropzone.contains(alert)).toBe(false);
+  });
 });

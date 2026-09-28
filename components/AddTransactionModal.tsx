@@ -112,10 +112,16 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Type Toggle */}
-          <div className="flex rounded-lg border border-line bg-surface-muted p-1">
+          {/* Type Toggle — mutually exclusive; aria-pressed exposes the
+              selected state (which flips the amount sign) to AT. */}
+          <div
+            role="group"
+            aria-label="Transaction type"
+            className="flex rounded-lg border border-line bg-surface-muted p-1"
+          >
             <button
               type="button"
+              aria-pressed={type === 'expense'}
               onClick={() => setType('expense')}
               className={cn(
                 'flex-1 py-2 text-sm font-medium rounded-md transition-all',
@@ -128,6 +134,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ onClos
             </button>
             <button
               type="button"
+              aria-pressed={type === 'income'}
               onClick={() => setType('income')}
               className={cn(
                 'flex-1 py-2 text-sm font-medium rounded-md transition-all',

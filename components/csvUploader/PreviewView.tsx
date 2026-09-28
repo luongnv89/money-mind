@@ -26,6 +26,7 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({
 }) => (
   <div className="flex w-fit space-x-2 rounded-lg border border-line bg-surface-muted p-1">
     <button
+      aria-pressed={activeTab === 'new'}
       onClick={() => onSelect('new')}
       className={cn(
         'px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2',
@@ -37,6 +38,7 @@ const PreviewTabs: React.FC<PreviewTabsProps> = ({
     </button>
 
     <button
+      aria-pressed={activeTab === 'duplicates'}
       onClick={() => onSelect('duplicates')}
       disabled={duplicateCount === 0}
       className={cn(
