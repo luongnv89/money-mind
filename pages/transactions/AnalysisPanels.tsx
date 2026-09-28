@@ -17,28 +17,28 @@ const toneClasses: Record<Tone, Record<string, string>> = {
     icon: 'text-info w-3.5 h-3.5',
     label: 'text-xs text-info font-medium uppercase tracking-wide',
     value: 'num text-2xl font-bold text-info',
-    hint: 'text-[10px] text-info/70',
+    hint: 'text-[10px] text-info',
   },
   positive: {
     box: 'bg-positive/10 rounded-lg p-3 border border-positive/20',
     icon: 'text-positive w-3.5 h-3.5',
     label: 'text-xs text-positive font-medium uppercase tracking-wide',
     value: 'num text-2xl font-bold text-positive',
-    hint: 'text-[10px] text-positive/70',
+    hint: 'text-[10px] text-positive',
   },
   warning: {
     box: 'bg-warning/10 rounded-lg p-3 border border-warning/20',
     icon: 'text-warning w-3.5 h-3.5',
     label: 'text-xs text-warning font-medium uppercase tracking-wide',
     value: 'num text-2xl font-bold text-warning',
-    hint: 'text-[10px] text-warning/70',
+    hint: 'text-[10px] text-warning',
   },
   negative: {
     box: 'bg-negative/10 rounded-lg p-3 border border-negative/20',
     icon: 'text-negative w-3.5 h-3.5',
     label: 'text-xs text-negative font-medium uppercase tracking-wide',
     value: 'num text-2xl font-bold text-negative',
-    hint: 'text-[10px] text-negative/70',
+    hint: 'text-[10px] text-negative',
   },
 };
 
@@ -150,7 +150,14 @@ export const AnalysisProgressCard: React.FC<AnalysisProgressCardProps> = ({
             {processedCount} / {totalToProcess} ({progressPercent}%)
           </span>
         </div>
-        <div className="h-1.5 w-full bg-line rounded-full overflow-hidden">
+        <div
+          className="h-1.5 w-full bg-line rounded-full overflow-hidden"
+          role="progressbar"
+          aria-label="Categorization progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={progressPercent}
+        >
           <div
             className="h-full bg-accent transition-all duration-500 ease-out"
             style={{ width: `${progressPercent}%` }}
@@ -171,7 +178,10 @@ export interface ErrorBannerProps {
 export const ErrorBanner: React.FC<ErrorBannerProps> = ({ error, onDismiss, onOpenSettings }) => {
   const suggestSettings = error.includes('Settings');
   return (
-    <div className="bg-negative/5 border border-negative/20 rounded-xl p-4 flex items-center justify-between gap-3 animate-rise">
+    <div
+      role="alert"
+      className="bg-negative/5 border border-negative/20 rounded-xl p-4 flex items-center justify-between gap-3 animate-rise"
+    >
       <AlertTriangle className="w-5 h-5 text-negative mt-0.5 shrink-0" />
       <div className="flex-1">
         <p className="text-sm text-negative">{error}</p>
@@ -189,7 +199,7 @@ export const ErrorBanner: React.FC<ErrorBannerProps> = ({ error, onDismiss, onOp
       <button
         onClick={onDismiss}
         aria-label="Dismiss error"
-        className="text-negative/60 hover:text-negative shrink-0"
+        className="text-negative hover:text-negative/80 shrink-0"
       >
         <X className="w-4 h-4" />
       </button>

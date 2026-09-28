@@ -135,10 +135,14 @@ export const LanguageModelSection: React.FC<LanguageModelSectionProps> = (p) => 
               </p>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-ink flex items-center gap-2">
+                <label
+                  htmlFor="gemini-api-key"
+                  className="text-sm font-medium text-ink flex items-center gap-2"
+                >
                   <Key className="w-4 h-4" /> API Key
                 </label>
                 <Input
+                  id="gemini-api-key"
                   type="password"
                   placeholder="Enter your Gemini API Key"
                   value={p.geminiApiKey}
@@ -192,10 +196,14 @@ export const LanguageModelSection: React.FC<LanguageModelSectionProps> = (p) => 
                 are sent to Groq.
               </p>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-ink flex items-center gap-2">
+                <label
+                  htmlFor="groq-api-key"
+                  className="text-sm font-medium text-ink flex items-center gap-2"
+                >
                   <Key className="w-4 h-4" /> API Key
                 </label>
                 <Input
+                  id="groq-api-key"
                   type="password"
                   placeholder="Enter your Groq API Key (gsk_...)"
                   value={p.groqApiKey}
@@ -251,16 +259,22 @@ export const LanguageModelSection: React.FC<LanguageModelSectionProps> = (p) => 
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-ink">Base URL</label>
+                  <label htmlFor="ollama-base-url" className="text-sm font-medium text-ink">
+                    Base URL
+                  </label>
                   <Input
+                    id="ollama-base-url"
                     placeholder="http://localhost"
                     value={p.ollamaBaseUrl}
                     onChange={(e) => p.onOllamaBaseUrl(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-ink">Port</label>
+                  <label htmlFor="ollama-port" className="text-sm font-medium text-ink">
+                    Port
+                  </label>
                   <Input
+                    id="ollama-port"
                     placeholder="11434"
                     value={p.ollamaPort}
                     onChange={(e) => p.onOllamaPort(e.target.value)}

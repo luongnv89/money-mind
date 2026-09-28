@@ -47,12 +47,38 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
   const [anchorRect, setAnchorRect] = useState<DOMRect>(() => anchorEl.getBoundingClientRect());
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const anchorElRef = useRef(anchorEl);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    anchorElRef.current = anchorEl;
+  });
 
   // Auto-focus search on open
   useEffect(() => {
     if (inputRef.current) {
       inputRef.current.focus();
     }
+  }, []);
+
+  // Escape closes from anywhere in the dropdown (not just the search input),
+  // and closing returns focus to the row button that opened it (WCAG 2.4.3).
+  // Mount-only effect: onClose/anchorEl are read through refs so parent
+  // re-renders don't re-run the cleanup and steal focus mid-search.
+  useEffect(() => {
+    const panel = containerRef.current;
+    const anchor = anchorElRef.current;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      if (panel?.contains(document.activeElement)) {
+        anchor.focus();
+      }
+    };
   }, []);
 
   // Follow the anchor on scroll/resize instead of detaching: reposition while
@@ -146,7 +172,7 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
       <div
         ref={containerRef}
         className={cn(
-          'absolute bg-surface rounded-lg shadow-xl border border-line flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100',
+          'absolute bg-surface rounded-lg shadow-xl border border-line flex flex-col overflow-hidden animate-rise',
           positionStyle.bottom !== undefined ? 'origin-bottom-left' : 'origin-top-left'
         )}
         style={{
@@ -163,24 +189,22 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
             <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted" />
             <input
               ref={inputRef}
+              aria-label="Search categories"
               className="w-full pl-9 pr-3 py-2 text-sm bg-surface border border-line rounded-md focus:outline-hidden focus:ring-2 focus:ring-accent/50 focus:border-accent"
               placeholder="Search category..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') onClose();
-              }}
             />
           </div>
         </div>
-        <div className="overflow-y-auto flex-1 py-1">
+        <div className="overflow-y-auto flex-1 py-1" role="listbox" aria-label="Categories">
           {Object.entries(filteredHierarchy).length > 0 ? (
             Object.entries(filteredHierarchy).map(([cat, subs]) => {
               const catStyle =
                 CATEGORY_COLORS[cat as TransactionCategory] ||
                 CATEGORY_COLORS[TransactionCategory.Uncategorized];
               return (
-                <div key={cat} className="mb-1">
+                <div key={cat} className="mb-1" role="group" aria-label={cat}>
                   <div
                     className={cn(
                       'px-3 py-1.5 text-xs font-bold uppercase tracking-wider bg-surface-muted/80 sticky top-0 backdrop-blur-xs',
@@ -191,6 +215,8 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                   </div>
                   {(searchTerm === '' || cat.toLowerCase().includes(searchTerm.toLowerCase())) && (
                     <button
+                      role="option"
+                      aria-selected={currentCategory === cat && !currentSubCategory}
                       onClick={() => onSelect(cat as TransactionCategory, undefined)}
                       className={cn(
                         'w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-surface-muted transition-colors',
@@ -209,6 +235,8 @@ const CategoryDropdown: React.FC<CategoryDropdownProps> = ({
                     subs.map((sub: string) => (
                       <button
                         key={sub}
+                        role="option"
+                        aria-selected={currentCategory === cat && currentSubCategory === sub}
                         onClick={() => onSelect(cat as TransactionCategory, sub)}
                         className={cn(
                           'w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-surface-muted transition-colors pl-6',
@@ -251,28 +279,35 @@ const SortHeader = ({
   onSort: (k: string) => void;
   className?: string;
 }) => {
+  const isActive = currentSort.key === sKey;
   return (
     <th
-      className={cn(
-        'px-3 py-3 sm:px-6 font-medium cursor-pointer hover:bg-line/50 transition-colors group select-none',
-        className
-      )}
-      onClick={() => onSort(sKey)}
+      className={cn('px-3 py-3 sm:px-6 font-medium select-none', className)}
+      aria-sort={
+        isActive ? (currentSort.direction === 'asc' ? 'ascending' : 'descending') : undefined
+      }
     >
-      <div className="flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => onSort(sKey)}
+        className={cn(
+          'group flex w-full items-center gap-1.5 rounded-sm font-medium transition-colors hover:text-ink focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent',
+          className?.includes('text-center') && 'justify-center'
+        )}
+      >
         {label}
-        <span className="text-muted group-hover:text-ink-soft flex flex-col">
-          {currentSort.key === sKey ? (
+        <span className="text-muted group-hover:text-ink-soft flex flex-col" aria-hidden="true">
+          {isActive ? (
             currentSort.direction === 'asc' ? (
               <ArrowUp className="w-3.5 h-3.5" />
             ) : (
               <ArrowDown className="w-3.5 h-3.5" />
             )
           ) : (
-            <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-50 transition-opacity" />
+            <ArrowUpDown className="w-3.5 h-3.5 opacity-50" />
           )}
         </span>
-      </div>
+      </button>
     </th>
   );
 };
@@ -480,6 +515,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             <Input
               placeholder="Search transactions..."
+              aria-label="Search transactions"
               className="pl-9 bg-surface"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -487,6 +523,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-ink-soft"
               >
                 <X className="w-4 h-4" />
@@ -636,6 +673,8 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                           setActiveDropdown({ id: t.id, anchor: e.currentTarget });
                         }}
                         aria-label={`Change category for ${t.description}`}
+                        aria-haspopup="listbox"
+                        aria-expanded={activeDropdown?.id === t.id}
                         className={cn(
                           'flex flex-col items-start px-3 py-1.5 min-h-11 justify-center rounded-md border cursor-pointer hover:shadow-xs transition-all w-full max-w-[7rem] sm:max-w-[180px] group',
                           categoryColors.bg,
@@ -764,6 +803,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                 variant="outline"
                 size="sm"
                 className="h-7 w-7 p-0"
+                aria-label="Previous page"
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               >
@@ -776,6 +816,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                 variant="outline"
                 size="sm"
                 className="h-7 w-7 p-0"
+                aria-label="Next page"
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               >

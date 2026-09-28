@@ -224,7 +224,11 @@ export const SettingsPage: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         const result = importPatterns(content);
         if (result.success) {
           setPatternCount(getPatterns().length);
-          addToast(`Successfully imported ${result.count} patterns`, 'success');
+          addToast(
+            `Successfully imported ${result.count} patterns` +
+              (result.skipped > 0 ? ` (${result.skipped} invalid skipped)` : ''),
+            'success'
+          );
         } else {
           addToast(`Import failed: ${result.error}`, 'error');
         }

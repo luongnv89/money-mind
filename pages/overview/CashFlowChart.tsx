@@ -149,7 +149,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({ model, fmt, onSele
             <span className="h-3 w-px" style={{ backgroundColor: COLORS.net }} />
             Net cash flow
           </span>
-          <span className="text-muted/80">Select a bar to open that period.</span>
+          <span className="text-muted">Select a bar to open that period.</span>
         </div>
 
         {/* Same values for screen readers / non-visual review. */}

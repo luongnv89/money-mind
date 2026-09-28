@@ -37,9 +37,25 @@ export const DropzoneView: React.FC<DropzoneViewProps> = ({
   onFileSelected,
 }) => (
   <div className="w-full max-w-2xl mx-auto">
+    {/* Keep the file input OUTSIDE the clickable dropzone: a synthetic
+        input.click() bubbles, and an input nested inside the zone would
+        re-trigger the zone's own click handler. */}
+    <input
+      ref={inputRef}
+      type="file"
+      accept=".csv"
+      className="hidden"
+      aria-hidden="true"
+      tabIndex={-1}
+      onChange={(e) => e.target.files?.[0] && onFileSelected(e.target.files[0])}
+    />
     <div
+      role="button"
+      tabIndex={isProcessing ? -1 : 0}
+      aria-disabled={isProcessing}
+      aria-label="Upload a bank statement CSV file"
       className={cn(
-        'relative flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-xl transition-all duration-200 cursor-pointer bg-surface',
+        'relative flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-xl transition-all duration-200 cursor-pointer bg-surface focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent',
         dragActive
           ? 'border-accent bg-accent-light/30'
           : 'border-line-strong hover:border-accent hover:bg-surface-muted',
@@ -50,15 +66,14 @@ export const DropzoneView: React.FC<DropzoneViewProps> = ({
       onDragOver={onDrag}
       onDrop={onDrop}
       onClick={() => inputRef.current?.click()}
+      onKeyDown={(e) => {
+        if (isProcessing) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          inputRef.current?.click();
+        }
+      }}
     >
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".csv"
-        className="hidden"
-        onChange={(e) => e.target.files?.[0] && onFileSelected(e.target.files[0])}
-      />
-
       <div className="flex flex-col items-center space-y-3 text-center p-6">
         <div className="rounded-full border border-line bg-surface-muted p-4">
           {isProcessing ? (

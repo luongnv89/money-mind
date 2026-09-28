@@ -47,6 +47,9 @@
   --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
 
+  --shadow-card: 0 1px 2px rgba(15, 27, 45, 0.04), 0 8px 24px -12px rgba(15, 27, 45, 0.08);
+  --shadow-soft: 0 6px 20px -8px rgba(15, 27, 45, 0.12);
+
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --animate-rise: rise 260ms var(--ease-out) both;
 
@@ -64,6 +67,15 @@
 
 @utility num {
   font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Hides scrollbars on horizontal chip strips while keeping them scrollable. */
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @layer base {

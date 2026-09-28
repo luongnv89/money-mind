@@ -238,7 +238,7 @@ const Transactions: React.FC<TransactionsProps> = ({ onNavigate }) => {
         <p className="flex items-center gap-1.5 text-xs text-muted">
           <SettingsIcon className="h-3 w-3" aria-hidden="true" />
           <CategorizerLine onNavigate={onNavigate} />
-          <span className="text-muted/70">· actions apply to all data</span>
+          <span className="text-muted">· actions apply to all data</span>
         </p>
       </div>
 

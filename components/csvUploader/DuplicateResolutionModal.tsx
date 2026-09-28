@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge } from '../UI';
 import { formatCurrency } from '../../lib/utils';
+import { closeOnBackdrop, useDialog } from '../../lib/useDialog';
 import { Transaction } from '../../types';
 import type { DuplicateTransaction } from './dedupe';
 
@@ -60,53 +61,70 @@ export const DuplicateResolutionModal: React.FC<DuplicateResolutionModalProps> =
   onClose,
   onImport,
 }) => {
+  const titleId = useId();
+  const panelRef = useDialog<HTMLDivElement>(true, onClose);
+
   // Find potential matches in existing data to show why it's a duplicate
   const exactMatches = findExactMatches(transaction, allTransactions);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-      <Card className="w-full max-w-lg animate-rise bg-surface shadow-xl">
-        <CardHeader className="border-b border-line pb-4">
-          <div className="flex justify-between items-start">
-            <CardTitle className="flex items-center gap-2 font-display text-lg text-warning">
-              <AlertTriangle className="w-5 h-5" />
-              Duplicate Detected
-            </CardTitle>
-            <button onClick={onClose} aria-label="Close" className="text-muted hover:text-ink">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-6 space-y-6">
-          <div className="space-y-2">
-            <p className="text-sm text-ink-soft">
-              This transaction appears to be a duplicate of an existing record or another entry in
-              this file.
-            </p>
-            <NewTransactionPanel transaction={transaction} />
-          </div>
-
-          {exactMatches.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Existing Match ({exactMatches.length})
-              </p>
-              {exactMatches.slice(0, 1).map((match) => (
-                <ExistingMatch key={match.id} match={match} />
-              ))}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4"
+      onClick={closeOnBackdrop(onClose)}
+    >
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="w-full max-w-lg"
+      >
+        <Card className="w-full animate-rise bg-surface shadow-xl">
+          <CardHeader className="border-b border-line pb-4">
+            <div className="flex justify-between items-start">
+              <CardTitle className="flex items-center gap-2 font-display text-lg text-warning">
+                <span id={titleId} className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" />
+                  Duplicate Detected
+                </span>
+              </CardTitle>
+              <button onClick={onClose} aria-label="Close" className="text-muted hover:text-ink">
+                <X className="w-5 h-5" />
+              </button>
             </div>
-          )}
+          </CardHeader>
+          <CardContent className="pt-6 space-y-6">
+            <div className="space-y-2">
+              <p className="text-sm text-ink-soft">
+                This transaction appears to be a duplicate of an existing record or another entry in
+                this file.
+              </p>
+              <NewTransactionPanel transaction={transaction} />
+            </div>
 
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" onClick={onClose}>
-              Discard
-            </Button>
-            <Button onClick={onImport} className="bg-warning text-white hover:bg-warning/90">
-              Import Anyway
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            {exactMatches.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  Existing Match ({exactMatches.length})
+                </p>
+                {exactMatches.slice(0, 1).map((match) => (
+                  <ExistingMatch key={match.id} match={match} />
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={onClose}>
+                Discard
+              </Button>
+              <Button onClick={onImport} className="bg-warning text-white hover:bg-warning/90">
+                Import Anyway
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

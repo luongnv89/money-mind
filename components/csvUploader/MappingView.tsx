@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Button, Card, CardContent, CardHeader, CardTitle } from '../UI';
 import { cn, formatCurrency } from '../../lib/utils';
@@ -18,39 +18,43 @@ const ColumnSelect: React.FC<ColumnSelectProps> = ({
   headers,
   optional,
   onChange,
-}) => (
-  <div className="space-y-2">
-    <label className="text-sm font-medium flex items-center gap-1">
-      {label} {optional && <span className="text-muted font-normal">(Optional)</span>}
-    </label>
-    <select
-      className={cn(
-        'w-full rounded-md border border-line bg-surface p-2 text-sm text-ink',
-        optional && 'bg-surface-muted'
-      )}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {optional && <option value="">-- None --</option>}
-      {headers.map((h) => (
-        <option key={h} value={h}>
-          {h}
-        </option>
-      ))}
-    </select>
-  </div>
-);
+}) => {
+  const selectId = useId();
+  return (
+    <div className="space-y-2">
+      <label htmlFor={selectId} className="text-sm font-medium flex items-center gap-1">
+        {label} {optional && <span className="text-muted font-normal">(Optional)</span>}
+      </label>
+      <select
+        id={selectId}
+        className={cn(
+          'w-full rounded-md border border-line bg-surface p-2 text-sm text-ink',
+          optional && 'bg-surface-muted'
+        )}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {optional && <option value="">-- None --</option>}
+        {headers.map((h) => (
+          <option key={h} value={h}>
+            {h}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+};
 
 const PreviewRow: React.FC<{ row: Transaction }> = ({ row }) => (
   <tr className="hover:bg-surface-muted/60">
     <td className="px-4 py-2 text-muted whitespace-nowrap text-xs">
-      {row.date ? row.date : <span className="text-negative/60 italic">Empty</span>}
+      {row.date ? row.date : <span className="text-negative italic">Empty</span>}
     </td>
     <td className="px-4 py-2 text-ink truncate max-w-[200px] text-xs">
-      {row.description ? row.description : <span className="text-negative/60 italic">Empty</span>}
+      {row.description ? row.description : <span className="text-negative italic">Empty</span>}
     </td>
     <td className="px-4 py-2 text-muted truncate max-w-[120px] text-xs">
-      {row.originalCategory || <span className="text-muted/60 italic">N/A</span>}
+      {row.originalCategory || <span className="text-muted italic">N/A</span>}
     </td>
     <td
       className={cn(

@@ -77,6 +77,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
       <Button
         variant="outline"
         size="sm"
+        aria-label="Previous page"
         disabled={currentPage === 1}
         onClick={() => onPageChange(Math.max(1, currentPage - 1))}
         className="h-7 w-7 p-0"
@@ -89,6 +90,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
       <Button
         variant="outline"
         size="sm"
+        aria-label="Next page"
         disabled={currentPage === totalPages || totalPages === 0}
         onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
         className="h-7 w-7 p-0"

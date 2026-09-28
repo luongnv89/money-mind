@@ -191,7 +191,44 @@ describe('importPatterns', () => {
 
     expect(result.success).toBe(true);
     expect(result.count).toBe(1);
+    expect(result.skipped).toBe(1);
     expect(getPatterns()[0].confidence).toBe(1.0);
+  });
+
+  it('rejects unrecognized categories instead of learning them (issue #85)', () => {
+    const payload = JSON.stringify([
+      { keyword: 'NETFLIX', category: TransactionCategory.NiceToHave },
+      { keyword: 'BOGUS', category: 'Arts & Crafts' },
+      { keyword: 'NOPE', category: 42 },
+      { keyword: 'MISSING' },
+      null,
+      'not an object',
+    ]);
+
+    const result = importPatterns(payload);
+
+    expect(result.success).toBe(true);
+    expect(result.count).toBe(1);
+    expect(result.skipped).toBe(5);
+    const patterns = getPatterns();
+    expect(patterns).toHaveLength(1);
+    expect(patterns[0].keyword).toBe('NETFLIX');
+  });
+
+  it('drops a subCategory that is not in the category hierarchy', () => {
+    const payload = JSON.stringify([
+      { keyword: 'PAYROLL', category: TransactionCategory.Income, subCategory: 'Salary' },
+      { keyword: 'MYSTERY', category: TransactionCategory.Waste, subCategory: 'Not A Sub' },
+    ]);
+
+    const result = importPatterns(payload);
+
+    expect(result.success).toBe(true);
+    expect(result.count).toBe(2);
+    expect(result.skipped).toBe(0);
+    const patterns = getPatterns();
+    expect(patterns.find((p) => p.keyword === 'PAYROLL')?.subCategory).toBe('Salary');
+    expect(patterns.find((p) => p.keyword === 'MYSTERY')?.subCategory).toBeUndefined();
   });
 });
 

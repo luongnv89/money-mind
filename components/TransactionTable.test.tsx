@@ -167,6 +167,38 @@ describe('TransactionTable (issues #40 and #41)', () => {
     });
   });
 
+  describe('sortable headers are keyboard-operable (issue #85)', () => {
+    const headerCell = (label: string) =>
+      Array.from(container.querySelectorAll('th')).find((th) =>
+        th.textContent?.includes(label)
+      ) as HTMLElement;
+
+    it('renders a button inside each sortable th and exposes aria-sort', () => {
+      render([tx()]);
+
+      // Default sort: date descending.
+      const dateTh = headerCell('Date');
+      expect(dateTh.getAttribute('aria-sort')).toBe('descending');
+      const descTh = headerCell('Description');
+      expect(descTh.getAttribute('aria-sort')).toBeNull();
+
+      // Sorting runs from a real button, not a click handler on the th.
+      const sortButton = descTh.querySelector('button') as HTMLButtonElement;
+      expect(sortButton).not.toBeNull();
+      React.act(() => {
+        sortButton.click();
+      });
+      expect(descTh.getAttribute('aria-sort')).toBe('ascending');
+      expect(dateTh.getAttribute('aria-sort')).toBeNull();
+
+      // Second click on the same column flips the direction.
+      React.act(() => {
+        sortButton.click();
+      });
+      expect(descTh.getAttribute('aria-sort')).toBe('descending');
+    });
+  });
+
   describe('category dropdown follows the anchor (F-UX-009)', () => {
     const rect = (top: number, bottom: number): DOMRect =>
       ({

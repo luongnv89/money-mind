@@ -13,12 +13,17 @@ export const ToastContainer = () => {
   const { toasts, removeToast } = useToastStore();
 
   return (
-    <div className="pointer-events-none fixed inset-x-3 top-20 z-[100] flex flex-col gap-2 sm:inset-x-auto sm:right-4 sm:w-[380px]">
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed inset-x-3 top-28 z-[100] flex flex-col gap-2 sm:inset-x-auto sm:right-4 sm:w-[380px]"
+    >
       {toasts.map((toast) => {
         const { Icon, icon, border } = TOAST_STYLE[toast.type];
         return (
           <div
             key={toast.id}
+            role={toast.type === 'error' ? 'alert' : undefined}
             className={`pointer-events-auto flex items-start gap-3 rounded-xl border border-line ${border} border-l-[3px] bg-surface px-4 py-3 text-ink shadow-[0_1px_2px_rgba(15,27,45,.04),0_8px_24px_-12px_rgba(15,27,45,.16)] animate-rise`}
           >
             <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${icon}`} />

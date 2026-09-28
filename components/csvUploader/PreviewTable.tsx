@@ -67,17 +67,29 @@ const PreviewRow: React.FC<PreviewRowProps> = ({
           onClick={() => onRemove(t.id)}
           className="rounded-md p-1.5 text-muted transition-colors hover:bg-negative/10 hover:text-negative"
           title="Remove transaction"
+          aria-label={`Remove ${t.description}`}
         >
           <Trash2 className="w-4 h-4" />
         </button>
       ) : (
-        <button
-          onClick={() => onRestore(t as DuplicateTransaction)}
-          className="rounded-md p-1.5 text-muted transition-colors hover:bg-positive/10 hover:text-positive"
-          title="Add anyway (as duplicate)"
-        >
-          <PlusCircle className="w-4 h-4" />
-        </button>
+        <div className="flex items-center justify-center gap-1">
+          <button
+            onClick={() => onSelectDuplicate(t as DuplicateTransaction)}
+            className="rounded-md p-1.5 text-muted transition-colors hover:bg-info/10 hover:text-info"
+            title="Review duplicate"
+            aria-label={`Review duplicate: ${t.description}`}
+          >
+            <Info className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onRestore(t as DuplicateTransaction)}
+            className="rounded-md p-1.5 text-muted transition-colors hover:bg-positive/10 hover:text-positive"
+            title="Add anyway (as duplicate)"
+            aria-label={`Add anyway: ${t.description}`}
+          >
+            <PlusCircle className="w-4 h-4" />
+          </button>
+        </div>
       )}
     </td>
   </tr>
