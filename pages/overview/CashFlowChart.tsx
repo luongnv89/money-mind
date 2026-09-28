@@ -73,7 +73,10 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({ model, fmt, onSele
     selected: p.selected,
   }));
 
-  const select = (d: ChartDatum) => onSelectPeriod(d.period);
+  const select = (entry: { payload?: unknown }) => {
+    const datum = entry.payload as ChartDatum | undefined;
+    if (datum?.period) onSelectPeriod(datum.period);
+  };
 
   return (
     <Card>
@@ -103,7 +106,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({ model, fmt, onSele
                 fill={COLORS.income}
                 radius={[3, 3, 0, 0]}
                 maxBarSize={18}
-                onClick={(d) => select(d as unknown as ChartDatum)}
+                onClick={select}
                 cursor="pointer"
               >
                 {data.map((d) => (
@@ -115,7 +118,7 @@ export const CashFlowChart: React.FC<CashFlowChartProps> = ({ model, fmt, onSele
                 fill={COLORS.spending}
                 radius={[3, 3, 0, 0]}
                 maxBarSize={18}
-                onClick={(d) => select(d as unknown as ChartDatum)}
+                onClick={select}
                 cursor="pointer"
               >
                 {data.map((d) => (

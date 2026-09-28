@@ -36,6 +36,7 @@ describe('Transactions', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     React.act(() => root?.unmount());
     container?.remove();
     useTransactionStore.getState().clearAll();
@@ -68,6 +69,29 @@ describe('Transactions', () => {
     expect(chips).toContain('Needs review');
     expect(chips).toContain('Uncategorized');
     expect(container.textContent).toContain('1 uncategorized');
+  });
+
+  it('allows categorizing demo transactions without redirecting to Settings', async () => {
+    vi.useFakeTimers();
+    useSettingsStore.getState().setDemoMode(true);
+    useTransactionStore.setState({
+      transactions: [
+        makeTx('2026-04-10', 'MYSTERY', -30, TransactionCategory.Uncategorized, undefined, {
+          isApproved: false,
+          confidence: 0,
+        }),
+      ],
+    });
+    render();
+
+    const categorize = Array.from(container.querySelectorAll('button')).find((b) =>
+      b.textContent?.match(/Categorize \d+ pending/)
+    ) as HTMLButtonElement;
+    React.act(() => categorize.click());
+    expect(onNavigate).not.toHaveBeenCalledWith('settings');
+    await React.act(async () => vi.advanceTimersByTimeAsync(800));
+    expect(useTransactionStore.getState().isCategorizing).toBe(false);
+    vi.useRealTimers();
   });
 
   it('routes the categorize action to Settings when nothing is configured', () => {

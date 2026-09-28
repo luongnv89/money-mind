@@ -68,6 +68,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
                       key={view}
                       onClick={() => onViewChange(view)}
                       aria-current={active ? 'page' : undefined}
+                      aria-label={label}
                       className={cn(
                         'px-3 py-1.5 text-sm font-medium transition-colors flex items-center gap-2 border-b-2 -mb-px',
                         active

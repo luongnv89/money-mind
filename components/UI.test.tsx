@@ -55,6 +55,20 @@ describe('UI primitives (Phase A2)', () => {
       expect(document.activeElement).toBe(month);
     });
 
+    it('keeps options in a scrollable strip without changing roving tabindex', async () => {
+      const c = await render(
+        <SegmentedControl options={OPTIONS} value="week" onChange={() => {}} ariaLabel="Range" />
+      );
+      const group = c.querySelector('[role="radiogroup"]') as HTMLElement;
+      expect(group.className).toContain('max-w-full');
+      expect(group.className).toContain('overflow-x-auto');
+      expect(
+        Array.from(c.querySelectorAll('[role="radio"]')).every((radio) =>
+          radio.className.includes('shrink-0')
+        )
+      ).toBe(true);
+    });
+
     it('wraps ArrowLeft from the first option to the last', async () => {
       const onChange = vi.fn();
       const c = await render(
@@ -77,6 +91,8 @@ describe('UI primitives (Phase A2)', () => {
       );
       const trigger = c.querySelector('button[aria-label="About Spending"]') as HTMLButtonElement;
       expect(trigger).not.toBeNull();
+      expect(trigger.className).toContain('h-6');
+      expect(trigger.className).toContain('w-6');
       expect(trigger.getAttribute('aria-expanded')).toBe('false');
       expect(c.querySelector('[role="dialog"]')).toBeNull();
 

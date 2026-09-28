@@ -323,6 +323,22 @@ describe('selectAIReady — custom endpoint gating (issue #82)', () => {
   });
 });
 
+describe('demo categorization readiness', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useSettingsStore.getState().resetSettings();
+  });
+
+  it('allows demo categorization without a key but does not configure the Assistant', () => {
+    expect(selectCategorizationReady(useSettingsStore.getState())).toBe(false);
+    useSettingsStore.getState().setDemoMode(true);
+    expect(selectCategorizationReady(useSettingsStore.getState())).toBe(true);
+    expect(selectAIReady(useSettingsStore.getState())).toBe(false);
+    useSettingsStore.getState().setDemoMode(false);
+    expect(selectCategorizationReady(useSettingsStore.getState())).toBe(false);
+  });
+});
+
 describe('TypeSafe config', () => {
   beforeEach(() => {
     window.localStorage.clear();

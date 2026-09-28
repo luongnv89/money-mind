@@ -58,6 +58,9 @@ describe('TransactionTable (issues #40 and #41)', () => {
       expect(verifyButton().className).toContain('min-h-11');
       expect(deleteButton().className).toContain('min-h-11');
       expect(deleteButton().className).toContain('min-w-11');
+      expect(deleteButton().className).toContain('opacity-100');
+      expect(deleteButton().className).toContain('sm:opacity-0');
+      expect(deleteButton().className).toContain('[@media(hover:none)]:opacity-100');
     });
 
     it('explains what Verify and the confidence bar mean', () => {

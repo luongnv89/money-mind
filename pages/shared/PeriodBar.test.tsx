@@ -64,6 +64,15 @@ describe('PeriodBar', () => {
     expect(nextButton().disabled).toBe(false);
   });
 
+  it('keeps all five granularity options in a constrained scrollable strip', () => {
+    render();
+
+    const group = container.querySelector('[role="radiogroup"]') as HTMLElement;
+    expect(group.className).toContain('max-w-full');
+    expect(group.className).toContain('overflow-x-auto');
+    expect(group.querySelectorAll('[role="radio"]')).toHaveLength(5);
+  });
+
   it('lists available periods in the select and switches on change', () => {
     render();
     const select = container.querySelector('select') as HTMLSelectElement;

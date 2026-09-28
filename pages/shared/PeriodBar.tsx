@@ -71,7 +71,7 @@ export const PeriodBar: React.FC<PeriodBarProps> = ({ eyebrow, view }) => {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3">
         <SegmentedControl
           ariaLabel="Time period"
           options={GRANULARITY_OPTIONS}

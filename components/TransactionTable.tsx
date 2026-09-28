@@ -723,7 +723,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                             e.stopPropagation();
                             setTransactionToDelete(t.id);
                           }}
-                          className="p-1.5 min-h-11 min-w-11 inline-flex items-center justify-center text-muted hover:text-negative hover:bg-negative/10 rounded-md transition-all opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100"
+                          className="p-1.5 min-h-11 min-w-11 inline-flex items-center justify-center text-muted hover:text-negative hover:bg-negative/10 rounded-md transition-all opacity-100 sm:opacity-0 [@media(hover:none)]:opacity-100 group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100"
                           title="Delete Transaction"
                           aria-label={`Delete transaction ${t.description}`}
                         >

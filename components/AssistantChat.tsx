@@ -56,6 +56,9 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ onNavigate }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const hasOpened = useRef(false);
 
   // The period the Overview/Transactions pages are showing; falls back to the
   // latest month of data so an "All time" or empty selection still has context.
@@ -76,6 +79,15 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ onNavigate }) => {
           ? customModel
           : ollamaModel;
   const configured = isAIReady;
+
+  useEffect(() => {
+    if (isOpen) {
+      hasOpened.current = true;
+      closeRef.current?.focus();
+    } else if (hasOpened.current) {
+      launcherRef.current?.focus();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -120,6 +132,7 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ onNavigate }) => {
 
       {!isOpen && (
         <button
+          ref={launcherRef}
           type="button"
           aria-label="Open MoneyMind Assistant"
           onClick={() => setIsOpen(true)}
@@ -133,6 +146,9 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ onNavigate }) => {
         <div
           role="dialog"
           aria-label="MoneyMind Assistant"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setIsOpen(false);
+          }}
           className={cn(
             'fixed z-40 flex flex-col overflow-hidden border border-line bg-surface shadow-xl',
             // Mobile (<640px): bottom-anchored sheet capped below the sticky header.
@@ -155,6 +171,7 @@ export const AssistantChat: React.FC<AssistantChatProps> = ({ onNavigate }) => {
                 )}
               </div>
               <button
+                ref={closeRef}
                 type="button"
                 aria-label="Close assistant"
                 onClick={() => setIsOpen(false)}

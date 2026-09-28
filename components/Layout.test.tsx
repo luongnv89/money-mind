@@ -91,6 +91,17 @@ describe('Layout chrome (issue #41, F-UX-008/011/012/013)', () => {
     expect(onViewChange).toHaveBeenCalledWith('settings');
   });
 
+  it('keeps primary navigation buttons named when labels are hidden on mobile', () => {
+    render();
+
+    const navButtons = Array.from(container.querySelectorAll('nav[aria-label="Primary"] button'));
+    expect(navButtons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Overview',
+      'Transactions',
+      'Import',
+    ]);
+  });
+
   it('injects the version string from package.json at build time', () => {
     render();
 

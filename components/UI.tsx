@@ -252,7 +252,7 @@ export function SegmentedControl<T extends string>({
       role="radiogroup"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex items-center gap-0.5 rounded-lg border border-line bg-surface-muted p-1',
+        'inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg border border-line bg-surface-muted p-1',
         className
       )}
     >
@@ -267,7 +267,7 @@ export function SegmentedControl<T extends string>({
           onClick={() => onChange(option.value)}
           onKeyDown={(e) => handleKeyDown(e, index)}
           className={cn(
-            'rounded-md px-3 py-1.5 text-sm font-medium transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent',
+            'shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-[background-color,color,box-shadow] duration-150 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent',
             value === option.value
               ? 'bg-surface text-ink shadow-xs'
               : 'text-ink-soft hover:text-ink'
@@ -355,7 +355,7 @@ export const InfoTip: React.FC<InfoTipProps> = ({
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted transition-colors hover:text-ink focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
+        className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted transition-colors hover:text-ink focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-accent"
       >
         <Info className="h-3.5 w-3.5" />
       </button>

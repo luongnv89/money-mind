@@ -71,6 +71,35 @@ describe('AssistantChat', () => {
     expect(onNavigate).toHaveBeenCalledWith('settings');
   });
 
+  it('moves focus into the dialog and restores it on Escape or close', () => {
+    render();
+    const launcher = container.querySelector(
+      'button[aria-label="Open MoneyMind Assistant"]'
+    ) as HTMLButtonElement;
+    expect(document.activeElement).not.toBe(launcher);
+    React.act(() => launcher.click());
+    const dialog = container.querySelector('[role="dialog"]') as HTMLDivElement;
+    expect(document.activeElement).toBe(
+      container.querySelector('button[aria-label="Close assistant"]')
+    );
+
+    React.act(() =>
+      dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    );
+    expect(document.activeElement).toBe(
+      container.querySelector('button[aria-label="Open MoneyMind Assistant"]')
+    );
+
+    openPanel();
+    const close = container.querySelector(
+      'button[aria-label="Close assistant"]'
+    ) as HTMLButtonElement;
+    React.act(() => close.click());
+    expect(document.activeElement).toBe(
+      container.querySelector('button[aria-label="Open MoneyMind Assistant"]')
+    );
+  });
+
   it('sends the engine-built context for the selected period', async () => {
     useSettingsStore.setState({ geminiConfig: { apiKey: btoa('k'), model: 'm' } });
     render();

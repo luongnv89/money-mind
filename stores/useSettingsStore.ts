@@ -240,7 +240,7 @@ export const getTypesafeApiKey = (state: Pick<AppSettings, 'typesafeConfig'>): s
   deobfuscate(state.typesafeConfig.apiKey);
 
 export const selectCategorizationReady = (state: SettingsState): boolean =>
-  !!getTypesafeApiKey(state) || selectAIReady(state);
+  state.isDemoMode || !!getTypesafeApiKey(state) || selectAIReady(state);
 
 /** React binding for `selectCategorizationReady`. */
 export const useCategorizationReady = (): boolean => useSettingsStore(selectCategorizationReady);
